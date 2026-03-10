@@ -1,0 +1,167 @@
+FROM kasmweb/ubuntu-noble-dind-rootless:1.18.0-rolling-daily
+
+# ==========================================
+# 阶段 1：基础系统库与核心运行时 (Root权限)
+# 本阶段处理网络源提速及底层依赖环境，构建完成后释放极高空间缓存
+# ==========================================
+USER root
+
+# 1.1 预设系统级环境及部分基础构建版号
+ENV DEBIAN_FRONTEND=noninteractive \
+    GO_VERSION="go1.22.4" \
+    HOME=/root \
+    RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    RUSTUP_DIST_SERVER=https://mirrors.ustc.edu.cn/rust-static \
+    RUSTUP_UPDATE_ROOT=https://mirrors.ustc.edu.cn/rust-static/rustup
+
+# 1.2 串联超大幅指令合并执行：更换中科大源 -> 安装基础依赖包 -> 预设环境 -> 植入C库/各类多语言链
+RUN mkdir -p /etc/apt/keyrings \
+    # [APT修复] 替换官方过期的 GPG Key 清除警告
+    && if [ -f /etc/apt/trusted.gpg ]; then \
+        gpg --no-default-keyring --keyring /etc/apt/trusted.gpg --export > /etc/apt/keyrings/docker.gpg \
+        && rm -f /etc/apt/trusted.gpg; \
+    fi \
+    # [APT提速] 全局使用科大源替换官方源
+    && sed -i 's@//archive.ubuntu.com@//mirrors.ustc.edu.cn@g' /etc/apt/sources.list.d/ubuntu.sources \
+    && sed -i 's@//security.ubuntu.com@//mirrors.ustc.edu.cn@g' /etc/apt/sources.list.d/ubuntu.sources \
+    && sed -i 's@//ports.ubuntu.com@//mirrors.ustc.edu.cn@g' /etc/apt/sources.list.d/ubuntu.sources || true \
+    && if [ -f /etc/apt/sources.list.d/docker.list ]; then \
+        sed -i 's@https://download.docker.com@https://mirrors.ustc.edu.cn/docker-ce@g' /etc/apt/sources.list.d/docker.list \
+        && sed -i 's@deb \[arch@deb \[signed-by=/etc/apt/keyrings/docker.gpg arch@g' /etc/apt/sources.list.d/docker.list; \
+    fi \
+    && rm -f /etc/apt/sources.list.d/sublime-text.list \
+    # [安装] 拉取基础组件及 C 构建类库（包括给 Homebrew 和后续 Python 提供底层支撑）
+    && apt-get update && apt-get install -y --no-install-recommends \
+        apt-utils build-essential git curl wget jq unzip \
+        python3 python3-pip python3-venv python3-dev xz-utils libssl-dev libffi-dev \
+    # [瘦身] 清空 APT 安装期产生的海量列表缓存
+    && apt-get clean && rm -rf /var/lib/apt/lists/* \
+    # [配置] Python 及用户基础 Sudo 提权
+    && pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple \
+    && echo "kasm-user ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/kasm-user && chmod 0440 /etc/sudoers.d/kasm-user \
+    # [工具链] Node.js (淘宝源解压直装)
+    && LATEST_NODE=$(curl -sL https://npmmirror.com/mirrors/node/index.json | python3 -c "import sys, json; print(json.load(sys.stdin)[0]['version'])") \
+    && curl -fsSL "https://npmmirror.com/mirrors/node/$LATEST_NODE/node-$LATEST_NODE-linux-x64.tar.xz" | tar -xJ -C /usr/local --strip-components=1 \
+    # [工具链] Golang (阿里云源解压直装)
+    && curl -fsSL "https://mirrors.aliyun.com/golang/${GO_VERSION}.linux-amd64.tar.gz" | tar -xz -C /usr/local \
+    # [工具链] Rust (调用中科大壳装脚本，并附加 minimal 极简压缩以防膨胀)
+    && curl -fsSL https://mirrors.ustc.edu.cn/misc/rustup-install.sh | bash -s -- -y --default-toolchain stable --profile minimal --no-modify-path \
+    && rm -rf /usr/local/rustup/toolchains/*/share/doc \
+    # [工具链] UV (Agent 场景必入包管理器, 并做清空收尾)
+    && pip3 install --no-cache-dir uv --break-system-packages \
+    && rm -rf /tmp/* /var/tmp/* /root/.cache/* \
+    # [垫路] 为下面 User 环境预创造官方要求的 Linuxbrew 根路径，破除密码限制
+    && mkdir -p /home/linuxbrew && chown kasm-user:kasm-user /home/linuxbrew
+
+
+# ==========================================
+# 阶段 2：用户态容器变量预先绑定 (kasm-user)
+# ==========================================
+USER 1000
+
+# 2.1 绑定各类核心语言目录及映射主用户域
+# 下方指定的 NPM/GO/RUST/PIP 会默认吃 Docker 挂载进来的 ./home 从而享受本地持久化红利
+ENV HOME=/home/kasm-user \
+    NPM_CONFIG_PREFIX=/home/kasm-user/.npm-global \
+    GOROOT=/usr/local/go \
+    GOPATH=/home/kasm-user/go \
+    GOPROXY=https://goproxy.cn,direct \
+    CARGO_HOME=/home/kasm-user/.cargo \
+    PIP_CACHE_DIR=/home/kasm-user/.cache/pip \
+    UV_CACHE_DIR=/home/kasm-user/.cache/uv \
+    UV_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
+    # Homebrew 纯系中科大源环境变量全配 (附加网络错误三连重试策略容灾)
+    HOMEBREW_BREW_GIT_REMOTE="https://mirrors.ustc.edu.cn/brew.git" \
+    HOMEBREW_CORE_GIT_REMOTE="https://mirrors.ustc.edu.cn/homebrew-core.git" \
+    HOMEBREW_BOTTLE_DOMAIN="https://mirrors.ustc.edu.cn/homebrew-bottles" \
+    HOMEBREW_API_DOMAIN="https://mirrors.ustc.edu.cn/homebrew-bottles/api" \
+    HOMEBREW_CURL_RETRIES=3 \
+    NONINTERACTIVE=1 \
+    HOMEBREW_NO_AUTO_UPDATE=1
+
+# 2.2 拼合当前所有应用链至容器的 $PATH
+ENV PATH=$GOPATH/bin:$CARGO_HOME/bin:$GOROOT/bin:/usr/local/cargo/bin:$NPM_CONFIG_PREFIX/bin:$PATH
+
+
+# ==========================================
+# 阶段 3：工具栈正式初始化 (官方脚本 + 软链接持久化)
+# ==========================================
+# 执行顺序逻辑:
+#   1. 用官方脚本直连中科大源装至规范标准位（享受极速免编译拉包）
+#   2. 连根拔起迁往持久化卷的 "$HOME/.linuxbrew" 从而固化一切产物
+#   3. 布置软连接指回，实现双向通吃
+#   4. 各语言生态（Npm/Pip/Cargo 等）换绑私有加速配置
+RUN /bin/bash -c "$(curl -fsSL https://mirrors.ustc.edu.cn/misc/brew-install.sh)" \
+    && mv /home/linuxbrew/.linuxbrew $HOME/.linuxbrew \
+    && ln -s $HOME/.linuxbrew /home/linuxbrew/.linuxbrew \
+    && echo 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"' >> $HOME/.bashrc \
+    && eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)" \
+    && mkdir -p $HOME/.config/docker $HOME/docker-data $HOME/.config/pip $CARGO_HOME \
+    && npm config set registry https://registry.npmmirror.com \
+    && npm install -g pnpm pm2 typescript && npm cache clean --force \
+    && pnpm config set registry https://registry.npmmirror.com \
+    && echo "[global]\nindex-url = https://pypi.tuna.tsinghua.edu.cn/simple" > $HOME/.config/pip/pip.conf \
+    && echo '[source.crates-io]\nreplace-with = "ustc"\n\n[source.ustc]\nregistry = "sparse+https://mirrors.ustc.edu.cn/crates.io-index/"' > $CARGO_HOME/config.toml \
+    && echo '{\n  "storage-driver": "fuse-overlayfs",\n  "data-root": "/home/kasm-user/docker-data",\n  "registry-mirrors": [\n    "https://docker.1panel.live",\n    "https://docker.1ms.run",\n    "https://dockerproxy.net",\n    "https://docker.m.daocloud.io"\n  ]\n}' > $HOME/.config/docker/daemon.json \
+    && rm -rf $HOME/.cache/Homebrew
+
+
+# ==========================================
+# 阶段 4：打包防丢挂载模板 & 后台守护者系统
+# ==========================================
+USER root
+
+# [模板集] 收罗已完成改造配置的用户目录打包至光面层。防止将来用户初挂载宿主空文件夹直接顶掉所有环境。
+RUN cp -a /home/kasm-user /opt/kasm-user-template \
+    && chown -R 1000:1000 /opt/kasm-user-template
+
+# [启动器 1: 恢复锚点] pre_startup.sh
+# 容器主点入口。执行启动前先看用户主目录是否为首次空盘，如果是，先倾泻模板数据铺底。
+RUN echo '#!/bin/bash\n\
+if [ -z "$(ls -A /home/kasm-user 2>/dev/null)" ]; then\n\
+    echo "[pre_startup] /home/kasm-user/ is empty, recovering from template..."\n\
+    sudo cp -a /opt/kasm-user-template/. /home/kasm-user/\n\
+    sudo chown -R 1000:1000 /home/kasm-user\n\
+    echo "[pre_startup] Recovery complete."\n\
+fi\n\
+exec /dockerstartup/vnc_startup.sh "$@"\n\
+' > /dockerstartup/pre_startup.sh \
+    && chmod +x /dockerstartup/pre_startup.sh
+
+# [启动器 2: 常驻服务] custom_startup.sh
+# 挂靠 VNC 就绪后的服务启动器方案。轮询监听且保证其内置的 Docker 后台不断线运行
+RUN echo '#!/bin/bash\n\
+set -e\n\
+START_COMMAND="dockerd-rootless.sh"\n\
+PGREP="dockerd"\n\
+USER_STARTUP="/home/kasm-user/.startup.sh"\n\
+\n\
+if [ -z "$DISABLE_CUSTOM_STARTUP" ]; then\n\
+    echo "[custom_startup] Entering dockerd-rootless startup loop"\n\
+    while true; do\n\
+        if ! pgrep -x $PGREP > /dev/null; then\n\
+            /usr/bin/filter_ready 2>/dev/null || true\n\
+            /usr/bin/desktop_ready 2>/dev/null || true\n\
+            $START_COMMAND || true\n\
+        fi\n\
+        sleep 1\n\
+    done &\n\
+\n\
+    if [ -f "$USER_STARTUP" ] && [ -x "$USER_STARTUP" ]; then\n\
+        echo "[custom_startup] Running user startup script: $USER_STARTUP"\n\
+        bash "$USER_STARTUP" || echo "[custom_startup] User startup script exited with code $?"\n\
+    fi\n\
+fi\n\
+\n\
+wait\n\
+' > /dockerstartup/custom_startup.sh \
+    && chmod +x /dockerstartup/custom_startup.sh
+
+
+# ==========================================
+# 阶段 5：封盘收尾
+# ==========================================
+USER 1000
+WORKDIR /home/kasm-user
+ENTRYPOINT ["/dockerstartup/pre_startup.sh"]

@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  my-agent-workspace:
+    image: agent-workspace:v1.0.0
+    build: 
+      context: .
+      dockerfile: ./Dockerfile
+    container_name: my-agent-workspace
+    ports:
+      - "6901:6901"
+      - "19789:18789"
+    privileged: true
+    environment:
+      # - VNC_PW=xx2016  # 需要密码时设置这个
+      - VNCOPTIONS=-disableBasicAuth   # 使用 oauth-proxy，无需 VNC 内部独立密码
+      - NODE_OPTIONS=--max-old-space-size=2048
+      - CHROME_FLAGS=--js-flags='--max-old-space-size=512' --memory-model=low
+    volumes:
+      # 直接映射当前目录下的 home 文件夹作为容器用户的持久化家目录
+      - ./home:/home/kasm-user
+    restart: unless-stopped
+    shm_size: "2gb"
+    
+    # 【优化项】资源限制，确保底座服务运行平稳且防止意外内存溢出导致宿主机奔溃
+    deploy:
+      resources:
+        limits:
+          memory: 16G
+          cpus: '12'
+        reservations:
+          memory: 4G
