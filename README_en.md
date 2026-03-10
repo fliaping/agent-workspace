@@ -23,16 +23,31 @@ Built upon Kasmweb Ubuntu Noble, this workspace embeds fully isolated Docker-in-
 
 ## 🚀 Quick Start
 
-### 1. Launch Services
+### 1. Launch Services (Quickstart via Pre-built Images)
+
+We offer out-of-the-box pre-built images hosted on Docker Hub. You can start the workspace instantly using either a pure Docker command or Docker Compose:
+
+#### Method A: Spin up via Docker CLI (Fastest)
+No need to clone the repository. Run the following one-liner to pull and start your agent workspace in the background:
+
 ```bash
-# Build the International version (using Dockerfile_en, tagged with -en)
-docker build -t fliaping/agent-workspace:v1.0.0-en -f Dockerfile_en .
+# ⚡️ Start the International pure version (Official direct connections)
+docker run -d --name agent-workspace -p 6901:6901 -p 19789:18789 --privileged \
+  -v $(pwd)/home:/home/kasm-user xuping/agent-workspace:v1.0.0-en
 
-# Or build the Chinese mirror-accelerated version (using Dockerfile_zh, tagged with -zh)
-docker build -t fliaping/agent-workspace:v1.0.0-zh -f Dockerfile_zh .
+# Or start the Chinese mirror-accelerated version
+# docker run -d --name agent-workspace -p 6901:6901 -p 19789:18789 --privileged \
+#   -v $(pwd)/home:/home/kasm-user xuping/agent-workspace:v1.0.0-zh
+```
 
-# Spin up the Background Workspace 
-# (Make sure to update docker-compose.yml to the image version you just built)
+#### Method B: Spin up via Docker Compose (Best for integration)
+If you have cloned the repository, you can utilize the `docker-compose.yml` manifest.
+Edit the `image` field in `docker-compose.yml` to reflect your desired environment version:
+- International: `image: xuping/agent-workspace:v1.0.0-en`
+- Chinese mirrors: `image: xuping/agent-workspace:v1.0.0-zh`
+
+Then, launch the background daemon:
+```bash
 docker compose up -d
 ```
 

@@ -55,15 +55,31 @@
 ```
 *提示：修改后同样需要执行 `sudo systemctl restart docker` 重启生效。加速源极具时效性，如果失效可随时在站内寻找最新的补充。*
 
-### 2. 启动服务
+### 2. 快速启动服务 (基于预构建镜像)
+
+本项目已经为您提供了开箱即用的官方预构建镜像。这里提供两种启动方式（纯 Docker 命令或 Docker Compose）：
+
+#### 方式 A：使用 Docker 单行命令启动（最快捷）
+无需 clone 仓库，只需一行命令即可在后台拉起您的智能体工作台：
+
 ```bash
-# 构建中文版镜像 (使用 Dockerfile_zh，带国内加速源，打上 -zh 标签)
-docker build -t fliaping/agent-workspace:v1.0.0-zh -f Dockerfile_zh .
+# ⚡️ 启动中文特供版 (内置极速国内加速源)
+docker run -d --name agent-workspace -p 6901:6901 -p 19789:18789 --privileged \
+  -v $(pwd)/home:/home/kasm-user xuping/agent-workspace:v1.0.0-zh
 
-# 构建国际纯净版镜像 (使用 Dockerfile_en，打上 -en 标签)
-docker build -t fliaping/agent-workspace:v1.0.0-en -f Dockerfile_en .
+# 或者启动国际纯净版 (全系官方直连)
+# docker run -d --name agent-workspace -p 6901:6901 -p 19789:18789 --privileged \
+#   -v $(pwd)/home:/home/kasm-user xuping/agent-workspace:v1.0.0-en
+```
 
-# 后台拉起桌面容器 (需要在 docker-compose.yml 中修改为您想运行的版本号)
+#### 方式 B：使用 Docker Compose 启动（适合复杂项目集成）
+如果您已经下载了本仓库的代码，可以直接使用根目录下的 `docker-compose.yml`。
+修改 `docker-compose.yml` 中的 `image` 标签以选择您需要的版本：
+- 中文版配置：`image: xuping/agent-workspace:v1.0.0-zh`
+- 英文版配置：`image: xuping/agent-workspace:v1.0.0-en`
+
+修改完毕后，在项目根目录执行：
+```bash
 docker compose up -d
 ```
 
