@@ -57,10 +57,13 @@
 
 ### 2. 启动服务
 ```bash
-# 1. 构建镜像 (首次需要数分钟用于环境组装)
-docker compose build
+# 构建中文版镜像 (使用 Dockerfile_zh，带国内加速源，打上 -zh 标签)
+docker build -t fliaping/agent-workspace:v1.0.0-zh -f Dockerfile_zh .
 
-# 2. 后台拉起桌面容器
+# 构建国际纯净版镜像 (使用 Dockerfile_en，打上 -en 标签)
+docker build -t fliaping/agent-workspace:v1.0.0-en -f Dockerfile_en .
+
+# 后台拉起桌面容器 (需要在 docker-compose.yml 中修改为您想运行的版本号)
 docker compose up -d
 ```
 

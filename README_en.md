@@ -25,11 +25,14 @@ Built upon Kasmweb Ubuntu Noble, this workspace embeds fully isolated Docker-in-
 
 ### 1. Launch Services
 ```bash
-# 1. Build Image (Using the international Dockerfile_en)
-# The first build takes a few minutes to fetch the base image and construct the environment
-docker compose -f docker-compose.yml build --build-arg DOCKERFILE=Dockerfile_en
+# Build the International version (using Dockerfile_en, tagged with -en)
+docker build -t fliaping/agent-workspace:v1.0.0-en -f Dockerfile_en .
 
-# 2. Spin up the Background Workspace
+# Or build the Chinese mirror-accelerated version (using Dockerfile_zh, tagged with -zh)
+docker build -t fliaping/agent-workspace:v1.0.0-zh -f Dockerfile_zh .
+
+# Spin up the Background Workspace 
+# (Make sure to update docker-compose.yml to the image version you just built)
 docker compose up -d
 ```
 

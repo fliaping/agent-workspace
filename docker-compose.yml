@@ -5,7 +5,7 @@ services:
     image: agent-workspace:v1.0.0
     build: 
       context: .
-      dockerfile: ./Dockerfile
+      dockerfile: ./Dockerfile_zh
     container_name: my-agent-workspace
     ports:
       - "6901:6901"
