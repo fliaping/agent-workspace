@@ -14,6 +14,8 @@
 
 本工作空间基于 Kasmweb Ubuntu Noble，内置完全隔离的 Docker-in-Docker (DinD Rootless) 和全套预优化的开发语言环境体系，旨在为各类前沿 AI 框架的二次开发、插件编写以及本地化安全沙盒部署提供完美的底座支持。
 
+![web-desktop-example](./images/web-desktop-example.png)
+
 ## ✨ 核心特性
 
 - **极致环境持久化**：所有的 `PypI/Pip`、`NPM`、`Cargo` 包缓存、以及 `Homebrew` 都实现了持久化软连接转移。无论怎么重启重做容器，拉包永远极速。

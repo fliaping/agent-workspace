@@ -14,6 +14,8 @@ As AI agent frameworks evolve rapidly, modern agents are shifting from simple ch
 
 Built upon Kasmweb Ubuntu Noble, this workspace embeds fully isolated Docker-in-Docker (DinD Rootless) capabilities along with a pre-optimized multi-language ecosystem. It is designed to act as the perfect foundation for secondary development, plugin creation, and secure local sandbox deployments for any cutting-edge AI framework.
 
+![web-desktop-example](./images/web-desktop-example.png)
+
 ## ✨ Core Features
 
 - **Extreme Environment Persistence**: Package caches for `PyPI/Pip`, `NPM`, `Cargo`, and binaries for `Homebrew` are completely persisted via symlink mapping. Your package fetching speeds remain instant across container restarts or rebuilds.
