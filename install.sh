@@ -43,10 +43,10 @@ TEXTS[cn_step5_title]="步骤 5/6: 选择 Agent 软件"
 TEXTS[cn_agent_install_title]="选择要安装的 Agent 软件（可多选，空格分隔）"
 TEXTS[cn_agent_openclaw]="1) OpenClaw - AI Agent 操作系统"
 TEXTS[cn_agent_openfang]="2) Openfang - 智能体框架"
-TEXTS[cn_agent_nanobot]="3) Nanobot - 轻量级 Agent"
-TEXTS[cn_agent_zeroclaw]="4) Zeroclaw - 零配置 Agent"
-TEXTS[cn_agent_skip]="5) 跳过，不安装任何软件"
-TEXTS[cn_enter_agents]="请输入选项（如：1 2 3）"
+TEXTS[cn_agent_ironclaw]="3) Ironclaw - 高效 Agent"
+TEXTS[cn_agent_zeroclaw]="3) Zeroclaw - 零配置 Agent"
+TEXTS[cn_agent_skip]="4) 跳过，不安装任何软件"
+TEXTS[cn_enter_agents]="请输入选项（如：1 2）"
 TEXTS[cn_step6_title]="步骤 6/6: 配置 Agent 软件端口"
 TEXTS[cn_agent_port_config]="配置 Agent 软件端口"
 TEXTS[cn_agent_port_default]="使用默认端口"
@@ -54,7 +54,8 @@ TEXTS[cn_agent_port_custom]="自定义端口"
 TEXTS[cn_enter_agent_port_num]="请输入端口"
 TEXTS[cn_agent_port_openclaw]="OpenClaw 端口（默认 3000）"
 TEXTS[cn_agent_port_openfang]="Openfang 端口（默认 8080）"
-TEXTS[cn_agent_port_nanobot]="Nanobot 端口（默认 9000）"
+TEXTS[cn_agent_port_ironclaw]="Ironclaw 端口（默认 6000）"
+TEXTS[cn_agent_port_openfang]="Openfang 端口（默认 8080）"
 TEXTS[cn_agent_port_zeroclaw]="Zeroclaw 端口（默认 7000）"
 TEXTS[cn_installing_agents]="正在安装 Agent 软件..."
 TEXTS[cn_agent_install_success]="Agent 软件安装成功"
@@ -132,10 +133,10 @@ TEXTS[en_step5_title]="Step 5/6: Select Agent Software"
 TEXTS[en_agent_install_title]="Select Agent software to install (multiple choices allowed, space separated)"
 TEXTS[en_agent_openclaw]="1) OpenClaw - AI Agent Operating System"
 TEXTS[en_agent_openfang]="2) Openfang - Agent Framework"
-TEXTS[en_agent_nanobot]="3) Nanobot - Lightweight Agent"
-TEXTS[en_agent_zeroclaw]="4) Zeroclaw - Zero-config Agent"
-TEXTS[en_agent_skip]="5) Skip, don't install any software"
-TEXTS[en_enter_agents]="Enter options (e.g., 1 2 3)"
+TEXTS[en_agent_ironclaw]="3) Ironclaw - Efficient Agent"
+TEXTS[en_agent_zeroclaw]="3) Zeroclaw - Zero-config Agent"
+TEXTS[en_agent_skip]="4) Skip, don't install any software"
+TEXTS[en_enter_agents]="Enter options (e.g., 1 2)"
 TEXTS[en_step6_title]="Step 6/6: Configure Agent Software Ports"
 TEXTS[en_agent_port_config]="Configure Agent Software Ports"
 TEXTS[en_agent_port_default]="Use default port"
@@ -143,7 +144,8 @@ TEXTS[en_agent_port_custom]="Custom port"
 TEXTS[en_enter_agent_port_num]="Enter port"
 TEXTS[en_agent_port_openclaw]="OpenClaw port (default 3000)"
 TEXTS[en_agent_port_openfang]="Openfang port (default 8080)"
-TEXTS[en_agent_port_nanobot]="Nanobot port (default 9000)"
+TEXTS[en_agent_port_ironclaw]="Ironclaw port (default 6000)"
+TEXTS[en_agent_port_openfang]="Openfang port (default 8080)"
 TEXTS[en_agent_port_zeroclaw]="Zeroclaw port (default 7000)"
 TEXTS[en_installing_agents]="Installing Agent software..."
 TEXTS[en_agent_install_success]="Agent software installed successfully"
@@ -256,8 +258,8 @@ AGENT_PORT="19789"
 declare -A AGENT_PORTS
 AGENT_PORTS[openclaw]="3000"
 AGENT_PORTS[openfang]="8080"
-AGENT_PORTS[nanobot]="9000"
 AGENT_PORTS[zeroclaw]="7000"
+AGENT_PORTS[ironclaw]="6000"
 
 # 用户自定义的 Agent 端口
 declare -A CUSTOM_AGENT_PORTS
@@ -512,8 +514,8 @@ configure_agent_ports() {
         case $agent in
             openclaw) port_name="$(get_text agent_port_openclaw)" ;;
             openfang) port_name="$(get_text agent_port_openfang)" ;;
-            nanobot) port_name="$(get_text agent_port_nanobot)" ;;
             zeroclaw) port_name="$(get_text agent_port_zeroclaw)" ;;
+            ironclaw) port_name="$(get_text agent_port_ironclaw)" ;;
         esac
         
         echo ""
@@ -579,12 +581,12 @@ select_agents() {
     print_info "$(get_text agent_install_title)"
     echo "  $(get_text agent_openclaw)"
     echo "  $(get_text agent_openfang)"
-    echo "  $(get_text agent_nanobot)"
     echo "  $(get_text agent_zeroclaw)"
+    echo "  $(get_text agent_ironclaw)"
     echo "  $(get_text agent_skip)"
     echo ""
     
-    read -p "$(get_text enter_agents) [1-5, default 5]: " agent_choices
+    read -p "$(get_text enter_agents) [1-4, default 4]: " agent_choices
     agent_choices=${agent_choices:-5}
     
     # 解析用户选择
@@ -592,8 +594,8 @@ select_agents() {
         case $choice in
             1) INSTALL_AGENTS+=("openclaw") ;;
             2) INSTALL_AGENTS+=("openfang") ;;
-            3) INSTALL_AGENTS+=("nanobot") ;;
-            4) INSTALL_AGENTS+=("zeroclaw") ;;
+            3) INSTALL_AGENTS+=("zeroclaw") ;;
+            4) INSTALL_AGENTS+=("ironclaw") ;;
             5) 
                 INSTALL_AGENTS=()
                 print_info "跳过 Agent 软件安装"
@@ -614,11 +616,9 @@ select_agents() {
 install_agents_in_container() {
     # 根据语言选择镜像源
     local npm_registry=""
-    local pip_index=""
     
     if [ "$LANG" = "cn" ]; then
         npm_registry="--registry=https://registry.npmmirror.com"
-        pip_index="-i https://pypi.tuna.tsinghua.edu.cn/simple"
     fi
     
     for agent in "${INSTALL_AGENTS[@]}"; do
@@ -639,54 +639,40 @@ install_agents_in_container() {
                 ;;
             openfang)
                 # Openfang 安装方式：https://github.com/RightNow-AI/openfang
-                # curl -fsSL https://openfang.sh/install | sh
+                # 中文环境使用 Gitee 下载仓库安装
                 print_info "Installing Openfang (Port: $agent_port)..."
                 docker exec "$CONTAINER_NAME" bash -c "
                     export OPENFANG_PORT=$agent_port
-                    echo 'Installing Openfang...'
-                    curl -fsSL https://openfang.sh/install | sh
-                    echo 'Initializing Openfang...'
-                    openfang init || true
+                    echo 'Installing Openfang from Gitee...'
+                    cd /tmp
+                    git clone https://gitee.com/mirrors/openfang.git || git clone https://github.com/RightNow-AI/openfang.git
+                    cd openfang
+                    cargo build --release
+                    cp target/release/openfang /usr/local/bin/
+                    echo 'Openfang installed successfully'
                 " || print_warning "Openfang 安装失败，请手动安装"
-                ;;
-            nanobot)
-                # Nanobot 安装方式：https://github.com/HKUDS/nanobot
-                # git clone + pip install -e .
-                print_info "Installing Nanobot (Port: $agent_port)..."
-                if [ "$LANG" = "cn" ]; then
-                    # 中文环境使用 Gitee 镜像
-                    docker exec "$CONTAINER_NAME" bash -c "
-                        export NANOBOT_PORT=$agent_port
-                        echo 'Installing Nanobot from Gitee mirror...'
-                        cd /tmp
-                        git clone https://gitee.com/mirrors/nanobot.git || git clone https://github.com/HKUDS/nanobot.git
-                        cd nanobot
-                        pip install -e . $pip_index
-                        echo 'Nanobot installed successfully'
-                    " || print_warning "Nanobot 安装失败，请手动安装"
-                else
-                    # 英文环境使用 GitHub 官方源
-                    docker exec "$CONTAINER_NAME" bash -c "
-                        export NANOBOT_PORT=$agent_port
-                        echo 'Installing Nanobot from GitHub...'
-                        cd /tmp
-                        git clone https://github.com/HKUDS/nanobot.git
-                        cd nanobot
-                        pip install -e .
-                        echo 'Nanobot installed successfully'
-                    " || print_warning "Nanobot installation failed, please install manually"
-                fi
                 ;;
             zeroclaw)
                 # Zeroclaw 安装方式：https://github.com/zeroclaw-labs/zeroclaw
-                # curl -fsSL https://raw.githubusercontent.com/zeroclaw-labs/zeroclaw/master/install.sh | sh
+                # brew install zeroclaw
                 print_info "Installing Zeroclaw (Port: $agent_port)..."
                 docker exec "$CONTAINER_NAME" bash -c "
                     export ZEROCLAW_PORT=$agent_port
-                    echo 'Installing Zeroclaw...'
-                    curl -fsSL https://raw.githubusercontent.com/zeroclaw-labs/zeroclaw/master/install.sh | sh
+                    echo 'Installing Zeroclaw via Homebrew...'
+                    brew install zeroclaw
                     echo 'Zeroclaw installed successfully'
                 " || print_warning "Zeroclaw 安装失败，请手动安装"
+                ;;
+            ironclaw)
+                # Ironclaw 安装方式
+                # brew install ironclaw
+                print_info "Installing Ironclaw (Port: $agent_port)..."
+                docker exec "$CONTAINER_NAME" bash -c "
+                    export IRONCLAW_PORT=$agent_port
+                    echo 'Installing Ironclaw via Homebrew...'
+                    brew install ironclaw
+                    echo 'Ironclaw installed successfully'
+                " || print_warning "Ironclaw 安装失败，请手动安装"
                 ;;
         esac
     done
