@@ -16,20 +16,30 @@ declare -A TEXTS
 
 # 中文文本
 TEXTS[cn_welcome_title]="Agent Workspace 一键部署"
-TEXTS[cn_step1_title]="步骤 1/4: 选择语言"
+TEXTS[cn_step1_title]="步骤 1/5: 选择语言"
 TEXTS[cn_lang_cn]="1) 中文 (Chinese) - 使用阿里云镜像（国内推荐）"
 TEXTS[cn_lang_en]="2) English (英文) - 使用 Docker Hub"
 TEXTS[cn_enter_choice]="请输入选项"
 TEXTS[cn_invalid_choice]="无效选项，请重新输入"
-TEXTS[cn_step2_title]="步骤 2/4: 选择镜像版本"
+TEXTS[cn_step2_title]="步骤 2/5: 选择镜像版本"
 TEXTS[cn_version_latest]="1) latest (最新版)"
 TEXTS[cn_version_custom]="2) 自定义版本"
 TEXTS[cn_enter_version]="请输入版本号"
-TEXTS[cn_step3_title]="步骤 3/4: 配置数据目录"
+TEXTS[cn_step3_title]="步骤 3/5: 配置数据目录"
 TEXTS[cn_data_dir_default]="使用默认目录"
 TEXTS[cn_data_dir_custom]="自定义目录"
 TEXTS[cn_enter_data_dir]="请输入数据目录路径"
-TEXTS[cn_step4_title]="步骤 4/4: 安装 Agent 软件"
+TEXTS[cn_step4_title]="步骤 4/5: 配置端口"
+TEXTS[cn_port_config_title]="配置服务端口"
+TEXTS[cn_port_vnc]="VNC 桌面端口"
+TEXTS[cn_port_agent]="Agent API 端口"
+TEXTS[cn_port_auto]="自动检测并分配端口"
+TEXTS[cn_port_manual]="手动配置端口"
+TEXTS[cn_enter_vnc_port]="请输入 VNC 端口"
+TEXTS[cn_enter_agent_port]="请输入 Agent 端口"
+TEXTS[cn_port_in_use]="端口已被占用"
+TEXTS[cn_port_available]="端口可用"
+TEXTS[cn_step5_title]="步骤 5/5: 安装 Agent 软件"
 TEXTS[cn_agent_install_title]="选择要安装的 Agent 软件（可多选，空格分隔）"
 TEXTS[cn_agent_openclaw]="1) OpenClaw - AI Agent 操作系统"
 TEXTS[cn_agent_openfang]="2) Openfang - 智能体框架"
@@ -86,20 +96,30 @@ TEXTS[cn_try_without_sudo]="请尝试不使用 sudo 运行"
 
 # 英文文本
 TEXTS[en_welcome_title]="Agent Workspace Deployment"
-TEXTS[en_step1_title]="Step 1/4: Select Language"
+TEXTS[en_step1_title]="Step 1/5: Select Language"
 TEXTS[en_lang_cn]="1) 中文 (Chinese) - Use Alibaba Cloud Registry (Recommended for China)"
 TEXTS[en_lang_en]="2) English - Use Docker Hub"
 TEXTS[en_enter_choice]="Enter your choice"
 TEXTS[en_invalid_choice]="Invalid choice, please try again"
-TEXTS[en_step2_title]="Step 2/4: Select Image Version"
+TEXTS[en_step2_title]="Step 2/5: Select Image Version"
 TEXTS[en_version_latest]="1) latest"
 TEXTS[en_version_custom]="2) Custom version"
 TEXTS[en_enter_version]="Enter version tag"
-TEXTS[en_step3_title]="Step 3/4: Configure Data Directory"
+TEXTS[en_step3_title]="Step 3/5: Configure Data Directory"
 TEXTS[en_data_dir_default]="Use default directory"
 TEXTS[en_data_dir_custom]="Custom directory"
+TEXTS[en_step4_title]="Step 4/5: Configure Ports"
+TEXTS[en_port_config_title]="Configure Service Ports"
+TEXTS[en_port_vnc]="VNC Desktop Port"
+TEXTS[en_port_agent]="Agent API Port"
+TEXTS[en_port_auto]="Auto detect and assign ports"
+TEXTS[en_port_manual]="Manually configure ports"
+TEXTS[en_enter_vnc_port]="Enter VNC port"
+TEXTS[en_enter_agent_port]="Enter Agent port"
+TEXTS[en_port_in_use]="Port is in use"
+TEXTS[en_port_available]="Port is available"
 TEXTS[en_enter_data_dir]="Enter data directory path"
-TEXTS[en_step4_title]="Step 4/4: Install Agent Software"
+TEXTS[en_step5_title]="Step 5/5: Install Agent Software"
 TEXTS[en_agent_install_title]="Select Agent software to install (multiple choices allowed, space separated)"
 TEXTS[en_agent_openclaw]="1) OpenClaw - AI Agent Operating System"
 TEXTS[en_agent_openfang]="2) Openfang - Agent Framework"
@@ -324,7 +344,89 @@ select_data_dir() {
 }
 
 # ============================================================================
-# 步骤 4: 选择要安装的 Agent 软件
+# 步骤 4: 配置端口
+# ============================================================================
+select_ports() {
+    echo ""
+    print_info "$(get_text step4_title)"
+    echo ""
+    print_info "$(get_text port_config_title)"
+    echo "  $(get_text port_vnc): $VNC_PORT"
+    echo "  $(get_text port_agent): $AGENT_PORT"
+    echo ""
+    echo "  1) $(get_text port_auto)"
+    echo "  2) $(get_text port_manual)"
+    echo ""
+    
+    read -p "$(get_text enter_choice) [1-2, default 1]: " port_choice
+    port_choice=${port_choice:-1}
+    
+    case $port_choice in
+        1)
+            # 自动检测端口
+            print_info "$(get_text port_auto)..."
+            if ! check_port_available $VNC_PORT; then
+                print_warning "$(get_text port_vnc) $VNC_PORT $(get_text port_in_use)"
+                VNC_PORT=$(find_available_port $VNC_PORT)
+                print_info "$(get_text port_vnc) $(get_text auto_change_port): $VNC_PORT"
+            else
+                print_success "$(get_text port_vnc) $VNC_PORT $(get_text port_available)"
+            fi
+            
+            if ! check_port_available $AGENT_PORT; then
+                print_warning "$(get_text port_agent) $AGENT_PORT $(get_text port_in_use)"
+                AGENT_PORT=$(find_available_port $AGENT_PORT)
+                print_info "$(get_text port_agent) $(get_text auto_change_port): $AGENT_PORT"
+            else
+                print_success "$(get_text port_agent) $AGENT_PORT $(get_text port_available)"
+            fi
+            ;;
+        2)
+            # 手动配置端口
+            echo ""
+            read -p "$(get_text enter_vnc_port) [default $VNC_PORT]: " custom_vnc_port
+            if [ -n "$custom_vnc_port" ]; then
+                if check_port_available $custom_vnc_port; then
+                    VNC_PORT=$custom_vnc_port
+                    print_success "$(get_text port_vnc) $VNC_PORT $(get_text port_available)"
+                else
+                    print_warning "$(get_text port_vnc) $custom_vnc_port $(get_text port_in_use)"
+                    VNC_PORT=$(find_available_port $custom_vnc_port)
+                    print_info "$(get_text port_vnc) $(get_text auto_change_port): $VNC_PORT"
+                fi
+            fi
+            
+            echo ""
+            read -p "$(get_text enter_agent_port) [default $AGENT_PORT]: " custom_agent_port
+            if [ -n "$custom_agent_port" ]; then
+                if check_port_available $custom_agent_port; then
+                    AGENT_PORT=$custom_agent_port
+                    print_success "$(get_text port_agent) $AGENT_PORT $(get_text port_available)"
+                else
+                    print_warning "$(get_text port_agent) $custom_agent_port $(get_text port_in_use)"
+                    AGENT_PORT=$(find_available_port $custom_agent_port)
+                    print_info "$(get_text port_agent) $(get_text auto_change_port): $AGENT_PORT"
+                fi
+            fi
+            ;;
+        *)
+            # 默认自动检测
+            if ! check_port_available $VNC_PORT; then
+                VNC_PORT=$(find_available_port $VNC_PORT)
+            fi
+            if ! check_port_available $AGENT_PORT; then
+                AGENT_PORT=$(find_available_port $AGENT_PORT)
+            fi
+            ;;
+    esac
+    
+    echo ""
+    print_info "$(get_text port_vnc): $VNC_PORT"
+    print_info "$(get_text port_agent): $AGENT_PORT"
+}
+
+# ============================================================================
+# 步骤 5: 选择要安装的 Agent 软件
 # ============================================================================
 select_agents() {
     echo ""
@@ -522,7 +624,10 @@ main() {
     # 步骤 3: 配置数据目录
     select_data_dir
     
-    # 步骤 4: 选择 Agent 软件
+    # 步骤 4: 配置端口
+    select_ports
+    
+    # 步骤 5: 选择 Agent 软件
     select_agents
     
     # 检测环境
