@@ -626,58 +626,49 @@ install_agents_in_container() {
         
         case $agent in
             openclaw)
+                # OpenClaw 安装方式：https://github.com/openclaw/openclaw
+                # npm install -g openclaw@latest
                 print_info "Installing OpenClaw (Port: $agent_port)..."
-                if [ "$LANG" = "cn" ]; then
-                    # 中文环境使用 Gitee 源
-                    docker exec "$CONTAINER_NAME" bash -c "
-                        export OPENCLAW_PORT=$agent_port
-                        echo 'Installing OpenClaw from Gitee...'
-                        git clone https://gitee.com/openclaw/openclaw.git /tmp/openclaw
-                        cd /tmp/openclaw && ./install.sh
-                    " || print_warning "OpenClaw 安装失败，请手动安装"
-                else
-                    # 英文环境使用 GitHub 源
-                    docker exec "$CONTAINER_NAME" bash -c "
-                        export OPENCLAW_PORT=$agent_port
-                        echo 'Installing OpenClaw from GitHub...'
-                        git clone https://github.com/openclaw/openclaw.git /tmp/openclaw
-                        cd /tmp/openclaw && ./install.sh
-                    " || print_warning "OpenClaw installation failed, please install manually"
-                fi
+                docker exec "$CONTAINER_NAME" bash -c "
+                    export OPENCLAW_PORT=$agent_port
+                    echo 'Installing OpenClaw...'
+                    npm install -g openclaw@latest $npm_registry
+                    echo 'Running OpenClaw onboarding...'
+                    openclaw onboard --install-daemon || true
+                " || print_warning "OpenClaw 安装失败，请手动安装"
                 ;;
             openfang)
+                # Openfang 安装方式（示例，请替换为实际安装命令）
                 print_info "Installing Openfang (Port: $agent_port)..."
                 docker exec "$CONTAINER_NAME" bash -c "
                     export OPENFANG_PORT=$agent_port
                     echo 'Installing Openfang...'
-                    npm install -g @openfang/cli $npm_registry
+                    # TODO: 替换为实际的 Openfang 安装命令
+                    # npm install -g @openfang/cli $npm_registry
+                    echo 'Openfang 安装命令待配置'
                 " || print_warning "Openfang 安装失败，请手动安装"
                 ;;
             nanobot)
+                # Nanobot 安装方式（示例，请替换为实际安装命令）
                 print_info "Installing Nanobot (Port: $agent_port)..."
                 docker exec "$CONTAINER_NAME" bash -c "
                     export NANOBOT_PORT=$agent_port
                     echo 'Installing Nanobot...'
-                    pip install nanobot $pip_index
+                    # TODO: 替换为实际的 Nanobot 安装命令
+                    # pip install nanobot $pip_index
+                    echo 'Nanobot 安装命令待配置'
                 " || print_warning "Nanobot 安装失败，请手动安装"
                 ;;
             zeroclaw)
+                # Zeroclaw 安装方式（示例，请替换为实际安装命令）
                 print_info "Installing Zeroclaw (Port: $agent_port)..."
-                if [ "$LANG" = "cn" ]; then
-                    # 中文环境使用国内镜像
-                    docker exec "$CONTAINER_NAME" bash -c "
-                        export ZEROCLAW_PORT=$agent_port
-                        echo 'Installing Zeroclaw...'
-                        pip install zeroclaw $pip_index
-                    " || print_warning "Zeroclaw 安装失败，请手动安装"
-                else
-                    # 英文环境使用官方源
-                    docker exec "$CONTAINER_NAME" bash -c "
-                        export ZEROCLAW_PORT=$agent_port
-                        echo 'Installing Zeroclaw...'
-                        pip install zeroclaw
-                    " || print_warning "Zeroclaw installation failed, please install manually"
-                fi
+                docker exec "$CONTAINER_NAME" bash -c "
+                    export ZEROCLAW_PORT=$agent_port
+                    echo 'Installing Zeroclaw...'
+                    # TODO: 替换为实际的 Zeroclaw 安装命令
+                    # pip install zeroclaw $pip_index
+                    echo 'Zeroclaw 安装命令待配置'
+                " || print_warning "Zeroclaw 安装失败，请手动安装"
                 ;;
         esac
     done
