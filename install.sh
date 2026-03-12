@@ -684,24 +684,45 @@ get_agent_ports_json() {
 # 在容器内安装 Agent 软件
 # ============================================================================
 install_agents_in_container() {
+    # 根据语言选择镜像源
+    local npm_registry=""
+    local pip_index=""
+    
+    if [ "$LANG" = "cn" ]; then
+        npm_registry="--registry=https://registry.npmmirror.com"
+        pip_index="-i https://pypi.tuna.tsinghua.edu.cn/simple"
+    fi
+    
     for agent in "${INSTALL_AGENTS[@]}"; do
         local agent_port="${CUSTOM_AGENT_PORTS[$agent]}"
         
         case $agent in
             openclaw)
                 print_info "Installing OpenClaw (Port: $agent_port)..."
-                docker exec "$CONTAINER_NAME" bash -c "
-                    export OPENCLAW_PORT=$agent_port
-                    echo 'Installing OpenClaw...'
-                    curl -fsSL https://raw.githubusercontent.com/openclaw/openclaw/main/install.sh | bash
-                " || print_warning "OpenClaw 安装失败，请手动安装"
+                if [ "$LANG" = "cn" ]; then
+                    # 中文环境使用 Gitee 源
+                    docker exec "$CONTAINER_NAME" bash -c "
+                        export OPENCLAW_PORT=$agent_port
+                        echo 'Installing OpenClaw from Gitee...'
+                        git clone https://gitee.com/openclaw/openclaw.git /tmp/openclaw
+                        cd /tmp/openclaw && ./install.sh
+                    " || print_warning "OpenClaw 安装失败，请手动安装"
+                else
+                    # 英文环境使用 GitHub 源
+                    docker exec "$CONTAINER_NAME" bash -c "
+                        export OPENCLAW_PORT=$agent_port
+                        echo 'Installing OpenClaw from GitHub...'
+                        git clone https://github.com/openclaw/openclaw.git /tmp/openclaw
+                        cd /tmp/openclaw && ./install.sh
+                    " || print_warning "OpenClaw installation failed, please install manually"
+                fi
                 ;;
             openfang)
                 print_info "Installing Openfang (Port: $agent_port)..."
                 docker exec "$CONTAINER_NAME" bash -c "
                     export OPENFANG_PORT=$agent_port
                     echo 'Installing Openfang...'
-                    npm install -g @openfang/cli
+                    npm install -g @openfang/cli $npm_registry
                 " || print_warning "Openfang 安装失败，请手动安装"
                 ;;
             nanobot)
@@ -709,16 +730,26 @@ install_agents_in_container() {
                 docker exec "$CONTAINER_NAME" bash -c "
                     export NANOBOT_PORT=$agent_port
                     echo 'Installing Nanobot...'
-                    pip install nanobot
+                    pip install nanobot $pip_index
                 " || print_warning "Nanobot 安装失败，请手动安装"
                 ;;
             zeroclaw)
                 print_info "Installing Zeroclaw (Port: $agent_port)..."
-                docker exec "$CONTAINER_NAME" bash -c "
-                    export ZEROCLAW_PORT=$agent_port
-                    echo 'Installing Zeroclaw...'
-                    curl -fsSL https://zeroclaw.dev/install.sh | bash
-                " || print_warning "Zeroclaw 安装失败，请手动安装"
+                if [ "$LANG" = "cn" ]; then
+                    # 中文环境使用国内镜像
+                    docker exec "$CONTAINER_NAME" bash -c "
+                        export ZEROCLAW_PORT=$agent_port
+                        echo 'Installing Zeroclaw...'
+                        pip install zeroclaw $pip_index
+                    " || print_warning "Zeroclaw 安装失败，请手动安装"
+                else
+                    # 英文环境使用官方源
+                    docker exec "$CONTAINER_NAME" bash -c "
+                        export ZEROCLAW_PORT=$agent_port
+                        echo 'Installing Zeroclaw...'
+                        pip install zeroclaw
+                    " || print_warning "Zeroclaw installation failed, please install manually"
+                fi
                 ;;
         esac
     done
