@@ -638,36 +638,54 @@ install_agents_in_container() {
                 " || print_warning "OpenClaw 安装失败，请手动安装"
                 ;;
             openfang)
-                # Openfang 安装方式（示例，请替换为实际安装命令）
+                # Openfang 安装方式：https://github.com/RightNow-AI/openfang
+                # curl -fsSL https://openfang.sh/install | sh
                 print_info "Installing Openfang (Port: $agent_port)..."
                 docker exec "$CONTAINER_NAME" bash -c "
                     export OPENFANG_PORT=$agent_port
                     echo 'Installing Openfang...'
-                    # TODO: 替换为实际的 Openfang 安装命令
-                    # npm install -g @openfang/cli $npm_registry
-                    echo 'Openfang 安装命令待配置'
+                    curl -fsSL https://openfang.sh/install | sh
+                    echo 'Initializing Openfang...'
+                    openfang init || true
                 " || print_warning "Openfang 安装失败，请手动安装"
                 ;;
             nanobot)
-                # Nanobot 安装方式（示例，请替换为实际安装命令）
+                # Nanobot 安装方式：https://github.com/HKUDS/nanobot
+                # git clone + pip install -e .
                 print_info "Installing Nanobot (Port: $agent_port)..."
-                docker exec "$CONTAINER_NAME" bash -c "
-                    export NANOBOT_PORT=$agent_port
-                    echo 'Installing Nanobot...'
-                    # TODO: 替换为实际的 Nanobot 安装命令
-                    # pip install nanobot $pip_index
-                    echo 'Nanobot 安装命令待配置'
-                " || print_warning "Nanobot 安装失败，请手动安装"
+                if [ "$LANG" = "cn" ]; then
+                    # 中文环境使用 Gitee 镜像
+                    docker exec "$CONTAINER_NAME" bash -c "
+                        export NANOBOT_PORT=$agent_port
+                        echo 'Installing Nanobot from Gitee mirror...'
+                        cd /tmp
+                        git clone https://gitee.com/mirrors/nanobot.git || git clone https://github.com/HKUDS/nanobot.git
+                        cd nanobot
+                        pip install -e . $pip_index
+                        echo 'Nanobot installed successfully'
+                    " || print_warning "Nanobot 安装失败，请手动安装"
+                else
+                    # 英文环境使用 GitHub 官方源
+                    docker exec "$CONTAINER_NAME" bash -c "
+                        export NANOBOT_PORT=$agent_port
+                        echo 'Installing Nanobot from GitHub...'
+                        cd /tmp
+                        git clone https://github.com/HKUDS/nanobot.git
+                        cd nanobot
+                        pip install -e .
+                        echo 'Nanobot installed successfully'
+                    " || print_warning "Nanobot installation failed, please install manually"
+                fi
                 ;;
             zeroclaw)
-                # Zeroclaw 安装方式（示例，请替换为实际安装命令）
+                # Zeroclaw 安装方式：https://github.com/zeroclaw-labs/zeroclaw
+                # curl -fsSL https://raw.githubusercontent.com/zeroclaw-labs/zeroclaw/master/install.sh | sh
                 print_info "Installing Zeroclaw (Port: $agent_port)..."
                 docker exec "$CONTAINER_NAME" bash -c "
                     export ZEROCLAW_PORT=$agent_port
                     echo 'Installing Zeroclaw...'
-                    # TODO: 替换为实际的 Zeroclaw 安装命令
-                    # pip install zeroclaw $pip_index
-                    echo 'Zeroclaw 安装命令待配置'
+                    curl -fsSL https://raw.githubusercontent.com/zeroclaw-labs/zeroclaw/master/install.sh | sh
+                    echo 'Zeroclaw installed successfully'
                 " || print_warning "Zeroclaw 安装失败，请手动安装"
                 ;;
         esac
