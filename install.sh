@@ -681,6 +681,52 @@ get_agent_ports_json() {
 }
 
 # ============================================================================
+# 在容器内安装 Agent 软件
+# ============================================================================
+install_agents_in_container() {
+    for agent in "${INSTALL_AGENTS[@]}"; do
+        local agent_port="${CUSTOM_AGENT_PORTS[$agent]}"
+        
+        case $agent in
+            openclaw)
+                print_info "Installing OpenClaw (Port: $agent_port)..."
+                docker exec "$CONTAINER_NAME" bash -c "
+                    export OPENCLAW_PORT=$agent_port
+                    echo 'Installing OpenClaw...'
+                    curl -fsSL https://raw.githubusercontent.com/openclaw/openclaw/main/install.sh | bash
+                " || print_warning "OpenClaw 安装失败，请手动安装"
+                ;;
+            openfang)
+                print_info "Installing Openfang (Port: $agent_port)..."
+                docker exec "$CONTAINER_NAME" bash -c "
+                    export OPENFANG_PORT=$agent_port
+                    echo 'Installing Openfang...'
+                    npm install -g @openfang/cli
+                " || print_warning "Openfang 安装失败，请手动安装"
+                ;;
+            nanobot)
+                print_info "Installing Nanobot (Port: $agent_port)..."
+                docker exec "$CONTAINER_NAME" bash -c "
+                    export NANOBOT_PORT=$agent_port
+                    echo 'Installing Nanobot...'
+                    pip install nanobot
+                " || print_warning "Nanobot 安装失败，请手动安装"
+                ;;
+            zeroclaw)
+                print_info "Installing Zeroclaw (Port: $agent_port)..."
+                docker exec "$CONTAINER_NAME" bash -c "
+                    export ZEROCLAW_PORT=$agent_port
+                    echo 'Installing Zeroclaw...'
+                    curl -fsSL https://zeroclaw.dev/install.sh | bash
+                " || print_warning "Zeroclaw 安装失败，请手动安装"
+                ;;
+        esac
+    done
+    
+    print_success "$(get_text agent_install_success)"
+}
+
+# ============================================================================
 # 环境检测
 # ============================================================================
 
@@ -1017,26 +1063,17 @@ main() {
         fi
     fi
     
-    # 如果有 Agent 软件需要安装，生成安装脚本
+    # 添加 Agent 软件端口环境变量（如果有）
     if [ ${#INSTALL_AGENTS[@]} -gt 0 ]; then
-        echo ""
-        print_info "$(get_text installing_agents)"
-        
-        # 创建安装脚本
-        INSTALL_SCRIPT=$(generate_install_script)
-        INSTALL_SCRIPT_PATH="${DATA_DIR}/.install-agents.sh"
-        
-        echo "#!/bin/bash" > "$INSTALL_SCRIPT_PATH"
-        echo "$INSTALL_SCRIPT" >> "$INSTALL_SCRIPT_PATH"
-        chmod +x "$INSTALL_SCRIPT_PATH"
-        
-        # 添加启动脚本挂载（不使用只读，因为 pre_startup 会恢复模板并修改权限）
-        DOCKER_ARGS+=(
-            "-v" "${INSTALL_SCRIPT_PATH}:/home/kasm-user/.install-agents.sh"
-        )
-        
-        print_success "$(get_text agent_install_success)"
-        print_info "Agent 软件将在容器启动后自动安装"
+        for agent in "${INSTALL_AGENTS[@]}"; do
+            local agent_port="${CUSTOM_AGENT_PORTS[$agent]}"
+            case $agent in
+                openclaw) DOCKER_ARGS+=("-e" "OPENCLAW_PORT=$agent_port") ;;
+                openfang) DOCKER_ARGS+=("-e" "OPENFANG_PORT=$agent_port") ;;
+                nanobot) DOCKER_ARGS+=("-e" "NANOBOT_PORT=$agent_port") ;;
+                zeroclaw) DOCKER_ARGS+=("-e" "ZEROCLAW_PORT=$agent_port") ;;
+            esac
+        done
     fi
     
     DOCKER_ARGS+=("$SELECTED_IMAGE")
@@ -1062,12 +1099,11 @@ main() {
     done
     echo ""
     
-    # 如果有 Agent 软件需要安装，在容器内执行安装
+    # 如果有 Agent 软件需要安装，在容器内直接执行安装命令
     if [ ${#INSTALL_AGENTS[@]} -gt 0 ]; then
         echo ""
-        print_info "正在容器内安装 Agent 软件..."
-        docker exec "$CONTAINER_NAME" bash /home/kasm-user/.install-agents.sh || true
-        print_success "Agent 软件安装完成"
+        print_info "$(get_text installing_agents)"
+        install_agents_in_container
     fi
     
     print_success "$(get_text complete)!"
