@@ -191,6 +191,26 @@ TEXTS[en_need_sudo]="Linux requires root privileges, please run with sudo"
 TEXTS[en_usage]="Usage"
 TEXTS[en_dind_sudo_warning]="Using sudo in DinD environment may cause Docker connection failure"
 TEXTS[en_try_without_sudo]="Please try running without sudo"
+TEXTS[cn_windows_wsl2_detected]="检测到 Windows WSL2 环境"
+TEXTS[cn_windows_wsl2_recommended]="推荐使用 WSL2 + Docker 方式运行"
+TEXTS[cn_windows_wsl2_install_docker]="请在 WSL2 中安装 Docker："
+TEXTS[cn_windows_wsl2_guide]="1. 在 WSL2 中执行: sudo apt update && sudo apt install -y docker.io docker-compose"
+TEXTS[cn_windows_wsl2_guide2]="2. 启动 Docker: sudo service docker start"
+TEXTS[cn_windows_wsl2_guide3]="3. 重新运行此脚本"
+TEXTS[cn_windows_native_detected]="检测到 Windows 原生环境"
+TEXTS[cn_windows_docker_desktop_guide]="请安装 Docker Desktop："
+TEXTS[cn_windows_docker_desktop_url]="下载地址: https://www.docker.com/products/docker-desktop"
+TEXTS[cn_windows_docker_desktop_guide2]="安装完成后，请重新运行此脚本"
+TEXTS[en_windows_wsl2_detected]="Windows WSL2 environment detected"
+TEXTS[en_windows_wsl2_recommended]="Recommended to use WSL2 + Docker"
+TEXTS[en_windows_wsl2_install_docker]="Please install Docker in WSL2:"
+TEXTS[en_windows_wsl2_guide]="1. Run in WSL2: sudo apt update && sudo apt install -y docker.io docker-compose"
+TEXTS[en_windows_wsl2_guide2]="2. Start Docker: sudo service docker start"
+TEXTS[en_windows_wsl2_guide3]="3. Re-run this script"
+TEXTS[en_windows_native_detected]="Windows native environment detected"
+TEXTS[en_windows_docker_desktop_guide]="Please install Docker Desktop:"
+TEXTS[en_windows_docker_desktop_url]="Download: https://www.docker.com/products/docker-desktop"
+TEXTS[en_windows_docker_desktop_guide2]="After installation, please re-run this script"
 
 # 获取文本函数
 get_text() {
@@ -669,6 +689,56 @@ detect_os() {
     fi
 }
 
+# 检测是否在 WSL2 环境
+check_wsl2() {
+    if [ -f /proc/version ]; then
+        if grep -q "Microsoft" /proc/version || grep -q "WSL" /proc/version; then
+            return 0
+        fi
+    fi
+    return 1
+}
+
+# 检测 Windows 环境并给出指引
+check_windows_environment() {
+    if [[ "$OS_TYPE" == "windows" ]]; then
+        # 检查是否在 WSL2 中
+        if check_wsl2; then
+            print_success "$(get_text windows_wsl2_detected)"
+            print_info "$(get_text windows_wsl2_recommended)"
+            
+            # 检查 Docker 是否已安装
+            if ! command -v docker &> /dev/null; then
+                echo ""
+                print_error "$(get_text docker_not_installed)"
+                print_info "$(get_text windows_wsl2_install_docker)"
+                echo ""
+                echo "  $(get_text windows_wsl2_guide)"
+                echo "  $(get_text windows_wsl2_guide2)"
+                echo "  $(get_text windows_wsl2_guide3)"
+                echo ""
+                exit 1
+            fi
+        else
+            # Windows 原生环境
+            print_warning "$(get_text windows_native_detected)"
+            
+            # 检查 Docker Desktop 是否已安装
+            if ! command -v docker &> /dev/null; then
+                echo ""
+                print_error "$(get_text docker_not_installed)"
+                print_info "$(get_text windows_docker_desktop_guide)"
+                echo ""
+                echo "  $(get_text windows_docker_desktop_url)"
+                echo ""
+                echo "  $(get_text windows_docker_desktop_guide2)"
+                echo ""
+                exit 1
+            fi
+        fi
+    fi
+}
+
 # 检测是否在容器内
 is_container() {
     [ -f /.dockerenv ] || grep -qE "docker|kubepods" /proc/1/cgroup 2>/dev/null
@@ -777,6 +847,9 @@ main() {
     detect_os
     print_info "$(get_text os_detected): $OS"
     
+    # Windows 环境特殊处理
+    check_windows_environment
+    
     # 检查是否在 DinD 环境
     local IS_DIND=false
     if check_dind; then
@@ -789,6 +862,9 @@ main() {
         print_error "$(get_text docker_not_installed)"
         if [[ "$OS_TYPE" == "linux" ]]; then
             print_info "$(get_text docker_install_guide): https://docs.docker.com/engine/install/"
+        elif [[ "$OS_TYPE" == "windows" ]]; then
+            # Windows 环境已经在 check_windows_environment 中处理
+            exit 1
         else
             print_info "$(get_text docker_install_guide): https://www.docker.com/products/docker-desktop"
         fi
