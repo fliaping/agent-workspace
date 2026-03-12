@@ -24,6 +24,7 @@ jobs:
   # ==========================================
   build-dockerhub:
     runs-on: ubuntu-latest
+    environment: docker-hub  # 指定使用 docker-hub 环境的 secrets
     permissions:
       contents: read
       packages: write
@@ -71,6 +72,7 @@ jobs:
   # ==========================================
   build-aliyun:
     runs-on: ubuntu-latest
+    environment: aliyun  # 指定使用 aliyun 环境的 secrets
     permissions:
       contents: read
 
