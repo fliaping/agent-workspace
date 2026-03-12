@@ -16,20 +16,20 @@ declare -A TEXTS
 
 # 中文文本
 TEXTS[cn_welcome_title]="Agent Workspace 一键部署"
-TEXTS[cn_step1_title]="步骤 1/5: 选择语言"
+TEXTS[cn_step1_title]="步骤 1/6: 选择语言"
 TEXTS[cn_lang_cn]="1) 中文 (Chinese) - 使用阿里云镜像（国内推荐）"
 TEXTS[cn_lang_en]="2) English (英文) - 使用 Docker Hub"
 TEXTS[cn_enter_choice]="请输入选项"
 TEXTS[cn_invalid_choice]="无效选项，请重新输入"
-TEXTS[cn_step2_title]="步骤 2/5: 选择镜像版本"
+TEXTS[cn_step2_title]="步骤 2/6: 选择镜像版本"
 TEXTS[cn_version_latest]="1) latest (最新版)"
 TEXTS[cn_version_custom]="2) 自定义版本"
 TEXTS[cn_enter_version]="请输入版本号"
-TEXTS[cn_step3_title]="步骤 3/5: 配置数据目录"
+TEXTS[cn_step3_title]="步骤 3/6: 配置数据目录"
 TEXTS[cn_data_dir_default]="使用默认目录"
 TEXTS[cn_data_dir_custom]="自定义目录"
 TEXTS[cn_enter_data_dir]="请输入数据目录路径"
-TEXTS[cn_step4_title]="步骤 4/5: 配置端口"
+TEXTS[cn_step4_title]="步骤 4/6: 配置基础端口（VNC/Agent API）"
 TEXTS[cn_port_config_title]="配置服务端口"
 TEXTS[cn_port_vnc]="VNC 桌面端口"
 TEXTS[cn_port_agent]="Agent API 端口"
@@ -39,7 +39,7 @@ TEXTS[cn_enter_vnc_port]="请输入 VNC 端口"
 TEXTS[cn_enter_agent_port]="请输入 Agent 端口"
 TEXTS[cn_port_in_use]="端口已被占用"
 TEXTS[cn_port_available]="端口可用"
-TEXTS[cn_step5_title]="步骤 5/5: 安装 Agent 软件"
+TEXTS[cn_step5_title]="步骤 5/6: 选择 Agent 软件"
 TEXTS[cn_agent_install_title]="选择要安装的 Agent 软件（可多选，空格分隔）"
 TEXTS[cn_agent_openclaw]="1) OpenClaw - AI Agent 操作系统"
 TEXTS[cn_agent_openfang]="2) Openfang - 智能体框架"
@@ -47,6 +47,7 @@ TEXTS[cn_agent_nanobot]="3) Nanobot - 轻量级 Agent"
 TEXTS[cn_agent_zeroclaw]="4) Zeroclaw - 零配置 Agent"
 TEXTS[cn_agent_skip]="5) 跳过，不安装任何软件"
 TEXTS[cn_enter_agents]="请输入选项（如：1 2 3）"
+TEXTS[cn_step6_title]="步骤 6/6: 配置 Agent 软件端口"
 TEXTS[cn_agent_port_config]="配置 Agent 软件端口"
 TEXTS[cn_agent_port_default]="使用默认端口"
 TEXTS[cn_agent_port_custom]="自定义端口"
@@ -104,19 +105,19 @@ TEXTS[cn_try_without_sudo]="请尝试不使用 sudo 运行"
 
 # 英文文本
 TEXTS[en_welcome_title]="Agent Workspace Deployment"
-TEXTS[en_step1_title]="Step 1/5: Select Language"
+TEXTS[en_step1_title]="Step 1/6: Select Language"
 TEXTS[en_lang_cn]="1) 中文 (Chinese) - Use Alibaba Cloud Registry (Recommended for China)"
 TEXTS[en_lang_en]="2) English - Use Docker Hub"
 TEXTS[en_enter_choice]="Enter your choice"
 TEXTS[en_invalid_choice]="Invalid choice, please try again"
-TEXTS[en_step2_title]="Step 2/5: Select Image Version"
+TEXTS[en_step2_title]="Step 2/6: Select Image Version"
 TEXTS[en_version_latest]="1) latest"
 TEXTS[en_version_custom]="2) Custom version"
 TEXTS[en_enter_version]="Enter version tag"
-TEXTS[en_step3_title]="Step 3/5: Configure Data Directory"
+TEXTS[en_step3_title]="Step 3/6: Configure Data Directory"
 TEXTS[en_data_dir_default]="Use default directory"
 TEXTS[en_data_dir_custom]="Custom directory"
-TEXTS[en_step4_title]="Step 4/5: Configure Ports"
+TEXTS[en_step4_title]="Step 4/6: Configure Base Ports (VNC/Agent API)"
 TEXTS[en_port_config_title]="Configure Service Ports"
 TEXTS[en_port_vnc]="VNC Desktop Port"
 TEXTS[en_port_agent]="Agent API Port"
@@ -127,7 +128,7 @@ TEXTS[en_enter_agent_port]="Enter Agent port"
 TEXTS[en_port_in_use]="Port is in use"
 TEXTS[en_port_available]="Port is available"
 TEXTS[en_enter_data_dir]="Enter data directory path"
-TEXTS[en_step5_title]="Step 5/5: Install Agent Software"
+TEXTS[en_step5_title]="Step 5/6: Select Agent Software"
 TEXTS[en_agent_install_title]="Select Agent software to install (multiple choices allowed, space separated)"
 TEXTS[en_agent_openclaw]="1) OpenClaw - AI Agent Operating System"
 TEXTS[en_agent_openfang]="2) Openfang - Agent Framework"
@@ -135,6 +136,7 @@ TEXTS[en_agent_nanobot]="3) Nanobot - Lightweight Agent"
 TEXTS[en_agent_zeroclaw]="4) Zeroclaw - Zero-config Agent"
 TEXTS[en_agent_skip]="5) Skip, don't install any software"
 TEXTS[en_enter_agents]="Enter options (e.g., 1 2 3)"
+TEXTS[en_step6_title]="Step 6/6: Configure Agent Software Ports"
 TEXTS[en_agent_port_config]="Configure Agent Software Ports"
 TEXTS[en_agent_port_default]="Use default port"
 TEXTS[en_agent_port_custom]="Custom port"
@@ -452,13 +454,15 @@ select_ports() {
 }
 
 # ============================================================================
-# 配置 Agent 软件端口
+# 步骤 6: 配置 Agent 软件端口
 # ============================================================================
 configure_agent_ports() {
     if [ ${#INSTALL_AGENTS[@]} -eq 0 ]; then
         return
     fi
     
+    echo ""
+    print_info "$(get_text step6_title)"
     echo ""
     print_info "$(get_text agent_port_config)"
     echo ""
@@ -760,13 +764,13 @@ main() {
     # 步骤 3: 配置数据目录
     select_data_dir
     
-    # 步骤 4: 配置端口
+    # 步骤 4: 配置基础端口（VNC 和 Agent API）
     select_ports
     
     # 步骤 5: 选择 Agent 软件
     select_agents
     
-    # 配置 Agent 软件端口
+    # 步骤 6: 配置 Agent 软件端口（如果选择了 Agent 软件）
     configure_agent_ports
     
     # 检测环境
