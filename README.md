@@ -25,6 +25,43 @@
 
 ## 🚀 快速启动
 
+### ⚡ 一键安装（推荐小白用户）
+
+#### Linux/macOS (国内推荐 - Gitee)
+```bash
+curl -fsSL https://gitee.com/fliaping/agent-workspace/raw/main/install.sh | bash
+```
+或
+```bash
+wget -qO- https://gitee.com/fliaping/agent-workspace/raw/main/install.sh | sudo bash
+```
+
+#### Linux/macOS (GitHub - 国际用户)
+```bash
+curl -fsSL https://raw.githubusercontent.com/fliaping/agent-workspace/main/install.sh | bash
+```
+或
+```bash
+wget -qO- https://raw.githubusercontent.com/fliaping/agent-workspace/main/install.sh | sudo bash
+```
+
+#### Windows (PowerShell)
+```powershell
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/fliaping/agent-workspace/main/install.ps1" -OutFile "install.ps1"; .\install.ps1
+```
+
+**一键安装脚本特性：**
+- ✅ **多语言支持**: 安装时选择中文/英文，自动切换镜像源
+  - 中文: 使用阿里云镜像仓库 `registry.cn-hangzhou.aliyuncs.com/fliaping/agent-workspace`
+  - English: 使用 Docker Hub `xuping/agent-workspace`
+- ✅ **版本选择**: 支持 latest 或自定义版本号
+- ✅ **DinD 支持**: 自动检测 Docker in Docker 环境并适配
+- ✅ **多平台**: Linux服务器 / Windows / macOS
+- ✅ **智能端口**: 自动检测并更换被占用端口
+- ✅ **数据持久化**: 自动创建本地数据目录
+
+---
+
 ### 1. 解决基础镜像拉取超时问题（必看！）
 由于底层依赖的巨大基础包（`kasmweb/ubuntu-noble-dind-rootless`）鲜有国内公共源缓存。如果在首次环境组装时执行 `docker compose build` 后遇到 `context deadline exceeded`，说明在国外官方仓库拉取阶段被墙。
 
@@ -65,20 +102,20 @@
 无需 clone 仓库，只需一行命令即可在后台拉起您的智能体工作台：
 
 ```bash
-# ⚡️ 启动中文特供版 (内置极速国内加速源)
+# ⚡️ 启动中文特供版 (阿里云镜像 - 国内推荐)
 docker run -d --name agent-workspace -p 6901:6901 -p 19789:18789 --privileged \
-  -v $(pwd)/home:/home/kasm-user xuping/agent-workspace:v1.0.0-zh
+  -v $(pwd)/home:/home/kasm-user registry.cn-hangzhou.aliyuncs.com/fliaping/agent-workspace:v1.0.0
 
-# 或者启动国际纯净版 (全系官方直连)
+# 或者启动国际纯净版 (Docker Hub)
 # docker run -d --name agent-workspace -p 6901:6901 -p 19789:18789 --privileged \
-#   -v $(pwd)/home:/home/kasm-user xuping/agent-workspace:v1.0.0-en
+#   -v $(pwd)/home:/home/kasm-user xuping/agent-workspace:v1.0.0
 ```
 
 #### 方式 B：使用 Docker Compose 启动（适合复杂项目集成）
 如果您已经下载了本仓库的代码，可以直接使用根目录下的 `docker-compose.yml`。
 修改 `docker-compose.yml` 中的 `image` 标签以选择您需要的版本：
-- 中文版配置：`image: xuping/agent-workspace:v1.0.0-zh`
-- 英文版配置：`image: xuping/agent-workspace:v1.0.0-en`
+- 中文版配置（阿里云）: `image: registry.cn-hangzhou.aliyuncs.com/fliaping/agent-workspace:v1.0.0`
+- 英文版配置（Docker Hub）: `image: xuping/agent-workspace:v1.0.0`
 
 修改完毕后，在项目根目录执行：
 ```bash
