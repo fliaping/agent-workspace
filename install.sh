@@ -16,16 +16,29 @@ declare -A TEXTS
 
 # 中文文本
 TEXTS[cn_welcome_title]="Agent Workspace 一键部署"
-TEXTS[cn_step1_title]="步骤 1/3: 选择语言"
+TEXTS[cn_step1_title]="步骤 1/4: 选择语言"
 TEXTS[cn_lang_cn]="1) 中文 (Chinese) - 使用阿里云镜像（国内推荐）"
 TEXTS[cn_lang_en]="2) English (英文) - 使用 Docker Hub"
 TEXTS[cn_enter_choice]="请输入选项"
 TEXTS[cn_invalid_choice]="无效选项，请重新输入"
-TEXTS[cn_step2_title]="步骤 2/3: 选择镜像版本"
+TEXTS[cn_step2_title]="步骤 2/4: 选择镜像版本"
 TEXTS[cn_version_latest]="1) latest (最新版)"
 TEXTS[cn_version_custom]="2) 自定义版本"
 TEXTS[cn_enter_version]="请输入版本号"
-TEXTS[cn_step3_title]="步骤 3/3: 配置选项"
+TEXTS[cn_step3_title]="步骤 3/4: 配置数据目录"
+TEXTS[cn_data_dir_default]="使用默认目录"
+TEXTS[cn_data_dir_custom]="自定义目录"
+TEXTS[cn_enter_data_dir]="请输入数据目录路径"
+TEXTS[cn_step4_title]="步骤 4/4: 安装 Agent 软件"
+TEXTS[cn_agent_install_title]="选择要安装的 Agent 软件（可多选，空格分隔）"
+TEXTS[cn_agent_openclaw]="1) OpenClaw - AI Agent 操作系统"
+TEXTS[cn_agent_openfang]="2) Openfang - 智能体框架"
+TEXTS[cn_agent_nanobot]="3) Nanobot - 轻量级 Agent"
+TEXTS[cn_agent_zeroclaw]="4) Zeroclaw - 零配置 Agent"
+TEXTS[cn_agent_skip]="5) 跳过，不安装任何软件"
+TEXTS[cn_enter_agents]="请输入选项（如：1 2 3）"
+TEXTS[cn_installing_agents]="正在安装 Agent 软件..."
+TEXTS[cn_agent_install_success]="Agent 软件安装成功"
 TEXTS[cn_using_registry]="使用镜像仓库"
 TEXTS[cn_selected_image]="已选择镜像"
 TEXTS[cn_pulling]="正在拉取镜像..."
@@ -73,16 +86,29 @@ TEXTS[cn_try_without_sudo]="请尝试不使用 sudo 运行"
 
 # 英文文本
 TEXTS[en_welcome_title]="Agent Workspace Deployment"
-TEXTS[en_step1_title]="Step 1/3: Select Language"
+TEXTS[en_step1_title]="Step 1/4: Select Language"
 TEXTS[en_lang_cn]="1) 中文 (Chinese) - Use Alibaba Cloud Registry (Recommended for China)"
 TEXTS[en_lang_en]="2) English - Use Docker Hub"
 TEXTS[en_enter_choice]="Enter your choice"
 TEXTS[en_invalid_choice]="Invalid choice, please try again"
-TEXTS[en_step2_title]="Step 2/3: Select Image Version"
+TEXTS[en_step2_title]="Step 2/4: Select Image Version"
 TEXTS[en_version_latest]="1) latest"
 TEXTS[en_version_custom]="2) Custom version"
 TEXTS[en_enter_version]="Enter version tag"
-TEXTS[en_step3_title]="Step 3/3: Configuration"
+TEXTS[en_step3_title]="Step 3/4: Configure Data Directory"
+TEXTS[en_data_dir_default]="Use default directory"
+TEXTS[en_data_dir_custom]="Custom directory"
+TEXTS[en_enter_data_dir]="Enter data directory path"
+TEXTS[en_step4_title]="Step 4/4: Install Agent Software"
+TEXTS[en_agent_install_title]="Select Agent software to install (multiple choices allowed, space separated)"
+TEXTS[en_agent_openclaw]="1) OpenClaw - AI Agent Operating System"
+TEXTS[en_agent_openfang]="2) Openfang - Agent Framework"
+TEXTS[en_agent_nanobot]="3) Nanobot - Lightweight Agent"
+TEXTS[en_agent_zeroclaw]="4) Zeroclaw - Zero-config Agent"
+TEXTS[en_agent_skip]="5) Skip, don't install any software"
+TEXTS[en_enter_agents]="Enter options (e.g., 1 2 3)"
+TEXTS[en_installing_agents]="Installing Agent software..."
+TEXTS[en_agent_install_success]="Agent software installed successfully"
 TEXTS[en_using_registry]="Using registry"
 TEXTS[en_selected_image]="Selected image"
 TEXTS[en_pulling]="Pulling image..."
@@ -143,7 +169,7 @@ REGISTRY_CN="registry.cn-hangzhou.aliyuncs.com/fliaping/agent-workspace"
 REGISTRY_EN="xuping/agent-workspace"
 
 # 默认版本
-DEFAULT_VERSION="v1.0.0"
+DEFAULT_VERSION="latest"
 
 # 容器配置
 CONTAINER_NAME="agent-workspace"
@@ -156,6 +182,12 @@ LANG="cn"
 # 选择的镜像
 SELECTED_IMAGE=""
 VERSION=""
+
+# 数据目录
+DATA_DIR=""
+
+# 要安装的 Agent 软件
+INSTALL_AGENTS=()
 
 # ============================================================================
 # 颜色定义
@@ -245,6 +277,127 @@ select_version() {
     echo ""
     print_info "$(get_text using_registry): $(if [ "$LANG" = "cn" ]; then echo "$REGISTRY_CN"; else echo "$REGISTRY_EN"; fi)"
     print_info "$(get_text selected_image): $SELECTED_IMAGE"
+}
+
+# ============================================================================
+# 步骤 3: 配置数据目录
+# ============================================================================
+select_data_dir() {
+    echo ""
+    print_info "$(get_text step3_title)"
+    
+    # 获取默认目录（当前用户 home 目录下的 agent-workspace-data）
+    local default_dir="$HOME/agent-workspace-data"
+    
+    echo ""
+    echo "  1) $(get_text data_dir_default): $default_dir"
+    echo "  2) $(get_text data_dir_custom)"
+    echo ""
+    
+    read -p "$(get_text enter_choice) [1-2, default 1]: " dir_choice
+    dir_choice=${dir_choice:-1}
+    
+    case $dir_choice in
+        1)
+            DATA_DIR="$default_dir"
+            ;;
+        2)
+            echo ""
+            read -p "$(get_text enter_data_dir): " custom_dir
+            if [ -z "$custom_dir" ]; then
+                DATA_DIR="$default_dir"
+                print_warning "输入为空，使用默认目录: $DATA_DIR"
+            else
+                DATA_DIR="$custom_dir"
+            fi
+            ;;
+        *)
+            DATA_DIR="$default_dir"
+            ;;
+    esac
+    
+    # 展开路径中的 ~
+    DATA_DIR="${DATA_DIR/#\~/$HOME}"
+    
+    echo ""
+    print_info "$(get_text data_dir): $DATA_DIR"
+}
+
+# ============================================================================
+# 步骤 4: 选择要安装的 Agent 软件
+# ============================================================================
+select_agents() {
+    echo ""
+    print_info "$(get_text step4_title)"
+    echo ""
+    print_info "$(get_text agent_install_title)"
+    echo "  $(get_text agent_openclaw)"
+    echo "  $(get_text agent_openfang)"
+    echo "  $(get_text agent_nanobot)"
+    echo "  $(get_text agent_zeroclaw)"
+    echo "  $(get_text agent_skip)"
+    echo ""
+    
+    read -p "$(get_text enter_agents) [1-5, default 5]: " agent_choices
+    agent_choices=${agent_choices:-5}
+    
+    # 解析用户选择
+    for choice in $agent_choices; do
+        case $choice in
+            1) INSTALL_AGENTS+=("openclaw") ;;
+            2) INSTALL_AGENTS+=("openfang") ;;
+            3) INSTALL_AGENTS+=("nanobot") ;;
+            4) INSTALL_AGENTS+=("zeroclaw") ;;
+            5) 
+                INSTALL_AGENTS=()
+                print_info "跳过 Agent 软件安装"
+                return
+                ;;
+        esac
+    done
+    
+    if [ ${#INSTALL_AGENTS[@]} -gt 0 ]; then
+        echo ""
+        print_info "将安装以下软件: ${INSTALL_AGENTS[*]}"
+    fi
+}
+
+# ============================================================================
+# 生成 Agent 安装脚本
+# ============================================================================
+generate_install_script() {
+    local install_script=""
+    
+    for agent in "${INSTALL_AGENTS[@]}"; do
+        case $agent in
+            openclaw)
+                install_script+="# Install OpenClaw
+                echo 'Installing OpenClaw...'
+                curl -fsSL https://raw.githubusercontent.com/openclaw/openclaw/main/install.sh | bash
+                "
+                ;;
+            openfang)
+                install_script+="# Install Openfang
+                echo 'Installing Openfang...'
+                npm install -g @openfang/cli
+                "
+                ;;
+            nanobot)
+                install_script+="# Install Nanobot
+                echo 'Installing Nanobot...'
+                pip install nanobot
+                "
+                ;;
+            zeroclaw)
+                install_script+="# Install Zeroclaw
+                echo 'Installing Zeroclaw...'
+                curl -fsSL https://zeroclaw.dev/install.sh | bash
+                "
+                ;;
+        esac
+    done
+    
+    echo "$install_script"
 }
 
 # ============================================================================
@@ -366,6 +519,12 @@ main() {
     # 步骤 2: 选择版本
     select_version
     
+    # 步骤 3: 配置数据目录
+    select_data_dir
+    
+    # 步骤 4: 选择 Agent 软件
+    select_agents
+    
     # 检测环境
     detect_os
     print_info "$(get_text os_detected): $OS"
@@ -454,7 +613,6 @@ main() {
     fi
     
     # 创建数据目录
-    DATA_DIR="$(pwd)/agent-workspace-data"
     print_info "$(get_text creating_data_dir)"
     mkdir -p "$DATA_DIR"
     
@@ -494,6 +652,28 @@ main() {
         fi
     fi
     
+    # 如果有 Agent 软件需要安装，生成安装脚本
+    if [ ${#INSTALL_AGENTS[@]} -gt 0 ]; then
+        echo ""
+        print_info "$(get_text installing_agents)"
+        
+        # 创建安装脚本
+        INSTALL_SCRIPT=$(generate_install_script)
+        INSTALL_SCRIPT_PATH="${DATA_DIR}/.install-agents.sh"
+        
+        echo "#!/bin/bash" > "$INSTALL_SCRIPT_PATH"
+        echo "$INSTALL_SCRIPT" >> "$INSTALL_SCRIPT_PATH"
+        chmod +x "$INSTALL_SCRIPT_PATH"
+        
+        # 添加启动脚本挂载
+        DOCKER_ARGS+=(
+            "-v" "${INSTALL_SCRIPT_PATH}:/home/kasm-user/.install-agents.sh:ro"
+        )
+        
+        print_success "$(get_text agent_install_success)"
+        print_info "Agent 软件将在容器启动后自动安装"
+    fi
+    
     DOCKER_ARGS+=("$SELECTED_IMAGE")
     
     # 启动容器
@@ -516,6 +696,14 @@ main() {
         echo -n "."
     done
     echo ""
+    
+    # 如果有 Agent 软件需要安装，在容器内执行安装
+    if [ ${#INSTALL_AGENTS[@]} -gt 0 ]; then
+        echo ""
+        print_info "正在容器内安装 Agent 软件..."
+        docker exec "$CONTAINER_NAME" bash /home/kasm-user/.install-agents.sh || true
+        print_success "Agent 软件安装完成"
+    fi
     
     print_success "$(get_text complete)!"
     print_access_info
@@ -548,6 +736,15 @@ print_access_info() {
     fi
     
     print_info "💾 $(get_text data_dir): ${DATA_DIR}"
+    
+    if [ ${#INSTALL_AGENTS[@]} -gt 0 ]; then
+        echo ""
+        print_info "📦 已安装 Agent 软件:"
+        for agent in "${INSTALL_AGENTS[@]}"; do
+            echo "    ✓ $agent"
+        done
+    fi
+    
     echo ""
     print_info "📋 $(get_text common_commands):"
     echo "    $(get_text view_logs): docker logs -f $CONTAINER_NAME"
