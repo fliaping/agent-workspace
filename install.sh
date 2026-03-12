@@ -47,6 +47,14 @@ TEXTS[cn_agent_nanobot]="3) Nanobot - 轻量级 Agent"
 TEXTS[cn_agent_zeroclaw]="4) Zeroclaw - 零配置 Agent"
 TEXTS[cn_agent_skip]="5) 跳过，不安装任何软件"
 TEXTS[cn_enter_agents]="请输入选项（如：1 2 3）"
+TEXTS[cn_agent_port_config]="配置 Agent 软件端口"
+TEXTS[cn_agent_port_default]="使用默认端口"
+TEXTS[cn_agent_port_custom]="自定义端口"
+TEXTS[cn_enter_agent_port_num]="请输入端口"
+TEXTS[cn_agent_port_openclaw]="OpenClaw 端口（默认 3000）"
+TEXTS[cn_agent_port_openfang]="Openfang 端口（默认 8080）"
+TEXTS[cn_agent_port_nanobot]="Nanobot 端口（默认 9000）"
+TEXTS[cn_agent_port_zeroclaw]="Zeroclaw 端口（默认 7000）"
 TEXTS[cn_installing_agents]="正在安装 Agent 软件..."
 TEXTS[cn_agent_install_success]="Agent 软件安装成功"
 TEXTS[cn_using_registry]="使用镜像仓库"
@@ -127,6 +135,14 @@ TEXTS[en_agent_nanobot]="3) Nanobot - Lightweight Agent"
 TEXTS[en_agent_zeroclaw]="4) Zeroclaw - Zero-config Agent"
 TEXTS[en_agent_skip]="5) Skip, don't install any software"
 TEXTS[en_enter_agents]="Enter options (e.g., 1 2 3)"
+TEXTS[en_agent_port_config]="Configure Agent Software Ports"
+TEXTS[en_agent_port_default]="Use default port"
+TEXTS[en_agent_port_custom]="Custom port"
+TEXTS[en_enter_agent_port_num]="Enter port"
+TEXTS[en_agent_port_openclaw]="OpenClaw port (default 3000)"
+TEXTS[en_agent_port_openfang]="Openfang port (default 8080)"
+TEXTS[en_agent_port_nanobot]="Nanobot port (default 9000)"
+TEXTS[en_agent_port_zeroclaw]="Zeroclaw port (default 7000)"
 TEXTS[en_installing_agents]="Installing Agent software..."
 TEXTS[en_agent_install_success]="Agent software installed successfully"
 TEXTS[en_using_registry]="Using registry"
@@ -195,6 +211,16 @@ DEFAULT_VERSION="latest"
 CONTAINER_NAME="agent-workspace"
 VNC_PORT="6901"
 AGENT_PORT="19789"
+
+# Agent 软件默认端口配置
+declare -A AGENT_PORTS
+AGENT_PORTS[openclaw]="3000"
+AGENT_PORTS[openfang]="8080"
+AGENT_PORTS[nanobot]="9000"
+AGENT_PORTS[zeroclaw]="7000"
+
+# 用户自定义的 Agent 端口
+declare -A CUSTOM_AGENT_PORTS
 
 # 当前语言 (cn/en)
 LANG="cn"
@@ -426,11 +452,87 @@ select_ports() {
 }
 
 # ============================================================================
+# 配置 Agent 软件端口
+# ============================================================================
+configure_agent_ports() {
+    if [ ${#INSTALL_AGENTS[@]} -eq 0 ]; then
+        return
+    fi
+    
+    echo ""
+    print_info "$(get_text agent_port_config)"
+    echo ""
+    
+    for agent in "${INSTALL_AGENTS[@]}"; do
+        local default_port="${AGENT_PORTS[$agent]}"
+        local port_name=""
+        
+        case $agent in
+            openclaw) port_name="$(get_text agent_port_openclaw)" ;;
+            openfang) port_name="$(get_text agent_port_openfang)" ;;
+            nanobot) port_name="$(get_text agent_port_nanobot)" ;;
+            zeroclaw) port_name="$(get_text agent_port_zeroclaw)" ;;
+        esac
+        
+        echo ""
+        echo "  $port_name"
+        echo "  1) $(get_text agent_port_default): $default_port"
+        echo "  2) $(get_text agent_port_custom)"
+        echo ""
+        
+        read -p "$(get_text enter_choice) [1-2, default 1]: " port_choice
+        port_choice=${port_choice:-1}
+        
+        case $port_choice in
+            1)
+                CUSTOM_AGENT_PORTS[$agent]=$default_port
+                # 检查端口是否可用
+                if ! check_port_available $default_port; then
+                    print_warning "$port_name $default_port $(get_text port_in_use)"
+                    local new_port=$(find_available_port $default_port)
+                    CUSTOM_AGENT_PORTS[$agent]=$new_port
+                    print_info "$port_name $(get_text auto_change_port): $new_port"
+                else
+                    print_success "$port_name $default_port $(get_text port_available)"
+                fi
+                ;;
+            2)
+                echo ""
+                read -p "$(get_text enter_agent_port_num): " custom_port
+                if [ -n "$custom_port" ]; then
+                    if check_port_available $custom_port; then
+                        CUSTOM_AGENT_PORTS[$agent]=$custom_port
+                        print_success "$port_name $custom_port $(get_text port_available)"
+                    else
+                        print_warning "$port_name $custom_port $(get_text port_in_use)"
+                        local new_port=$(find_available_port $custom_port)
+                        CUSTOM_AGENT_PORTS[$agent]=$new_port
+                        print_info "$port_name $(get_text auto_change_port): $new_port"
+                    fi
+                else
+                    CUSTOM_AGENT_PORTS[$agent]=$default_port
+                fi
+                ;;
+            *)
+                CUSTOM_AGENT_PORTS[$agent]=$default_port
+                ;;
+        esac
+    done
+    
+    # 显示配置的端口
+    echo ""
+    print_info "Agent 软件端口配置:"
+    for agent in "${INSTALL_AGENTS[@]}"; do
+        echo "  $agent: ${CUSTOM_AGENT_PORTS[$agent]}"
+    done
+}
+
+# ============================================================================
 # 步骤 5: 选择要安装的 Agent 软件
 # ============================================================================
 select_agents() {
     echo ""
-    print_info "$(get_text step4_title)"
+    print_info "$(get_text step5_title)"
     echo ""
     print_info "$(get_text agent_install_title)"
     echo "  $(get_text agent_openclaw)"
@@ -470,36 +572,70 @@ select_agents() {
 generate_install_script() {
     local install_script=""
     
+    # 添加端口环境变量配置
+    install_script+="# Agent Software Port Configuration
+export AGENT_WORKSPACE_PORTS=\"$(get_agent_ports_json)\""
+    
     for agent in "${INSTALL_AGENTS[@]}"; do
+        local agent_port="${CUSTOM_AGENT_PORTS[$agent]}"
+        
         case $agent in
             openclaw)
-                install_script+="# Install OpenClaw
-                echo 'Installing OpenClaw...'
-                curl -fsSL https://raw.githubusercontent.com/openclaw/openclaw/main/install.sh | bash
-                "
+                install_script+="
+# Install OpenClaw (Port: $agent_port)
+echo 'Installing OpenClaw on port $agent_port...'
+export OPENCLAW_PORT=$agent_port
+curl -fsSL https://raw.githubusercontent.com/openclaw/openclaw/main/install.sh | bash
+"
                 ;;
             openfang)
-                install_script+="# Install Openfang
-                echo 'Installing Openfang...'
-                npm install -g @openfang/cli
-                "
+                install_script+="
+# Install Openfang (Port: $agent_port)
+echo 'Installing Openfang on port $agent_port...'
+export OPENFANG_PORT=$agent_port
+npm install -g @openfang/cli
+"
                 ;;
             nanobot)
-                install_script+="# Install Nanobot
-                echo 'Installing Nanobot...'
-                pip install nanobot
-                "
+                install_script+="
+# Install Nanobot (Port: $agent_port)
+echo 'Installing Nanobot on port $agent_port...'
+export NANOBOT_PORT=$agent_port
+pip install nanobot
+"
                 ;;
             zeroclaw)
-                install_script+="# Install Zeroclaw
-                echo 'Installing Zeroclaw...'
-                curl -fsSL https://zeroclaw.dev/install.sh | bash
-                "
+                install_script+="
+# Install Zeroclaw (Port: $agent_port)
+echo 'Installing Zeroclaw on port $agent_port...'
+export ZEROCLAW_PORT=$agent_port
+curl -fsSL https://zeroclaw.dev/install.sh | bash
+"
                 ;;
         esac
     done
     
     echo "$install_script"
+}
+
+# ============================================================================
+# 获取 Agent 端口配置 JSON
+# ============================================================================
+get_agent_ports_json() {
+    local json="{"
+    local first=true
+    
+    for agent in "${INSTALL_AGENTS[@]}"; do
+        if [ "$first" = true ]; then
+            first=false
+        else
+            json+=","
+        fi
+        json+="\"$agent\":${CUSTOM_AGENT_PORTS[$agent]}"
+    done
+    
+    json+="}"
+    echo "$json"
 }
 
 # ============================================================================
@@ -629,6 +765,9 @@ main() {
     
     # 步骤 5: 选择 Agent 软件
     select_agents
+    
+    # 配置 Agent 软件端口
+    configure_agent_ports
     
     # 检测环境
     detect_os
@@ -846,7 +985,8 @@ print_access_info() {
         echo ""
         print_info "📦 已安装 Agent 软件:"
         for agent in "${INSTALL_AGENTS[@]}"; do
-            echo "    ✓ $agent"
+            local agent_port="${CUSTOM_AGENT_PORTS[$agent]}"
+            echo "    ✓ $agent (端口: $agent_port)"
         done
     fi
     
