@@ -2,17 +2,7 @@ name: Build and Push Docker Images
 
 on:
   push:
-    branches: [ main ]
     tags: [ 'v*' ]
-    paths:
-      - 'Dockerfile_zh'
-      - 'Dockerfile_en'
-      - '.github/workflows/docker-build.yml'
-  pull_request:
-    branches: [ main ]
-    paths:
-      - 'Dockerfile_zh'
-      - 'Dockerfile_en'
   workflow_dispatch:
     inputs:
       version:
@@ -31,7 +21,7 @@ jobs:
   # ==========================================
   build-dockerhub:
     runs-on: ubuntu-latest
-    environment: docker-hub  # 指定使用 docker-hub 环境的 secrets
+    environment: docker-hub
     permissions:
       contents: read
       packages: write
@@ -55,19 +45,17 @@ jobs:
         with:
           images: ${{ env.REGISTRY_DOCKERHUB }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=ref,event=branch
-            type=ref,event=pr
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/tags/v1.0.0' || startsWith(github.ref, 'refs/tags/v') }}
             type=raw,value=${{ github.event.inputs.version }},enable=${{ github.event.inputs.version != '' }}
-            type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push Docker Hub (English)
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile_en
-          push: ${{ github.event_name != 'pull_request' }}
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
@@ -79,7 +67,7 @@ jobs:
   # ==========================================
   build-aliyun:
     runs-on: ubuntu-latest
-    environment: aliyun  # 指定使用 aliyun 环境的 secrets
+    environment: aliyun
     permissions:
       contents: read
 
@@ -103,19 +91,17 @@ jobs:
         with:
           images: ${{ env.REGISTRY_ALIYUN }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=ref,event=branch
-            type=ref,event=pr
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/tags/v1.0.0' || startsWith(github.ref, 'refs/tags/v') }}
             type=raw,value=${{ github.event.inputs.version }},enable=${{ github.event.inputs.version != '' }}
-            type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push Aliyun (Chinese)
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile_zh
-          push: ${{ github.event_name != 'pull_request' }}
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
