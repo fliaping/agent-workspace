@@ -104,18 +104,18 @@ Invoke-WebRequest -Uri "https://raw.githubusercontent.com/fliaping/agent-workspa
 ```bash
 # ⚡️ 启动中文特供版 (阿里云镜像 - 国内推荐)
 docker run -d --name agent-workspace -p 6901:6901 -p 19789:18789 --privileged \
-  -v $(pwd)/home:/home/kasm-user registry.cn-hangzhou.aliyuncs.com/fliaping/agent-workspace:v1.0.0
+  -v $(pwd)/home:/home/kasm-user registry.cn-hangzhou.aliyuncs.com/fliaping/agent-workspace:latest
 
 # 或者启动国际纯净版 (Docker Hub)
 # docker run -d --name agent-workspace -p 6901:6901 -p 19789:18789 --privileged \
-#   -v $(pwd)/home:/home/kasm-user xuping/agent-workspace:v1.0.0
+#   -v $(pwd)/home:/home/kasm-user xuping/agent-workspace:latest
 ```
 
 #### 方式 B：使用 Docker Compose 启动（适合复杂项目集成）
 如果您已经下载了本仓库的代码，可以直接使用根目录下的 `docker-compose.yml`。
 修改 `docker-compose.yml` 中的 `image` 标签以选择您需要的版本：
-- 中文版配置（阿里云）: `image: registry.cn-hangzhou.aliyuncs.com/fliaping/agent-workspace:v1.0.0`
-- 英文版配置（Docker Hub）: `image: xuping/agent-workspace:v1.0.0`
+- 中文版配置（阿里云）: `image: registry.cn-hangzhou.aliyuncs.com/fliaping/agent-workspace:latest`
+- 英文版配置（Docker Hub）: `image: xuping/agent-workspace:latest`
 
 修改完毕后，在项目根目录执行：
 ```bash

@@ -4,8 +4,15 @@ on:
   push:
     branches: [ main ]
     tags: [ 'v*' ]
+    paths:
+      - 'Dockerfile_zh'
+      - 'Dockerfile_en'
+      - '.github/workflows/docker-build.yml'
   pull_request:
     branches: [ main ]
+    paths:
+      - 'Dockerfile_zh'
+      - 'Dockerfile_en'
   workflow_dispatch:
     inputs:
       version:
