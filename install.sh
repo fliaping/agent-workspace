@@ -211,6 +211,24 @@ TEXTS[en_windows_native_detected]="Windows native environment detected"
 TEXTS[en_windows_docker_desktop_guide]="Please install Docker Desktop:"
 TEXTS[en_windows_docker_desktop_url]="Download: https://www.docker.com/products/docker-desktop"
 TEXTS[en_windows_docker_desktop_guide2]="After installation, please re-run this script"
+TEXTS[cn_macos_detected]="检测到 macOS 系统"
+TEXTS[cn_macos_docker_guide]="请安装 Docker，推荐以下方式："
+TEXTS[cn_macos_orbstack]="1) Orbstack (推荐，轻量快速)"
+TEXTS[cn_macos_orbstack_url]="   https://orbstack.dev/"
+TEXTS[cn_macos_docker_desktop]="2) Docker Desktop (官方版)"
+TEXTS[cn_macos_docker_desktop_url]="   https://www.docker.com/products/docker-desktop"
+TEXTS[cn_macos_podman]="3) Podman (开源替代)"
+TEXTS[cn_macos_podman_url]="   https://podman.io/"
+TEXTS[cn_macos_install_complete]="安装完成后，请重新运行此脚本"
+TEXTS[en_macos_detected]="macOS system detected"
+TEXTS[en_macos_docker_guide]="Please install Docker, recommended options:"
+TEXTS[en_macos_orbstack]="1) Orbstack (Recommended, lightweight and fast)"
+TEXTS[en_macos_orbstack_url]="   https://orbstack.dev/"
+TEXTS[en_macos_docker_desktop]="2) Docker Desktop (Official)"
+TEXTS[en_macos_docker_desktop_url]="   https://www.docker.com/products/docker-desktop"
+TEXTS[en_macos_podman]="3) Podman (Open source alternative)"
+TEXTS[en_macos_podman_url]="   https://podman.io/"
+TEXTS[en_macos_install_complete]="After installation, please re-run this script"
 
 # 获取文本函数
 get_text() {
@@ -699,7 +717,7 @@ check_wsl2() {
     return 1
 }
 
-# 检测 Windows 环境并给出指引
+# 检测 Windows/macOS 环境并给出指引
 check_windows_environment() {
     if [[ "$OS_TYPE" == "windows" ]]; then
         # 检查是否在 WSL2 中
@@ -735,6 +753,29 @@ check_windows_environment() {
                 echo ""
                 exit 1
             fi
+        fi
+    elif [[ "$OS_TYPE" == "macos" ]]; then
+        # macOS 环境
+        print_info "$(get_text macos_detected)"
+        
+        # 检查 Docker 是否已安装
+        if ! command -v docker &> /dev/null; then
+            echo ""
+            print_error "$(get_text docker_not_installed)"
+            print_info "$(get_text macos_docker_guide)"
+            echo ""
+            echo "  $(get_text macos_orbstack)"
+            echo "     $(get_text macos_orbstack_url)"
+            echo ""
+            echo "  $(get_text macos_docker_desktop)"
+            echo "     $(get_text macos_docker_desktop_url)"
+            echo ""
+            echo "  $(get_text macos_podman)"
+            echo "     $(get_text macos_podman_url)"
+            echo ""
+            echo "  $(get_text macos_install_complete)"
+            echo ""
+            exit 1
         fi
     fi
 }
@@ -989,9 +1030,9 @@ main() {
         echo "$INSTALL_SCRIPT" >> "$INSTALL_SCRIPT_PATH"
         chmod +x "$INSTALL_SCRIPT_PATH"
         
-        # 添加启动脚本挂载
+        # 添加启动脚本挂载（不使用只读，因为 pre_startup 会恢复模板并修改权限）
         DOCKER_ARGS+=(
-            "-v" "${INSTALL_SCRIPT_PATH}:/home/kasm-user/.install-agents.sh:ro"
+            "-v" "${INSTALL_SCRIPT_PATH}:/home/kasm-user/.install-agents.sh"
         )
         
         print_success "$(get_text agent_install_success)"
