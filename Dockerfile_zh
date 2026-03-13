@@ -129,7 +129,7 @@ RUN cp -a /home/kasm-user /opt/kasm-user-template \
     && chown -R 1000:1000 /opt/kasm-user-template
 
 # [中文] 输入法环境变量写入系统级配置，确保图形应用也能读到
-RUN echo 'GTK_IM_MODULE=fcitx\nQT_IM_MODULE=fcitx\nXMODIFIERS=@im=fcitx' >> /etc/environment
+RUN printf 'GTK_IM_MODULE=fcitx\nQT_IM_MODULE=fcitx\nXMODIFIERS=@im=fcitx\n' >> /etc/environment
 
 # [启动器 1: 恢复锚点] pre_startup.sh
 # 容器主点入口。执行启动前先看用户主目录是否为首次空盘，如果是，先倾泻模板数据铺底。
