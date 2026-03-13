@@ -40,7 +40,7 @@ RUN mkdir -p /etc/apt/keyrings \
         python3 python3-pip python3-venv python3-dev xz-utils libssl-dev libffi-dev \
         # [中文] 语言包、字体、输入法支持
         locales fonts-wqy-zenhei fonts-wqy-microhei fonts-noto-cjk \
-        ibus ibus-libpinyin \
+        fcitx5 fcitx5-chinese-addons fcitx5-frontend-gtk3 fcitx5-frontend-qt5 \
     # [中文] 生成中文 locale
     && sed -i 's/# zh_CN.UTF-8 UTF-8/zh_CN.UTF-8 UTF-8/' /etc/locale.gen \
     && locale-gen zh_CN.UTF-8 \
@@ -129,7 +129,7 @@ RUN cp -a /home/kasm-user /opt/kasm-user-template \
     && chown -R 1000:1000 /opt/kasm-user-template
 
 # [中文] 输入法环境变量写入系统级配置，确保图形应用也能读到
-RUN echo 'GTK_IM_MODULE=ibus\nQT_IM_MODULE=ibus\nXMODIFIERS=@im=ibus' >> /etc/environment
+RUN echo 'GTK_IM_MODULE=fcitx\nQT_IM_MODULE=fcitx\nXMODIFIERS=@im=fcitx' >> /etc/environment
 
 # [启动器 1: 恢复锚点] pre_startup.sh
 # 容器主点入口。执行启动前先看用户主目录是否为首次空盘，如果是，先倾泻模板数据铺底。
@@ -163,12 +163,12 @@ if [ -z "$DISABLE_CUSTOM_STARTUP" ]; then\n\
         sleep 1\n\
     done &\n\
 \n\
-    # [中文] 启动 IBus 输入法守护进程\n\
-    echo "[custom_startup] Starting IBus daemon"\n\
-    export GTK_IM_MODULE=ibus\n\
-    export QT_IM_MODULE=ibus\n\
-    export XMODIFIERS=@im=ibus\n\
-    ibus-daemon -drx || echo "[custom_startup] IBus daemon failed to start"\n\
+    # [中文] 启动 Fcitx5 输入法\n\
+    echo "[custom_startup] Starting Fcitx5"\n\
+    export GTK_IM_MODULE=fcitx\n\
+    export QT_IM_MODULE=fcitx\n\
+    export XMODIFIERS=@im=fcitx\n\
+    fcitx5 -d || echo "[custom_startup] Fcitx5 failed to start"\n\
 \n\
     if [ -f "$USER_STARTUP" ] && [ -x "$USER_STARTUP" ]; then\n\
         echo "[custom_startup] Running user startup script: $USER_STARTUP"\n\
