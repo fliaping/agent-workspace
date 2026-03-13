@@ -8,6 +8,26 @@
 set -e
 
 # ============================================================================
+# 终端输入处理（支持 curl | bash 管道模式）
+# ============================================================================
+# 当通过 curl | bash 执行时，stdin 被管道占用，read 无法从终端读取
+# 解决方案：打开 /dev/tty 作为 fd 3，所有交互式 read 从 fd 3 读取
+if [ -t 0 ]; then
+    # 直接执行，stdin 就是终端
+    exec 3<&0
+else
+    # 管道模式，从 /dev/tty 打开终端
+    exec 3</dev/tty
+fi
+
+# 封装 read 函数，自动从 fd 3（终端）读取
+prompt_read() {
+    local varname="$1"
+    shift
+    read -p "$@" "$varname" <&3
+}
+
+# ============================================================================
 # 多语言配置
 # ============================================================================
 
@@ -306,7 +326,7 @@ select_language() {
     echo ""
     
     while true; do
-        read -p "$(get_text enter_choice) [1-2, default 1]: " lang_choice
+        prompt_read lang_choice "$(get_text enter_choice) [1-2, default 1]: "
         lang_choice=${lang_choice:-1}
         
         case $lang_choice in
@@ -337,7 +357,7 @@ select_version() {
     echo "  $(get_text version_custom)"
     echo ""
     
-    read -p "$(get_text enter_choice) [1-2, default 1]: " version_choice
+    prompt_read version_choice "$(get_text enter_choice) [1-2, default 1]: "
     version_choice=${version_choice:-1}
     
     case $version_choice in
@@ -346,7 +366,7 @@ select_version() {
             ;;
         2)
             echo ""
-            read -p "$(get_text enter_version): " VERSION
+            prompt_read VERSION "$(get_text enter_version): "
             ;;
         *)
             VERSION="$DEFAULT_VERSION"
@@ -380,7 +400,7 @@ select_data_dir() {
     echo "  2) $(get_text data_dir_custom)"
     echo ""
     
-    read -p "$(get_text enter_choice) [1-2, default 1]: " dir_choice
+    prompt_read dir_choice "$(get_text enter_choice) [1-2, default 1]: "
     dir_choice=${dir_choice:-1}
     
     case $dir_choice in
@@ -389,7 +409,7 @@ select_data_dir() {
             ;;
         2)
             echo ""
-            read -p "$(get_text enter_data_dir): " custom_dir
+            prompt_read custom_dir "$(get_text enter_data_dir): "
             if [ -z "$custom_dir" ]; then
                 DATA_DIR="$default_dir"
                 print_warning "输入为空，使用默认目录: $DATA_DIR"
@@ -424,7 +444,7 @@ select_ports() {
     echo "  2) $(get_text port_manual)"
     echo ""
     
-    read -p "$(get_text enter_choice) [1-2, default 1]: " port_choice
+    prompt_read port_choice "$(get_text enter_choice) [1-2, default 1]: "
     port_choice=${port_choice:-1}
     
     case $port_choice in
@@ -450,7 +470,7 @@ select_ports() {
         2)
             # 手动配置端口
             echo ""
-            read -p "$(get_text enter_vnc_port) [default $VNC_PORT]: " custom_vnc_port
+            prompt_read custom_vnc_port "$(get_text enter_vnc_port) [default $VNC_PORT]: "
             if [ -n "$custom_vnc_port" ]; then
                 if check_port_available $custom_vnc_port; then
                     VNC_PORT=$custom_vnc_port
@@ -463,7 +483,7 @@ select_ports() {
             fi
             
             echo ""
-            read -p "$(get_text enter_agent_port) [default $AGENT_PORT]: " custom_agent_port
+            prompt_read custom_agent_port "$(get_text enter_agent_port) [default $AGENT_PORT]: "
             if [ -n "$custom_agent_port" ]; then
                 if check_port_available $custom_agent_port; then
                     AGENT_PORT=$custom_agent_port
@@ -522,7 +542,7 @@ configure_agent_ports() {
         echo "  2) $(get_text agent_port_custom)"
         echo ""
         
-        read -p "$(get_text enter_choice) [1-2, default 1]: " port_choice
+        prompt_read port_choice "$(get_text enter_choice) [1-2, default 1]: "
         port_choice=${port_choice:-1}
         
         case $port_choice in
@@ -540,7 +560,7 @@ configure_agent_ports() {
                 ;;
             2)
                 echo ""
-                read -p "$(get_text enter_agent_port_num): " custom_port
+                prompt_read custom_port "$(get_text enter_agent_port_num): "
                 if [ -n "$custom_port" ]; then
                     if check_port_available $custom_port; then
                         CUSTOM_AGENT_PORTS[$agent]=$custom_port
@@ -584,7 +604,7 @@ select_agents() {
     echo "  $(get_text agent_skip)"
     echo ""
     
-    read -p "$(get_text enter_agents) [1-5, default 5]: " agent_choices
+    prompt_read agent_choices "$(get_text enter_agents) [1-5, default 5]: "
     agent_choices=${agent_choices:-5}
     
     # 解析用户选择
@@ -953,7 +973,7 @@ main() {
         echo "  $(get_text network_host)"
         echo "  $(get_text network_bridge)"
         echo ""
-        read -p "$(get_text select_network) [1/2, default 1]: " network_mode
+        prompt_read network_mode "$(get_text select_network) [1/2, default 1]: "
         network_mode=${network_mode:-1}
         if [[ "$network_mode" != "2" ]]; then
             USE_HOST_NETWORK=true
@@ -966,7 +986,7 @@ main() {
     # 检查/删除旧容器
     if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
         print_warning "$(get_text container_exists): $CONTAINER_NAME"
-        read -p "$(get_text delete_recreate) [y/N]: " recreate
+        prompt_read recreate "$(get_text delete_recreate) [y/N]: "
         if [[ "$recreate" =~ ^[Yy]$ ]]; then
             print_info "$(get_text deleting_old)"
             docker stop "$CONTAINER_NAME" &> /dev/null || true
