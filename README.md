@@ -27,9 +27,9 @@
 
 一条命令即可完成所有安装和配置。脚本会自动引导你完成语言、镜像源、版本、端口、Agent 软件等选择：
 
-**Linux / macOS（国内推荐 - Gitee）**
+**Linux / macOS（国内推荐 - GitCode）**
 ```bash
-curl -fsSL https://gitee.com/fliaping/agent-workspace/raw/main/install.sh | bash
+curl -fsSL https://raw.gitcode.com/fliaping0/agent-workspace/raw/main/install.sh | bash
 ```
 
 **Linux / macOS（GitHub - 国际用户）**
