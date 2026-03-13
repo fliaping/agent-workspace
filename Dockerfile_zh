@@ -10,6 +10,9 @@ USER root
 ENV DEBIAN_FRONTEND=noninteractive \
     GO_VERSION="go1.22.4" \
     HOME=/root \
+    LANG=zh_CN.UTF-8 \
+    LANGUAGE=zh_CN:zh \
+    LC_ALL=zh_CN.UTF-8 \
     RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
     RUSTUP_DIST_SERVER=https://mirrors.ustc.edu.cn/rust-static \
@@ -35,6 +38,12 @@ RUN mkdir -p /etc/apt/keyrings \
     && apt-get update && apt-get install -y --no-install-recommends \
         apt-utils build-essential git curl wget jq unzip \
         python3 python3-pip python3-venv python3-dev xz-utils libssl-dev libffi-dev \
+        # [中文] 语言包、字体、输入法支持
+        locales fonts-wqy-zenhei fonts-wqy-microhei fonts-noto-cjk \
+        ibus ibus-libpinyin \
+    # [中文] 生成中文 locale
+    && sed -i 's/# zh_CN.UTF-8 UTF-8/zh_CN.UTF-8 UTF-8/' /etc/locale.gen \
+    && locale-gen zh_CN.UTF-8 \
     # [瘦身] 清空 APT 安装期产生的海量列表缓存
     && apt-get clean && rm -rf /var/lib/apt/lists/* \
     # [配置] Python 及用户基础 Sudo 提权
@@ -63,6 +72,9 @@ USER 1000
 # 2.1 绑定各类核心语言目录及映射主用户域
 # 下方指定的 NPM/GO/RUST/PIP 会默认吃 Docker 挂载进来的 ./home 从而享受本地持久化红利
 ENV HOME=/home/kasm-user \
+    LANG=zh_CN.UTF-8 \
+    LANGUAGE=zh_CN:zh \
+    LC_ALL=zh_CN.UTF-8 \
     NPM_CONFIG_PREFIX=/home/kasm-user/.npm-global \
     GOROOT=/usr/local/go \
     GOPATH=/home/kasm-user/go \
@@ -104,7 +116,11 @@ RUN /bin/bash -c "$(curl -fsSL https://mirrors.ustc.edu.cn/misc/brew-install.sh)
     && echo "[global]\nindex-url = https://pypi.tuna.tsinghua.edu.cn/simple" > $HOME/.config/pip/pip.conf \
     && echo '[source.crates-io]\nreplace-with = "ustc"\n\n[source.ustc]\nregistry = "sparse+https://mirrors.ustc.edu.cn/crates.io-index/"' > $CARGO_HOME/config.toml \
     && echo '{\n  "storage-driver": "fuse-overlayfs",\n  "data-root": "/home/kasm-user/docker-data",\n  "registry-mirrors": [\n    "https://docker.1panel.live",\n    "https://docker.1ms.run",\n    "https://dockerproxy.net",\n    "https://docker.m.daocloud.io"\n  ]\n}' > $HOME/.config/docker/daemon.json \
-    && rm -rf $HOME/.cache/Homebrew
+    && rm -rf $HOME/.cache/Homebrew \
+    # [中文] 配置 IBus 输入法环境
+    && mkdir -p $HOME/.config/autostart \
+    && echo '[Desktop Entry]\nType=Application\nName=IBus Daemon\nExec=ibus-daemon -drx\nX-GNOME-Autostart-enabled=true' > $HOME/.config/autostart/ibus-daemon.desktop \
+    && echo 'export GTK_IM_MODULE=ibus\nexport QT_IM_MODULE=ibus\nexport XMODIFIERS=@im=ibus' >> $HOME/.bashrc
 
 
 # ==========================================
