@@ -36,20 +36,23 @@ declare -A TEXTS
 
 # 中文文本
 TEXTS[cn_welcome_title]="Agent Workspace 一键部署"
-TEXTS[cn_step1_title]="步骤 1/6: 选择语言"
-TEXTS[cn_lang_cn]="1) 中文 (Chinese) - 使用阿里云镜像（国内推荐）"
-TEXTS[cn_lang_en]="2) English (英文) - 使用 Docker Hub"
+TEXTS[cn_step1_title]="步骤 1/7: 选择语言"
+TEXTS[cn_lang_cn]="1) 中文 (Chinese)"
+TEXTS[cn_lang_en]="2) English (英文)"
+TEXTS[cn_step_registry_title]="步骤 2/7: 选择镜像源"
+TEXTS[cn_registry_cn]="1) 阿里云镜像（国内推荐）"
+TEXTS[cn_registry_en]="2) Docker Hub（海外推荐）"
 TEXTS[cn_enter_choice]="请输入选项"
 TEXTS[cn_invalid_choice]="无效选项，请重新输入"
-TEXTS[cn_step2_title]="步骤 2/6: 选择镜像版本"
+TEXTS[cn_step2_title]="步骤 3/7: 选择镜像版本"
 TEXTS[cn_version_latest]="1) latest (最新版)"
 TEXTS[cn_version_custom]="2) 自定义版本"
 TEXTS[cn_enter_version]="请输入版本号"
-TEXTS[cn_step3_title]="步骤 3/6: 配置数据目录"
+TEXTS[cn_step3_title]="步骤 4/7: 配置数据目录"
 TEXTS[cn_data_dir_default]="使用默认目录"
 TEXTS[cn_data_dir_custom]="自定义目录"
 TEXTS[cn_enter_data_dir]="请输入数据目录路径"
-TEXTS[cn_step4_title]="步骤 4/6: 配置基础端口（VNC/Agent API）"
+TEXTS[cn_step4_title]="步骤 5/7: 配置 VNC 桌面端口"
 TEXTS[cn_port_config_title]="配置服务端口"
 TEXTS[cn_port_vnc]="VNC 桌面端口"
 TEXTS[cn_port_agent]="Agent API 端口"
@@ -59,15 +62,14 @@ TEXTS[cn_enter_vnc_port]="请输入 VNC 端口"
 TEXTS[cn_enter_agent_port]="请输入 Agent 端口"
 TEXTS[cn_port_in_use]="端口已被占用"
 TEXTS[cn_port_available]="端口可用"
-TEXTS[cn_step5_title]="步骤 5/6: 选择 Agent 软件"
+TEXTS[cn_step5_title]="步骤 6/7: 选择 Agent 软件"
 TEXTS[cn_agent_install_title]="选择要安装的 Agent 软件（可多选，空格分隔）"
-TEXTS[cn_agent_openclaw]="1) OpenClaw - AI Agent 操作系统"
-TEXTS[cn_agent_openfang]="2) Openfang - 智能体框架"
-TEXTS[cn_agent_zeroclaw]="3) Zeroclaw - 零配置 Agent"
-TEXTS[cn_agent_ironclaw]="4) Ironclaw - 高效 Agent"
-TEXTS[cn_agent_skip]="5) 跳过，不安装任何软件"
-TEXTS[cn_enter_agents]="请输入选项（如：1 2）"
-TEXTS[cn_step6_title]="步骤 6/6: 配置 Agent 软件端口"
+TEXTS[cn_agent_openclaw]="1) OpenClaw - 个人自主开源 AI 助手，支持 WhatsApp/Telegram/Discord 等多平台通信"
+TEXTS[cn_agent_openfang]="2) Openfang - Rust 构建的 Agent OS，零依赖单二进制，180ms 冷启动"
+TEXTS[cn_agent_zeroclaw]="3) Zeroclaw - 超轻量 Agent 运行时，<5MB 内存，<10ms 启动"
+TEXTS[cn_agent_skip]="4) 跳过，不安装任何软件"
+TEXTS[cn_enter_agents]="请输入选项（如：1 2 3）"
+TEXTS[cn_step6_title]="步骤 7/7: 配置 Agent 软件端口"
 TEXTS[cn_agent_port_config]="配置 Agent 软件端口"
 TEXTS[cn_agent_port_default]="使用默认端口"
 TEXTS[cn_agent_port_custom]="自定义端口"
@@ -75,7 +77,6 @@ TEXTS[cn_enter_agent_port_num]="请输入端口"
 TEXTS[cn_agent_port_openclaw]="OpenClaw 端口（默认 18789）"
 TEXTS[cn_agent_port_openfang]="Openfang 端口（默认 4200）"
 TEXTS[cn_agent_port_zeroclaw]="Zeroclaw 端口（默认 42617）"
-TEXTS[cn_agent_port_ironclaw]="Ironclaw 端口（默认 6000）"
 TEXTS[cn_installing_agents]="正在安装 Agent 软件..."
 TEXTS[cn_agent_install_success]="Agent 软件安装成功"
 TEXTS[cn_using_registry]="使用镜像仓库"
@@ -125,19 +126,21 @@ TEXTS[cn_try_without_sudo]="请尝试不使用 sudo 运行"
 
 # 英文文本
 TEXTS[en_welcome_title]="Agent Workspace Deployment"
-TEXTS[en_step1_title]="Step 1/6: Select Language"
-TEXTS[en_lang_cn]="1) 中文 (Chinese) - Use Alibaba Cloud Registry (Recommended for China)"
-TEXTS[en_lang_en]="2) English - Use Docker Hub"
+TEXTS[en_step1_title]="Step 1/7: Select Language"
+TEXTS[en_lang_cn]="1) 中文 (Chinese)"
+TEXTS[en_lang_en]="2) English"
 TEXTS[en_enter_choice]="Enter your choice"
 TEXTS[en_invalid_choice]="Invalid choice, please try again"
-TEXTS[en_step2_title]="Step 2/6: Select Image Version"
+TEXTS[en_step_registry_title]="Step 2/7: Select Registry"
+TEXTS[en_registry_cn]="1) Alibaba Cloud (Recommended for China)"
+TEXTS[en_registry_en]="2) Docker Hub (Recommended overseas)"
 TEXTS[en_version_latest]="1) latest"
 TEXTS[en_version_custom]="2) Custom version"
 TEXTS[en_enter_version]="Enter version tag"
-TEXTS[en_step3_title]="Step 3/6: Configure Data Directory"
+TEXTS[en_step3_title]="Step 4/7: Configure Data Directory"
 TEXTS[en_data_dir_default]="Use default directory"
 TEXTS[en_data_dir_custom]="Custom directory"
-TEXTS[en_step4_title]="Step 4/6: Configure Base Ports (VNC/Agent API)"
+TEXTS[en_step4_title]="Step 5/7: Configure VNC Desktop Port"
 TEXTS[en_port_config_title]="Configure Service Ports"
 TEXTS[en_port_vnc]="VNC Desktop Port"
 TEXTS[en_port_agent]="Agent API Port"
@@ -148,15 +151,14 @@ TEXTS[en_enter_agent_port]="Enter Agent port"
 TEXTS[en_port_in_use]="Port is in use"
 TEXTS[en_port_available]="Port is available"
 TEXTS[en_enter_data_dir]="Enter data directory path"
-TEXTS[en_step5_title]="Step 5/6: Select Agent Software"
+TEXTS[en_step5_title]="Step 6/7: Select Agent Software"
 TEXTS[en_agent_install_title]="Select Agent software to install (multiple choices allowed, space separated)"
-TEXTS[en_agent_openclaw]="1) OpenClaw - AI Agent Operating System"
-TEXTS[en_agent_openfang]="2) Openfang - Agent Framework"
-TEXTS[en_agent_zeroclaw]="3) Zeroclaw - Zero-config Agent"
-TEXTS[en_agent_ironclaw]="4) Ironclaw - Efficient Agent"
-TEXTS[en_agent_skip]="5) Skip, don't install any software"
-TEXTS[en_enter_agents]="Enter options (e.g., 1 2)"
-TEXTS[en_step6_title]="Step 6/6: Configure Agent Software Ports"
+TEXTS[en_agent_openclaw]="1) OpenClaw - Personal autonomous AI assistant, multi-platform"
+TEXTS[en_agent_openfang]="2) Openfang - Rust Agent OS, zero-dep single binary, 180ms cold start"
+TEXTS[en_agent_zeroclaw]="3) Zeroclaw - Ultra-light Agent runtime, <5MB mem, <10ms start"
+TEXTS[en_agent_skip]="4) Skip, don't install any software"
+TEXTS[en_enter_agents]="Enter options (e.g., 1 2 3)"
+TEXTS[en_step6_title]="Step 7/7: Configure Agent Software Ports"
 TEXTS[en_agent_port_config]="Configure Agent Software Ports"
 TEXTS[en_agent_port_default]="Use default port"
 TEXTS[en_agent_port_custom]="Custom port"
@@ -164,7 +166,6 @@ TEXTS[en_enter_agent_port_num]="Enter port"
 TEXTS[en_agent_port_openclaw]="OpenClaw port (default 18789)"
 TEXTS[en_agent_port_openfang]="Openfang port (default 4200)"
 TEXTS[en_agent_port_zeroclaw]="Zeroclaw port (default 42617)"
-TEXTS[en_agent_port_ironclaw]="Ironclaw port (default 6000)"
 TEXTS[en_installing_agents]="Installing Agent software..."
 TEXTS[en_agent_install_success]="Agent software installed successfully"
 TEXTS[en_using_registry]="Using registry"
@@ -270,14 +271,12 @@ DEFAULT_VERSION="latest"
 # 容器配置
 CONTAINER_NAME="agent-workspace"
 VNC_PORT="6901"
-AGENT_PORT="19789"
 
 # Agent 软件默认端口配置（容器内端口，不可修改）
 declare -A AGENT_PORTS
 AGENT_PORTS[openclaw]="18789"
 AGENT_PORTS[openfang]="4200"
 AGENT_PORTS[zeroclaw]="42617"
-AGENT_PORTS[ironclaw]="6000"
 
 # 用户自定义的 Agent 端口
 declare -A CUSTOM_AGENT_PORTS
@@ -348,7 +347,36 @@ select_language() {
 }
 
 # ============================================================================
-# 步骤 2: 选择镜像版本
+# 步骤 2: 选择镜像源
+# ============================================================================
+select_registry() {
+    echo ""
+    print_info "$(get_text step_registry_title)"
+    echo "  $(get_text registry_cn)"
+    echo "  $(get_text registry_en)"
+    echo ""
+    
+    prompt_read registry_choice "$(get_text enter_choice) [1-2, default 1]: "
+    registry_choice=${registry_choice:-1}
+    
+    case $registry_choice in
+        1)
+            REGISTRY="$REGISTRY_CN"
+            ;;
+        2)
+            REGISTRY="$REGISTRY_EN"
+            ;;
+        *)
+            REGISTRY="$REGISTRY_CN"
+            ;;
+    esac
+    
+    echo ""
+    print_info "$(get_text using_registry): $REGISTRY"
+}
+
+# ============================================================================
+# 步骤 3: 选择镜像版本
 # ============================================================================
 select_version() {
     echo ""
@@ -374,14 +402,9 @@ select_version() {
     esac
     
     # 构建完整镜像名
-    if [ "$LANG" = "cn" ]; then
-        SELECTED_IMAGE="${REGISTRY_CN}:${VERSION}"
-    else
-        SELECTED_IMAGE="${REGISTRY_EN}:${VERSION}"
-    fi
+    SELECTED_IMAGE="${REGISTRY}:${VERSION}"
     
     echo ""
-    print_info "$(get_text using_registry): $(if [ "$LANG" = "cn" ]; then echo "$REGISTRY_CN"; else echo "$REGISTRY_EN"; fi)"
     print_info "$(get_text selected_image): $SELECTED_IMAGE"
 }
 
@@ -430,15 +453,13 @@ select_data_dir() {
 }
 
 # ============================================================================
-# 步骤 4: 配置端口
+# 步骤 5: 配置 VNC 端口
 # ============================================================================
-select_ports() {
+select_vnc_port() {
     echo ""
     print_info "$(get_text step4_title)"
     echo ""
-    print_info "$(get_text port_config_title)"
-    echo "  $(get_text port_vnc): $VNC_PORT"
-    echo "  $(get_text port_agent): $AGENT_PORT"
+    print_info "$(get_text port_vnc): $VNC_PORT"
     echo ""
     echo "  1) $(get_text port_auto)"
     echo "  2) $(get_text port_manual)"
@@ -458,14 +479,6 @@ select_ports() {
             else
                 print_success "$(get_text port_vnc) $VNC_PORT $(get_text port_available)"
             fi
-            
-            if ! check_port_available $AGENT_PORT; then
-                print_warning "$(get_text port_agent) $AGENT_PORT $(get_text port_in_use)"
-                AGENT_PORT=$(find_available_port $AGENT_PORT)
-                print_info "$(get_text port_agent) $(get_text auto_change_port): $AGENT_PORT"
-            else
-                print_success "$(get_text port_agent) $AGENT_PORT $(get_text port_available)"
-            fi
             ;;
         2)
             # 手动配置端口
@@ -481,34 +494,17 @@ select_ports() {
                     print_info "$(get_text port_vnc) $(get_text auto_change_port): $VNC_PORT"
                 fi
             fi
-            
-            echo ""
-            prompt_read custom_agent_port "$(get_text enter_agent_port) [default $AGENT_PORT]: "
-            if [ -n "$custom_agent_port" ]; then
-                if check_port_available $custom_agent_port; then
-                    AGENT_PORT=$custom_agent_port
-                    print_success "$(get_text port_agent) $AGENT_PORT $(get_text port_available)"
-                else
-                    print_warning "$(get_text port_agent) $custom_agent_port $(get_text port_in_use)"
-                    AGENT_PORT=$(find_available_port $custom_agent_port)
-                    print_info "$(get_text port_agent) $(get_text auto_change_port): $AGENT_PORT"
-                fi
-            fi
             ;;
         *)
             # 默认自动检测
             if ! check_port_available $VNC_PORT; then
                 VNC_PORT=$(find_available_port $VNC_PORT)
             fi
-            if ! check_port_available $AGENT_PORT; then
-                AGENT_PORT=$(find_available_port $AGENT_PORT)
-            fi
             ;;
     esac
     
     echo ""
     print_info "$(get_text port_vnc): $VNC_PORT"
-    print_info "$(get_text port_agent): $AGENT_PORT"
 }
 
 # ============================================================================
@@ -533,7 +529,6 @@ configure_agent_ports() {
             openclaw) port_name="$(get_text agent_port_openclaw)" ;;
             openfang) port_name="$(get_text agent_port_openfang)" ;;
             zeroclaw) port_name="$(get_text agent_port_zeroclaw)" ;;
-            ironclaw) port_name="$(get_text agent_port_ironclaw)" ;;
         esac
         
         echo ""
@@ -600,12 +595,11 @@ select_agents() {
     echo "  $(get_text agent_openclaw)"
     echo "  $(get_text agent_openfang)"
     echo "  $(get_text agent_zeroclaw)"
-    echo "  $(get_text agent_ironclaw)"
     echo "  $(get_text agent_skip)"
     echo ""
     
-    prompt_read agent_choices "$(get_text enter_agents) [1-5, default 5]: "
-    agent_choices=${agent_choices:-5}
+    prompt_read agent_choices "$(get_text enter_agents) [1-4, default 4]: "
+    agent_choices=${agent_choices:-4}
     
     # 解析用户选择
     for choice in $agent_choices; do
@@ -613,8 +607,7 @@ select_agents() {
             1) INSTALL_AGENTS+=("openclaw") ;;
             2) INSTALL_AGENTS+=("openfang") ;;
             3) INSTALL_AGENTS+=("zeroclaw") ;;
-            4) INSTALL_AGENTS+=("ironclaw") ;;
-            5) 
+            4) 
                 INSTALL_AGENTS=()
                 print_info "跳过 Agent 软件安装"
                 return
@@ -695,15 +688,6 @@ install_agents_in_container() {
                     pm2 start 'zeroclaw gateway' --name zeroclaw
                     echo 'Zeroclaw started successfully'
                 " || print_warning "Zeroclaw 安装失败，请手动安装"
-                ;;
-            ironclaw)
-                # Ironclaw 安装方式（启动命令待定）
-                print_info "Installing Ironclaw..."
-                docker exec "$CONTAINER_NAME" bash -c "
-                    echo 'Installing Ironclaw via Homebrew...'
-                    brew install ironclaw
-                    echo 'Ironclaw installed (start command TBD)'
-                " || print_warning "Ironclaw 安装失败，请手动安装"
                 ;;
         esac
     done
@@ -834,7 +818,7 @@ check_dind() {
     [ "$init_proc" != "systemd" ] && [ "$init_proc" != "init" ] && score=$((score + 1))
     local hostname_val=$(hostname 2>/dev/null)
     echo "$hostname_val" | grep -qE "^[a-f0-9]{12}$" && score=$((score + 1))
-    [ $score -ge 4 ]
+    [ $score -ge 3 ]
 }
 
 # ============================================================================
@@ -863,11 +847,16 @@ check_docker_compose() {
 }
 
 check_docker_daemon() {
+    # 在 DinD 环境中，docker info 可能因为 cgroup 问题失败
+    # 但 docker ps 能工作就说明 Docker 可用
+    if docker ps &> /dev/null; then
+        return 0
+    fi
+    # 尝试 docker info 作为备选
     if docker info &> /dev/null; then
         return 0
-    else
-        return 1
     fi
+    return 1
 }
 
 # ============================================================================
@@ -876,6 +865,11 @@ check_docker_daemon() {
 
 check_port_available() {
     local port=$1
+    # 在 DinD 环境中，端口检测看到的是容器自己的端口空间，不是宿主机的
+    # 所以 DinD 环境下跳过端口检测，直接返回可用
+    if [ "$IS_DIND" = true ]; then
+        return 0
+    fi
     if command -v ss &> /dev/null; then
         ! ss -tuln 2>/dev/null | grep -q ":$port "
     elif command -v netstat &> /dev/null; then
@@ -906,20 +900,20 @@ main() {
     # 步骤 1: 选择语言
     select_language
     
-    # 步骤 2: 选择版本
+    # 步骤 2: 选择镜像源
+    select_registry
+    
+    # 步骤 3: 选择版本
     select_version
     
-    # 步骤 3: 配置数据目录
+    # 步骤 4: 配置数据目录
     select_data_dir
     
-    # 步骤 4: 配置基础端口（VNC 和 Agent API）
-    select_ports
+    # 步骤 5: 配置 VNC 端口
+    select_vnc_port
     
-    # 步骤 5: 选择 Agent 软件
+    # 步骤 6: 选择 Agent 软件
     select_agents
-    
-    # 步骤 6: 配置 Agent 软件端口（如果选择了 Agent 软件）
-    configure_agent_ports
     
     # 检测环境
     detect_os
@@ -1007,11 +1001,6 @@ main() {
             VNC_PORT=$(find_available_port $VNC_PORT)
             print_info "$(get_text auto_change_port): $VNC_PORT"
         fi
-        if ! check_port_available $AGENT_PORT; then
-            print_warning "$(get_text port_occupied): $AGENT_PORT"
-            AGENT_PORT=$(find_available_port $AGENT_PORT)
-            print_info "$(get_text auto_change_port): $AGENT_PORT"
-        fi
     fi
     
     # 创建数据目录
@@ -1044,7 +1033,6 @@ main() {
     else
         DOCKER_ARGS+=(
             "-p" "${VNC_PORT}:6901"
-            "-p" "${AGENT_PORT}:18789"
         )
         if [ "$IS_DIND" = true ]; then
             DOCKER_ARGS+=(
@@ -1117,10 +1105,8 @@ print_access_info() {
     
     if [ "$USE_HOST_NETWORK" = true ]; then
         print_info "🖥️  $(get_text vnc_desktop): https://${IP}:6901/"
-        print_info "📡 $(get_text agent_port): 18789"
     else
         print_info "🖥️  $(get_text vnc_desktop): https://${IP}:${VNC_PORT}/"
-        print_info "📡 $(get_text agent_port): ${AGENT_PORT}"
     fi
     
     print_info "💾 $(get_text data_dir): ${DATA_DIR}"
