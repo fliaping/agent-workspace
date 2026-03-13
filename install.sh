@@ -294,8 +294,9 @@ DATA_DIR=""
 # 要安装的 Agent 软件
 INSTALL_AGENTS=()
 
-# ============================================================================
-# 颜色定义
+# DinD 和网络模式（全局变量，提前设置以便端口检测使用）
+IS_DIND=false
+USE_HOST_NETWORK=false
 # ============================================================================
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -897,33 +898,14 @@ find_available_port() {
 # ============================================================================
 
 main() {
-    # 步骤 1: 选择语言
-    select_language
-    
-    # 步骤 2: 选择镜像源
-    select_registry
-    
-    # 步骤 3: 选择版本
-    select_version
-    
-    # 步骤 4: 配置数据目录
-    select_data_dir
-    
-    # 步骤 5: 配置 VNC 端口
-    select_vnc_port
-    
-    # 步骤 6: 选择 Agent 软件
-    select_agents
-    
-    # 检测环境
+    # 先检测环境（DinD 检测需要在端口选择之前完成）
     detect_os
     print_info "$(get_text os_detected): $OS"
     
     # Windows 环境特殊处理
     check_windows_environment
     
-    # 检查是否在 DinD 环境
-    local IS_DIND=false
+    # 检查是否在 DinD 环境（设置全局变量）
     if check_dind; then
         IS_DIND=true
         print_warning "$(get_text dind_detected)"
@@ -935,7 +917,6 @@ main() {
         if [[ "$OS_TYPE" == "linux" ]]; then
             print_info "$(get_text docker_install_guide): https://docs.docker.com/engine/install/"
         elif [[ "$OS_TYPE" == "windows" ]]; then
-            # Windows 环境已经在 check_windows_environment 中处理
             exit 1
         else
             print_info "$(get_text docker_install_guide): https://www.docker.com/products/docker-desktop"
@@ -950,32 +931,50 @@ main() {
     
     # 检查 Docker 守护进程
     if ! check_docker_daemon; then
-        print_error "$(get_text docker_daemon_not_running)"
-        if is_container; then
-            print_info "$(get_text start_docker_service): sudo systemctl start docker"
-        else
-            print_info "$(get_text start_docker_service): sudo systemctl start docker"
-        fi
+        print_error "$(get_text docker_not_running)"
+        print_info "$(get_text start_docker_service): sudo systemctl start docker"
         exit 1
     fi
     
-    # DinD 环境网络模式选择
-    local USE_HOST_NETWORK=false
+    # 步骤 1: 选择语言
+    select_language
+    
+    # 步骤 2: 选择镜像源
+    select_registry
+    
+    # 步骤 3: 选择版本
+    select_version
+    
+    # 步骤 4: 配置数据目录
+    select_data_dir
+    
+    # DinD 环境网络模式选择（在端口配置之前）
     if [ "$IS_DIND" = true ]; then
         echo ""
         print_info "$(get_text network_mode_title)"
         echo "  $(get_text network_host)"
         echo "  $(get_text network_bridge)"
         echo ""
-        prompt_read network_mode "$(get_text select_network) [1/2, default 1]: "
-        network_mode=${network_mode:-1}
-        if [[ "$network_mode" != "2" ]]; then
+        prompt_read network_mode "$(get_text select_network) [1/2, default 2]: "
+        network_mode=${network_mode:-2}
+        if [[ "$network_mode" == "1" ]]; then
             USE_HOST_NETWORK=true
             print_info "$(get_text using_host_network)"
         else
+            USE_HOST_NETWORK=false
             print_info "$(get_text using_bridge_network)"
         fi
     fi
+    
+    # 步骤 5: 配置 VNC 端口（host 模式下跳过）
+    if [ "$USE_HOST_NETWORK" = false ]; then
+        select_vnc_port
+    else
+        print_info "host 网络模式，使用容器内默认 VNC 端口 6901"
+    fi
+    
+    # 步骤 6: 选择 Agent 软件
+    select_agents
     
     # 检查/删除旧容器
     if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
