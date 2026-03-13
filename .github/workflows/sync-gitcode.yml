@@ -1,0 +1,30 @@
+name: Sync to GitCode
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    environment: gitcode
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.GITCODE_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -t rsa gitcode.com >> ~/.ssh/known_hosts
+
+      - name: Sync to GitCode
+        run: |
+          git remote add gitcode git@gitcode.com:fliaping0/agent-workspace.git || true
+          git push gitcode --all --force
+          git push gitcode --tags --force
