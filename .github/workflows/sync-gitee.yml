@@ -9,6 +9,7 @@ on:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    environment: gitee
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
