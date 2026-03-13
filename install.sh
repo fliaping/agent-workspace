@@ -43,20 +43,19 @@ TEXTS[cn_step5_title]="步骤 5/6: 选择 Agent 软件"
 TEXTS[cn_agent_install_title]="选择要安装的 Agent 软件（可多选，空格分隔）"
 TEXTS[cn_agent_openclaw]="1) OpenClaw - AI Agent 操作系统"
 TEXTS[cn_agent_openfang]="2) Openfang - 智能体框架"
-TEXTS[cn_agent_ironclaw]="3) Ironclaw - 高效 Agent"
 TEXTS[cn_agent_zeroclaw]="3) Zeroclaw - 零配置 Agent"
-TEXTS[cn_agent_skip]="4) 跳过，不安装任何软件"
+TEXTS[cn_agent_ironclaw]="4) Ironclaw - 高效 Agent"
+TEXTS[cn_agent_skip]="5) 跳过，不安装任何软件"
 TEXTS[cn_enter_agents]="请输入选项（如：1 2）"
 TEXTS[cn_step6_title]="步骤 6/6: 配置 Agent 软件端口"
 TEXTS[cn_agent_port_config]="配置 Agent 软件端口"
 TEXTS[cn_agent_port_default]="使用默认端口"
 TEXTS[cn_agent_port_custom]="自定义端口"
 TEXTS[cn_enter_agent_port_num]="请输入端口"
-TEXTS[cn_agent_port_openclaw]="OpenClaw 端口（默认 3000）"
-TEXTS[cn_agent_port_openfang]="Openfang 端口（默认 8080）"
+TEXTS[cn_agent_port_openclaw]="OpenClaw 端口（默认 18789）"
+TEXTS[cn_agent_port_openfang]="Openfang 端口（默认 4200）"
+TEXTS[cn_agent_port_zeroclaw]="Zeroclaw 端口（默认 42617）"
 TEXTS[cn_agent_port_ironclaw]="Ironclaw 端口（默认 6000）"
-TEXTS[cn_agent_port_openfang]="Openfang 端口（默认 8080）"
-TEXTS[cn_agent_port_zeroclaw]="Zeroclaw 端口（默认 7000）"
 TEXTS[cn_installing_agents]="正在安装 Agent 软件..."
 TEXTS[cn_agent_install_success]="Agent 软件安装成功"
 TEXTS[cn_using_registry]="使用镜像仓库"
@@ -133,20 +132,19 @@ TEXTS[en_step5_title]="Step 5/6: Select Agent Software"
 TEXTS[en_agent_install_title]="Select Agent software to install (multiple choices allowed, space separated)"
 TEXTS[en_agent_openclaw]="1) OpenClaw - AI Agent Operating System"
 TEXTS[en_agent_openfang]="2) Openfang - Agent Framework"
-TEXTS[en_agent_ironclaw]="3) Ironclaw - Efficient Agent"
 TEXTS[en_agent_zeroclaw]="3) Zeroclaw - Zero-config Agent"
-TEXTS[en_agent_skip]="4) Skip, don't install any software"
+TEXTS[en_agent_ironclaw]="4) Ironclaw - Efficient Agent"
+TEXTS[en_agent_skip]="5) Skip, don't install any software"
 TEXTS[en_enter_agents]="Enter options (e.g., 1 2)"
 TEXTS[en_step6_title]="Step 6/6: Configure Agent Software Ports"
 TEXTS[en_agent_port_config]="Configure Agent Software Ports"
 TEXTS[en_agent_port_default]="Use default port"
 TEXTS[en_agent_port_custom]="Custom port"
 TEXTS[en_enter_agent_port_num]="Enter port"
-TEXTS[en_agent_port_openclaw]="OpenClaw port (default 3000)"
-TEXTS[en_agent_port_openfang]="Openfang port (default 8080)"
+TEXTS[en_agent_port_openclaw]="OpenClaw port (default 18789)"
+TEXTS[en_agent_port_openfang]="Openfang port (default 4200)"
+TEXTS[en_agent_port_zeroclaw]="Zeroclaw port (default 42617)"
 TEXTS[en_agent_port_ironclaw]="Ironclaw port (default 6000)"
-TEXTS[en_agent_port_openfang]="Openfang port (default 8080)"
-TEXTS[en_agent_port_zeroclaw]="Zeroclaw port (default 7000)"
 TEXTS[en_installing_agents]="Installing Agent software..."
 TEXTS[en_agent_install_success]="Agent software installed successfully"
 TEXTS[en_using_registry]="Using registry"
@@ -254,11 +252,11 @@ CONTAINER_NAME="agent-workspace"
 VNC_PORT="6901"
 AGENT_PORT="19789"
 
-# Agent 软件默认端口配置
+# Agent 软件默认端口配置（容器内端口，不可修改）
 declare -A AGENT_PORTS
-AGENT_PORTS[openclaw]="3000"
-AGENT_PORTS[openfang]="8080"
-AGENT_PORTS[zeroclaw]="7000"
+AGENT_PORTS[openclaw]="18789"
+AGENT_PORTS[openfang]="4200"
+AGENT_PORTS[zeroclaw]="42617"
 AGENT_PORTS[ironclaw]="6000"
 
 # 用户自定义的 Agent 端口
@@ -586,7 +584,7 @@ select_agents() {
     echo "  $(get_text agent_skip)"
     echo ""
     
-    read -p "$(get_text enter_agents) [1-4, default 4]: " agent_choices
+    read -p "$(get_text enter_agents) [1-5, default 5]: " agent_choices
     agent_choices=${agent_choices:-5}
     
     # 解析用户选择
@@ -621,61 +619,80 @@ install_agents_in_container() {
         npm_registry="--registry=https://registry.npmmirror.com"
     fi
     
+    # 先确保 PM2 已安装
+    print_info "Ensuring PM2 is installed..."
+    docker exec "$CONTAINER_NAME" bash -c "
+        if ! command -v pm2 &> /dev/null; then
+            echo 'Installing PM2...'
+            npm install -g pm2 $npm_registry
+        else
+            echo 'PM2 already installed'
+        fi
+    " || print_warning "PM2 安装失败"
+    
     for agent in "${INSTALL_AGENTS[@]}"; do
         local agent_port="${CUSTOM_AGENT_PORTS[$agent]}"
         
         case $agent in
             openclaw)
                 # OpenClaw 安装方式：https://github.com/openclaw/openclaw
-                # npm install -g openclaw@latest
-                print_info "Installing OpenClaw (Port: $agent_port)..."
+                # 容器内始终使用默认端口 18789，宿主机端口通过 docker -p 映射
+                print_info "Installing OpenClaw..."
                 docker exec "$CONTAINER_NAME" bash -c "
-                    export OPENCLAW_PORT=$agent_port
                     echo 'Installing OpenClaw...'
                     npm install -g openclaw@latest $npm_registry
                     echo 'Running OpenClaw onboarding...'
                     openclaw onboard --install-daemon || true
+                    echo 'Starting OpenClaw via PM2...'
+                    pm2 start 'openclaw gateway run' --name openclaw
+                    echo 'OpenClaw started successfully'
                 " || print_warning "OpenClaw 安装失败，请手动安装"
                 ;;
             openfang)
                 # Openfang 安装方式：https://github.com/RightNow-AI/openfang
-                # 中文环境使用 Gitee 下载仓库安装
-                print_info "Installing Openfang (Port: $agent_port)..."
+                # 容器内始终使用默认端口 4200，宿主机端口通过 docker -p 映射
+                print_info "Installing Openfang..."
                 docker exec "$CONTAINER_NAME" bash -c "
-                    export OPENFANG_PORT=$agent_port
-                    echo 'Installing Openfang from Gitee...'
+                    echo 'Installing Openfang...'
                     cd /tmp
                     git clone https://gitee.com/mirrors/openfang.git || git clone https://github.com/RightNow-AI/openfang.git
                     cd openfang
                     cargo build --release
                     cp target/release/openfang /usr/local/bin/
-                    echo 'Openfang installed successfully'
+                    echo 'Starting Openfang via PM2...'
+                    pm2 start 'openfang start' --name openfang
+                    echo 'Openfang started successfully'
                 " || print_warning "Openfang 安装失败，请手动安装"
                 ;;
             zeroclaw)
                 # Zeroclaw 安装方式：https://github.com/zeroclaw-labs/zeroclaw
-                # brew install zeroclaw
-                print_info "Installing Zeroclaw (Port: $agent_port)..."
+                # 容器内始终使用默认端口 42617，宿主机端口通过 docker -p 映射
+                print_info "Installing Zeroclaw..."
                 docker exec "$CONTAINER_NAME" bash -c "
-                    export ZEROCLAW_PORT=$agent_port
                     echo 'Installing Zeroclaw via Homebrew...'
                     brew install zeroclaw
-                    echo 'Zeroclaw installed successfully'
+                    echo 'Starting Zeroclaw via PM2...'
+                    pm2 start 'zeroclaw gateway' --name zeroclaw
+                    echo 'Zeroclaw started successfully'
                 " || print_warning "Zeroclaw 安装失败，请手动安装"
                 ;;
             ironclaw)
-                # Ironclaw 安装方式
-                # brew install ironclaw
-                print_info "Installing Ironclaw (Port: $agent_port)..."
+                # Ironclaw 安装方式（启动命令待定）
+                print_info "Installing Ironclaw..."
                 docker exec "$CONTAINER_NAME" bash -c "
-                    export IRONCLAW_PORT=$agent_port
                     echo 'Installing Ironclaw via Homebrew...'
                     brew install ironclaw
-                    echo 'Ironclaw installed successfully'
+                    echo 'Ironclaw installed (start command TBD)'
                 " || print_warning "Ironclaw 安装失败，请手动安装"
                 ;;
         esac
     done
+    
+    # 保存 PM2 进程列表，以便重启后自动恢复
+    if [ ${#INSTALL_AGENTS[@]} -gt 0 ]; then
+        print_info "Saving PM2 process list..."
+        docker exec "$CONTAINER_NAME" bash -c "pm2 save" || true
+    fi
     
     print_success "$(get_text agent_install_success)"
 }
@@ -1017,16 +1034,12 @@ main() {
         fi
     fi
     
-    # 添加 Agent 软件端口环境变量（如果有）
-    if [ ${#INSTALL_AGENTS[@]} -gt 0 ]; then
+    # 添加 Agent 软件端口映射（通过 docker -p 映射，容器内使用默认端口）
+    if [ ${#INSTALL_AGENTS[@]} -gt 0 ] && [ "$USE_HOST_NETWORK" = false ]; then
         for agent in "${INSTALL_AGENTS[@]}"; do
-            local agent_port="${CUSTOM_AGENT_PORTS[$agent]}"
-            case $agent in
-                openclaw) DOCKER_ARGS+=("-e" "OPENCLAW_PORT=$agent_port") ;;
-                openfang) DOCKER_ARGS+=("-e" "OPENFANG_PORT=$agent_port") ;;
-                nanobot) DOCKER_ARGS+=("-e" "NANOBOT_PORT=$agent_port") ;;
-                zeroclaw) DOCKER_ARGS+=("-e" "ZEROCLAW_PORT=$agent_port") ;;
-            esac
+            local custom_port="${CUSTOM_AGENT_PORTS[$agent]}"
+            local internal_port="${AGENT_PORTS[$agent]}"
+            DOCKER_ARGS+=("-p" "${custom_port}:${internal_port}")
         done
     fi
     
@@ -1096,9 +1109,19 @@ print_access_info() {
         echo ""
         print_info "📦 已安装 Agent 软件:"
         for agent in "${INSTALL_AGENTS[@]}"; do
-            local agent_port="${CUSTOM_AGENT_PORTS[$agent]}"
-            echo "    ✓ $agent (端口: $agent_port)"
+            local custom_port="${CUSTOM_AGENT_PORTS[$agent]}"
+            local internal_port="${AGENT_PORTS[$agent]}"
+            if [ "$USE_HOST_NETWORK" = true ]; then
+                echo "    ✓ $agent (端口: $internal_port)"
+            else
+                echo "    ✓ $agent (宿主机:$custom_port → 容器:$internal_port)"
+            fi
         done
+        echo ""
+        print_info "🔧 PM2 管理命令:"
+        echo "    查看进程: docker exec $CONTAINER_NAME pm2 list"
+        echo "    查看日志: docker exec $CONTAINER_NAME pm2 logs <name>"
+        echo "    重启进程: docker exec $CONTAINER_NAME pm2 restart <name>"
     fi
     
     echo ""
