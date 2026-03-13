@@ -21,7 +21,7 @@
 - **极致环境持久化**：所有的 `PypI/Pip`、`NPM`、`Cargo` 包缓存、以及 `Homebrew` 都实现了持久化软连接转移。无论怎么重启重做容器，拉包永远极速。
 - **全系内置国内源**（中文版）：底层配置了中科大/清华的 `apt-get`、`rustup`、`go`、`node`、`homebrew`、`docker.daemon` 以及 `PIP`。国内直接一脚油门构建到底，彻底告别 403 和 404！
 - **完美兼容智能体沙盒模式 (Sandbox Mode)**：镜像原生搭载了极其强悍的 **Rootless DinD (Docker-in-Docker)** 技术及就绪的 Docker Socket。当你使用的智能体框架（如 OpenClaw）需要开启沙盒安全验证时，它可以直接在当前容器内部**无限套娃**生成一次性阅后即焚的子容器来执行不受信任的浏览器会话、Shell 命令与文件编辑。
-- **开箱即用的全功能图形桌面**：超越传统死板的 CLI 容器环境，原生附带流畅的 KasmVNC 桌面。中文版预装中文 locale、字体和 Fcitx5 拼音输入法（`Ctrl+Space` 切换），极其适合搭配 `browser-use` 等基于视觉驱动的主流 Web Agent 框架执行网页自动化测试和流程接管。
+- **开箱即用的全功能图形桌面**：超越传统死板的 CLI 容器环境，原生附带流畅的 KasmVNC 桌面。中文版预装中文 locale、字体和搜狗拼音输入法（`Ctrl+Space` 切换），极其适合搭配 `browser-use` 等基于视觉驱动的主流 Web Agent 框架执行网页自动化测试和流程接管。
 
 ## 🚀 快速启动
 
@@ -147,7 +147,7 @@ docker build -f Dockerfile_en -t my-agent-workspace:en .
 |-----|----------------------|----------------------|
 | 系统语言 | zh_CN.UTF-8 | 默认英文 |
 | 中文字体 | ✅ 文泉驿 + Noto CJK | ❌ |
-| 中文输入法 | ✅ Fcitx5 拼音 | ❌ |
+| 中文输入法 | ✅ 搜狗拼音 | ❌ |
 | APT 源 | 中科大镜像 | Ubuntu 官方 |
 | NPM 源 | 淘宝镜像 | NPM 官方 |
 | Pip 源 | 清华镜像 | PyPI 官方 |
