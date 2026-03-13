@@ -11,20 +11,13 @@ jobs:
     runs-on: ubuntu-latest
     environment: gitee
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Mirror to Gitee
+        uses: Yikun/hub-mirror-action@master
         with:
-          fetch-depth: 0
-
-      - name: Setup SSH key
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.GITEE_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -t rsa gitee.com >> ~/.ssh/known_hosts
-
-      - name: Sync to Gitee
-        run: |
-          git remote add gitee git@gitee.com:fliaping/agent-workspace.git || true
-          git push gitee --all --force
-          git push gitee --tags --force
+          src: github/fliaping
+          dst: gitee/fliaping
+          dst_key: ${{ secrets.GITEE_PRIVATE_KEY }}
+          dst_token: ${{ secrets.GITEE_TOKEN }}
+          static_list: "agent-workspace"
+          force_update: true
+          account_type: user
