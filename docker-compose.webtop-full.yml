@@ -1,6 +1,6 @@
-# LinuxServer Webtop + DinD + GPU 加速（可配置）
+# LinuxServer Webtop + DinD + GPU 加速
 #
-# 环境变量：
+# 运行时环境变量：
 #   ENABLE_DIND=true|false        - 是否启用 Docker-in-Docker (默认: true)
 #   USE_CHINA_MIRROR=true|false   - 是否使用国内软件源 (默认: false)
 #   SYSTEM_LANG=zh_CN|en_US       - 系统语言 (默认: zh_CN)
@@ -10,11 +10,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.webtop-full
-      args:
-        # 构建时参数
-        - ENABLE_DIND=true
-        - USE_CHINA_MIRROR=false
-        - SYSTEM_LANG=zh_CN
     
     image: my-webtop-full:latest
     container_name: webtop-full
@@ -35,12 +30,6 @@ services:
       
       # GPU 加速配置
       - PIXELFLUX_WAYLAND=true
-      # - DRINODE=/dev/dri/renderD128
-      # - DRI_NODE=/dev/dri/renderD128
-      
-      # 可选：启用认证
-      # - CUSTOM_USER=agent
-      # - PASSWORD=secure_password
     
     volumes:
       - ./webtop-config:/config
@@ -63,17 +52,3 @@ services:
           memory: 2G
     
     restart: unless-stopped
-    
-    networks:
-      - webtop-full-network
-    
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:3000/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 120s
-
-networks:
-  webtop-full-network:
-    driver: bridge

@@ -1,0 +1,3 @@
+#!/usr/bin/with-contenv bash
+# s6 服务：Chrome 进程监控
+exec /usr/local/bin/kasm-monitor.sh

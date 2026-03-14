@@ -1,0 +1,22 @@
+#!/usr/bin/with-contenv bash
+# s6 服务：Docker daemon（根据 ENABLE_DIND 决定是否启动）
+
+if [ "$ENABLE_DIND" != "true" ]; then
+    echo "[docker] DinD disabled, skipping..."
+    sleep infinity
+fi
+
+if ! command -v dockerd &> /dev/null; then
+    echo "[docker] Docker not installed, skipping..."
+    sleep infinity
+fi
+
+sleep 2
+mkdir -p /var/lib/docker
+
+echo "[docker] Starting Docker daemon..."
+exec dockerd \
+    --host=unix:///var/run/docker.sock \
+    --host=tcp://0.0.0.0:2375 \
+    --tls=false \
+    2>&1

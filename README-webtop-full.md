@@ -1,172 +1,90 @@
 # LinuxServer Webtop 完整版 (DinD + GPU)
 
-## 📦 镜像信息
+基于 LinuxServer Webtop 的完整 Agent 环境，支持 Docker-in-Docker 和 GPU 加速。
 
-- **镜像名称**: `my-webtop-full:latest`
-- **导出文件**: `webtop-full-image.tar` (2.9GB)
-- **基础镜像**: `lscr.io/linuxserver/webtop:ubuntu-xfce`
-- **支持架构**: x86-64, ARM64
+## ✨ 特性
 
-## ✨ 功能特性
+- **XFCE Ubuntu** 桌面环境
+- **DinD** - 完全隔离的 Docker 环境
+- **GPU 加速** - Wayland 模式支持
+- **Chrome 进程监控** - 防止内存泄漏
+- **可配置** - 通过环境变量控制功能
 
-### 核心功能
-- ✅ XFCE Ubuntu 桌面环境
-- ✅ 基于 KasmVNC，浏览器访问
-- ✅ 音频输出支持
-- ✅ 文件上传/下载支持
-- ✅ 麦克风透传支持
-- ✅ 剪贴板同步
-- ✅ Chrome 进程监控（防止泄漏）
+## 🔧 运行时环境变量
 
-### DinD (Docker-in-Docker)
-- ✅ 完全隔离的 Docker 环境
-- ✅ 容器内可运行 Docker 容器
-- ✅ 独立的 Docker daemon
-
-### GPU 加速
-- ✅ Wayland 模式支持
-- ✅ Intel/AMD GPU 支持
-- ✅ NVIDIA GPU 支持（需额外配置）
-- ✅ 零拷贝编码
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `ENABLE_DIND` | `true` | 是否启用 Docker-in-Docker |
+| `USE_CHINA_MIRROR` | `false` | 是否使用国内软件源 |
+| `SYSTEM_LANG` | `zh_CN` | 系统语言 (`zh_CN` 或 `en_US`) |
 
 ## 🚀 使用方法
 
-### 1. 传输镜像到宿主机
+### 构建镜像
 
 ```bash
-scp webtop-full-image.tar user@your-host:/path/to/dest/
+docker build -f Dockerfile.webtop-full -t my-webtop-full:latest .
 ```
 
-### 2. 在宿主机导入并运行
+### 运行容器
 
+#### 基础运行
 ```bash
-# 导入镜像
-docker load -i webtop-full-image.tar
-
-# 基础运行
-docker run -d \
-  --name webtop-full \
-  --privileged \
+docker run -d --name webtop-full --privileged \
   -p 3000:3000 \
-  -e PUID=1000 \
-  -e PGID=1000 \
-  -e TZ=Asia/Shanghai \
-  -v $(pwd)/webtop-config:/config \
-  -v $(pwd)/agent-workspace:/home/kasm-user/agent-workspace \
-  --shm-size=2gb \
-  --memory=8g \
-  --cpus=4 \
   my-webtop-full:latest
 ```
 
-### 3. 带 GPU 加速运行
-
-#### Intel/AMD GPU
+#### 禁用 DinD
 ```bash
-docker run -d \
-  --name webtop-full \
-  --privileged \
+docker run -d --name webtop-full --privileged \
   -p 3000:3000 \
-  -e PUID=1000 \
-  -e PGID=1000 \
-  -e TZ=Asia/Shanghai \
+  -e ENABLE_DIND=false \
+  my-webtop-full:latest
+```
+
+#### 使用国内源 + 英文系统
+```bash
+docker run -d --name webtop-full --privileged \
+  -p 3000:3000 \
+  -e USE_CHINA_MIRROR=true \
+  -e SYSTEM_LANG=en_US \
+  my-webtop-full:latest
+```
+
+#### 带 GPU 加速
+```bash
+docker run -d --name webtop-full --privileged \
+  -p 3000:3000 \
   -e PIXELFLUX_WAYLAND=true \
-  -e DRINODE=/dev/dri/renderD128 \
-  -e DRI_NODE=/dev/dri/renderD128 \
   --device /dev/dri:/dev/dri \
-  -v $(pwd)/webtop-config:/config \
-  --shm-size=2gb \
   my-webtop-full:latest
 ```
 
-#### NVIDIA GPU
-```bash
-docker run -d \
-  --name webtop-full \
-  --privileged \
-  -p 3000:3000 \
-  -e PUID=1000 \
-  -e PGID=1000 \
-  -e TZ=Asia/Shanghai \
-  -e PIXELFLUX_WAYLAND=true \
-  --gpus all \
-  -v $(pwd)/webtop-config:/config \
-  --shm-size=2gb \
-  my-webtop-full:latest
-```
-
-### 4. 使用 Docker Compose
+### Docker Compose
 
 ```bash
 docker compose -f docker-compose.webtop-full.yml up -d
 ```
 
-### 5. 访问桌面
+## 📁 文件结构
 
 ```
-http://localhost:3000
+.
+├── Dockerfile.webtop-full          # 主构建文件
+├── docker-compose.webtop-full.yml  # Compose 配置
+├── scripts/                        # 外部脚本
+│   ├── kasm-monitor.sh            # Chrome 监控
+│   ├── setup-mirror.sh            # 配置软件源
+│   └── setup-lang.sh              # 配置语言
+└── services/                       # s6 服务
+    ├── monitor/run                # 监控服务
+    ├── docker/run                 # Docker 服务
+    └── docker-ready/run           # Docker 就绪检测
 ```
 
-## 🔧 常用命令
+## 📝 说明
 
-```bash
-# 查看日志
-docker logs -f webtop-full
-
-# 进入容器
-docker exec -it webtop-full bash
-
-# 在容器内使用 Docker
-docker exec -it webtop-full bash
-docker ps
-docker run hello-world
-
-# 停止/启动
-docker stop webtop-full
-docker start webtop-full
-
-# 删除
-docker rm -f webtop-full
-```
-
-## 📁 文件说明
-
-| 文件 | 说明 |
-|------|------|
-| `Dockerfile.webtop-full` | 镜像构建文件 |
-| `docker-compose.webtop-full.yml` | Docker Compose 配置 |
-| `webtop-full-image.tar` | 导出的镜像文件 (2.9GB) |
-| `README-webtop-full.md` | 本说明文件 |
-
-## 🔒 安全提示
-
-- ⚠️ 此容器使用 `privileged` 模式
-- ⚠️ DinD 提供完全隔离的 Docker 环境
-- ⚠️ 建议设置资源限制（--memory, --cpus）
-- ✅ 容器内 Docker 与宿主机完全隔离
-
-## 🐛 故障排除
-
-### DinD 无法启动
-```bash
-# 检查 Docker 服务状态
-docker exec webtop-full ps aux | grep docker
-
-# 查看 DinD 日志
-docker exec webtop-full cat /var/log/docker.log
-```
-
-### GPU 加速不生效
-```bash
-# 检查 GPU 设备
-docker exec webtop-full ls -la /dev/dri/
-
-# 检查 Wayland 模式
-docker exec webtop-full echo $PIXELFLUX_WAYLAND
-```
-
-## 📝 备注
-
-- 首次启动可能需要 1-2 分钟
-- DinD 数据默认不持久化（可选挂载 /var/lib/docker）
-- GPU 加速需要宿主机有相应驱动
+- 所有依赖在**构建时**安装完成
+- 环境变量在**运行时**控制服务启动
+- 复杂逻辑放在外部脚本，保持 Dockerfile 精简
