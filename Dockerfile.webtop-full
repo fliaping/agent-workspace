@@ -7,7 +7,7 @@
 #   SYSTEM_LANG=zh_CN|en_US       - 系统语言 (默认: zh_CN)
 #
 # 构建：docker build -f Dockerfile.webtop-full -t my-webtop-full:latest .
-# 运行：docker run -d --name webtop-full --privileged -p 3000:3000 my-webtop-full:latest
+# 运行：docker run -d --name webtop-full --privileged -p 3000:3000 -v $(pwd)/webtop-data:/config my-webtop-full:latest
 
 FROM lscr.io/linuxserver/webtop:ubuntu-xfce
 
@@ -15,7 +15,9 @@ FROM lscr.io/linuxserver/webtop:ubuntu-xfce
 # 阶段 1：基础配置和系统依赖
 # ==========================================
 
-# 设置环境变量默认值
+USER root
+
+# 设置环境变量
 ENV ENABLE_DIND=true
 ENV USE_CHINA_MIRROR=false
 ENV SYSTEM_LANG=zh_CN
@@ -28,19 +30,11 @@ ENV DOCKER_TLS_CERTDIR=""
 ENV GO_VERSION="go1.22.4"
 ENV NODE_VERSION="20"
 
-# 持久化目录环境变量
+# 基础环境变量
 ENV HOME=/home/kasm-user
-ENV NPM_CONFIG_PREFIX=/home/kasm-user/.npm-global
-ENV GOROOT=/usr/local/go
-ENV GOPATH=/home/kasm-user/go
-ENV GOPROXY=https://goproxy.cn,direct
-ENV CARGO_HOME=/home/kasm-user/.cargo
-ENV RUSTUP_HOME=/home/kasm-user/.rustup
-ENV PIP_CACHE_DIR=/home/kasm-user/.cache/pip
-ENV UV_CACHE_DIR=/home/kasm-user/.cache/uv
-ENV HOMEBREW_PREFIX=/home/kasm-user/.linuxbrew
-
-USER root
+ENV LANG=zh_CN.UTF-8
+ENV LANGUAGE=zh_CN:zh
+ENV LC_ALL=zh_CN.UTF-8
 
 # 安装基础依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -69,12 +63,11 @@ RUN curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION}.x | bash - \
     && rm -rf /var/lib/apt/lists/*
 
 # 2.2 安装 Go
-RUN curl -fsSL "https://go.dev/dl/${GO_VERSION}.linux-amd64.tar.gz" | tar -xz -C /usr/local \
-    && mkdir -p /home/kasm-user/go
+RUN curl -fsSL "https://go.dev/dl/${GO_VERSION}.linux-amd64.tar.gz" | tar -xz -C /usr/local
 
 # 2.3 安装 Rust (使用 rustup)
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal \
-    && rm -rf /home/kasm-user/.rustup/toolchains/*/share/doc
+    && rm -rf /root/.rustup/toolchains/*/share/doc
 
 # 2.4 安装 UV (Python 包管理器)
 RUN pip3 install --no-cache-dir uv --break-system-packages
@@ -93,12 +86,12 @@ RUN npm config set registry https://registry.npmmirror.com \
     && pnpm config set registry https://registry.npmmirror.com
 
 # PyPI 配置
-RUN mkdir -p /home/kasm-user/.config/pip \
-    && echo "[global]\nindex-url = https://pypi.tuna.tsinghua.edu.cn/simple" > /home/kasm-user/.config/pip/pip.conf
+RUN mkdir -p /root/.config/pip \
+    && echo "[global]\nindex-url = https://pypi.tuna.tsinghua.edu.cn/simple" > /root/.config/pip/pip.conf
 
 # Cargo 配置
-RUN mkdir -p /home/kasm-user/.cargo \
-    && echo '[source.crates-io]\nreplace-with = "ustc"\n\n[source.ustc]\nregistry = "sparse+https://mirrors.ustc.edu.cn/crates.io-index/"' > /home/kasm-user/.cargo/config.toml
+RUN mkdir -p /root/.cargo \
+    && echo '[source.crates-io]\nreplace-with = "ustc"\n\n[source.ustc]\nregistry = "sparse+https://mirrors.ustc.edu.cn/crates.io-index/"' > /root/.cargo/config.toml
 
 # ==========================================
 # 阶段 4：安装 Docker (DinD)
@@ -114,7 +107,7 @@ RUN mkdir -p /etc/docker && \
 # 阶段 5：KasmVNC 输入法配置
 # ==========================================
 
-# 开启 KasmVNC IME 输入模式（用户使用本地电脑输入法）
+# 开启 KasmVNC IME 输入模式
 RUN if [ -f /usr/share/kasmvnc/www/assets/ui-*.js ]; then \
         sed -i 's/initSetting("enable_ime",!1)/initSetting("enable_ime",!0)/' /usr/share/kasmvnc/www/assets/ui-*.js; \
     fi
@@ -124,7 +117,36 @@ RUN mkdir -p /home/kasm-user/.vnc \
     && printf 'logging:\n  log_writer_name: all\n  log_dest: logfile\n  level: 100\n\nuser_session:\n  idle_timeout: 300\n' > /home/kasm-user/.vnc/kasmvnc.yaml
 
 # ==========================================
-# 阶段 6：复制脚本和服务
+# 阶段 6：创建持久化目录结构
+# 这些目录会被挂载到 /config 实现持久化
+# ==========================================
+
+# 创建持久化目录（在 /home/kasm-user 下）
+RUN mkdir -p /home/kasm-user/.npm-global \
+    /home/kasm-user/go \
+    /home/kasm-user/.cargo \
+    /home/kasm-user/.rustup \
+    /home/kasm-user/.cache/pip \
+    /home/kasm-user/.cache/uv \
+    /home/kasm-user/.config \
+    /home/kasm-user/docker-data \
+    /home/kasm-user/.linuxbrew \
+    /home/kasm-user/agent-workspace
+
+# 创建软链接：/config/* -> /home/kasm-user/*
+# 这样用户只需要挂载 /config 目录
+RUN ln -sf /home/kasm-user/.npm-global /config/.npm-global \
+    && ln -sf /home/kasm-user/go /config/go \
+    && ln -sf /home/kasm-user/.cargo /config/.cargo \
+    && ln -sf /home/kasm-user/.rustup /config/.rustup \
+    && ln -sf /home/kasm-user/.cache /config/.cache \
+    && ln -sf /home/kasm-user/.config /config/.config \
+    && ln -sf /home/kasm-user/docker-data /config/docker-data \
+    && ln -sf /home/kasm-user/.linuxbrew /config/.linuxbrew \
+    && ln -sf /home/kasm-user/agent-workspace /config/agent-workspace
+
+# ==========================================
+# 阶段 7：复制脚本和服务
 # ==========================================
 
 COPY scripts/ /usr/local/bin/
@@ -142,41 +164,37 @@ RUN mkdir -p /etc/services.d/monitor/dependencies && \
     touch /etc/services.d/docker-ready/dependencies/init
 
 # ==========================================
-# 阶段 7：权限和持久化配置
+# 阶段 8：权限配置
 # ==========================================
 
 # 添加用户到 docker 组
 RUN usermod -aG docker abc
 
-# 创建持久化目录
-RUN mkdir -p /home/kasm-user/agent-workspace \
-    /home/kasm-user/.npm-global \
-    /home/kasm-user/go \
-    /home/kasm-user/.cargo \
-    /home/kasm-user/.rustup \
-    /home/kasm-user/.cache/pip \
-    /home/kasm-user/.cache/uv \
-    /home/kasm-user/.config/docker \
-    /home/kasm-user/docker-data \
-    /home/kasm-user/.linuxbrew \
-    && chown -R 1000:1000 /home/kasm-user
+# 设置目录权限
+RUN chown -R 1000:1000 /home/kasm-user \
+    && chown -R 1000:1000 /config 2>/dev/null || true
 
 # 设置 sudo 免密码
 RUN echo "abc ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/abc \
     && chmod 0440 /etc/sudoers.d/abc
 
 # ==========================================
-# 阶段 8：环境变量和路径
+# 阶段 9：环境变量配置（用户级）
 # ==========================================
 
 USER 1000
 
-ENV HOME=/home/kasm-user
-ENV LANG=zh_CN.UTF-8
-ENV LANGUAGE=zh_CN:zh
-ENV LC_ALL=zh_CN.UTF-8
-
 # 开发工具路径
+ENV GOROOT=/usr/local/go
+ENV GOPATH=/home/kasm-user/go
+ENV CARGO_HOME=/home/kasm-user/.cargo
+ENV RUSTUP_HOME=/home/kasm-user/.rustup
+ENV NPM_CONFIG_PREFIX=/home/kasm-user/.npm-global
+ENV PIP_CACHE_DIR=/home/kasm-user/.cache/pip
+ENV UV_CACHE_DIR=/home/kasm-user/.cache/uv
+ENV HOMEBREW_PREFIX=/home/kasm-user/.linuxbrew
+
+# PATH 配置
 ENV PATH=$GOPATH/bin:$CARGO_HOME/bin:$GOROOT/bin:$NPM_CONFIG_PREFIX/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:$PATH
 
 # Homebrew 环境变量
@@ -188,9 +206,10 @@ ENV HOMEBREW_NO_AUTO_UPDATE=1
 
 # Python 配置
 ENV UV_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+ENV GOPROXY=https://goproxy.cn,direct
 
 # ==========================================
-# 阶段 9：健康检查
+# 阶段 10：健康检查
 # ==========================================
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \

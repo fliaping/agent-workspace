@@ -28,14 +28,9 @@
 - Intel/AMD GPU 支持
 - NVIDIA GPU 支持（需额外配置）
 
-### 5. 完整持久化
-- NPM 全局包
-- Go 工作区
-- Cargo 缓存
-- Python pip/uv 缓存
-- Homebrew 安装
-- Docker 数据
-- 桌面配置
+### 5. 持久化
+- 直接挂载 `/home/kasm-user` 目录
+- 所有数据自动持久化
 
 ## 🔧 运行时环境变量
 
@@ -55,11 +50,11 @@ docker build -f Dockerfile.webtop-full -t my-webtop-full:latest .
 
 ### 运行容器
 
-#### 基础运行
+#### 基础运行（推荐）
 ```bash
 docker run -d --name webtop-full --privileged \
   -p 3000:3000 \
-  -v $(pwd)/webtop-config:/config \
+  -v $(pwd)/webtop-data:/home/kasm-user \
   my-webtop-full:latest
 ```
 
@@ -69,7 +64,7 @@ docker run -d --name webtop-full --privileged \
   -p 3000:3000 \
   -e USE_CHINA_MIRROR=true \
   -e SYSTEM_LANG=en_US \
-  -v $(pwd)/webtop-config:/config \
+  -v $(pwd)/webtop-data:/home/kasm-user \
   my-webtop-full:latest
 ```
 
@@ -79,7 +74,7 @@ docker run -d --name webtop-full --privileged \
   -p 3000:3000 \
   -e PIXELFLUX_WAYLAND=true \
   --device /dev/dri:/dev/dri \
-  -v $(pwd)/webtop-config:/config \
+  -v $(pwd)/webtop-data:/home/kasm-user \
   my-webtop-full:latest
 ```
 
@@ -89,22 +84,24 @@ docker run -d --name webtop-full --privileged \
 docker compose -f docker-compose.webtop-full.yml up -d
 ```
 
-## 📁 持久化目录结构
+## 📁 持久化说明
 
-挂载 `./webtop-config:/config` 后，以下数据会自动持久化：
+直接挂载 `/home/kasm-user` 目录，所有数据自动持久化：
 
+```bash
+-v $(pwd)/webtop-data:/home/kasm-user
 ```
-webtop-config/
-├── .npm-global/      # NPM 全局包
-├── go/               # Go 工作区
-├── .cargo/           # Cargo 缓存
-├── .rustup/          # Rust 工具链
-├── .cache/           # pip/uv 缓存
-├── .config/          # 配置文件
-├── docker-data/      # Docker 数据
-├── .linuxbrew/       # Homebrew
-└── agent-workspace/  # 工作目录
-```
+
+包含：
+- NPM 全局包 (`~/.npm-global`)
+- Go 工作区 (`~/go`)
+- Cargo 缓存 (`~/.cargo`)
+- Rust 工具链 (`~/.rustup`)
+- Python 缓存 (`~/.cache`)
+- Homebrew (`~/.linuxbrew`)
+- Docker 数据 (`~/docker-data`)
+- 桌面配置 (`~/.config`)
+- 工作目录 (`~/agent-workspace`)
 
 ## 🌐 访问桌面
 
@@ -158,6 +155,6 @@ docker run hello-world
 ## 📝 说明
 
 - 所有开发工具在**构建时**安装完成
-- 持久化数据保存在 `/config` 目录
+- 直接挂载 `/home/kasm-user` 实现持久化
 - 中文输入法使用**本地电脑输入法**（KasmVNC IME）
 - VNC 连接稳定性已优化（idle_timeout: 300s）

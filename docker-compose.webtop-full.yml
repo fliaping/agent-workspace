@@ -30,30 +30,15 @@ services:
       
       # GPU 加速配置
       - PIXELFLUX_WAYLAND=true
-      # - DRINODE=/dev/dri/renderD128
-      # - DRI_NODE=/dev/dri/renderD128
-      
-      # 可选：启用认证
-      # - CUSTOM_USER=admin
-      # - PASSWORD=secure_password
     
     volumes:
-      # 主配置目录（包含所有持久化数据）
-      - ./webtop-config:/config
-      
-      # 可选：单独映射特定目录
-      # - ./webtop-data/npm:/home/kasm-user/.npm-global
-      # - ./webtop-data/go:/home/kasm-user/go
-      # - ./webtop-data/cargo:/home/kasm-user/.cargo
-      # - ./webtop-data/cache:/home/kasm-user/.cache
-      # - ./webtop-data/docker:/home/kasm-user/docker-data
-      # - ./webtop-data/brew:/home/kasm-user/.linuxbrew
+      # 主持久化目录（包含所有数据）
+      # 镜像内已创建软链接：/config/* -> /home/kasm-user/*
+      - ./webtop-data:/home/kasm-user
     
     ports:
       # noVNC Web 访问
       - "3000:3000"
-      # 可选：HTTPS 访问
-      # - "3001:3001"
     
     # GPU 设备挂载 (Intel/AMD)
     devices:
