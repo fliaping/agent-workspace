@@ -25,16 +25,13 @@ RUN mkdir -p /etc/apt/keyrings \
         gpg --no-default-keyring --keyring /etc/apt/trusted.gpg --export > /etc/apt/keyrings/docker.gpg \
         && rm -f /etc/apt/trusted.gpg; \
     fi \
-    # [APT提速] 全局使用科大源替换官方源
-    && sed -i 's@//archive.ubuntu.com@//mirrors.ustc.edu.cn@g' /etc/apt/sources.list.d/ubuntu.sources \
-    && sed -i 's@//security.ubuntu.com@//mirrors.ustc.edu.cn@g' /etc/apt/sources.list.d/ubuntu.sources \
-    && sed -i 's@//ports.ubuntu.com@//mirrors.ustc.edu.cn@g' /etc/apt/sources.list.d/ubuntu.sources || true \
     && if [ -f /etc/apt/sources.list.d/docker.list ]; then \
         sed -i 's@https://download.docker.com@https://mirrors.ustc.edu.cn/docker-ce@g' /etc/apt/sources.list.d/docker.list \
         && sed -i 's@deb \[arch@deb \[signed-by=/etc/apt/keyrings/docker.gpg arch@g' /etc/apt/sources.list.d/docker.list; \
     fi \
     && rm -f /etc/apt/sources.list.d/sublime-text.list \
     # [安装] 拉取基础组件及 C 构建类库（包括给 Homebrew 和后续 Python 提供底层支撑）
+    # 注意：构建阶段先用官方源安装，安装完成后再替换为中科大源（GitHub Actions 在海外无法访问国内镜像）
     && apt-get update && apt-get install -y --no-install-recommends \
         apt-utils build-essential git curl wget jq unzip \
         python3 python3-pip python3-venv python3-dev xz-utils libssl-dev libffi-dev \
@@ -50,6 +47,10 @@ RUN mkdir -p /etc/apt/keyrings \
     && im-config -n fcitx5 \
     # [瘦身] 清空 APT 安装期产生的海量列表缓存
     && apt-get clean && rm -rf /var/lib/apt/lists/* \
+    # [APT提速] 安装完成后替换为中科大源（容器运行时使用，构建时用官方源保证海外CI可用）
+    && sed -i 's@//archive.ubuntu.com@//mirrors.ustc.edu.cn@g' /etc/apt/sources.list.d/ubuntu.sources \
+    && sed -i 's@//security.ubuntu.com@//mirrors.ustc.edu.cn@g' /etc/apt/sources.list.d/ubuntu.sources \
+    && sed -i 's@//ports.ubuntu.com@//mirrors.ustc.edu.cn@g' /etc/apt/sources.list.d/ubuntu.sources || true \
     # [配置] Python 及用户基础 Sudo 提权
     && pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple \
     && echo "kasm-user ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/kasm-user && chmod 0440 /etc/sudoers.d/kasm-user \
