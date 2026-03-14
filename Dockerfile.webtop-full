@@ -45,6 +45,14 @@ COPY services/ /etc/services.d/
 RUN chmod +x /usr/local/bin/*.sh && \
     find /etc/services.d -name "run" -exec chmod +x {} \;
 
+# 配置 s6-overlay 服务依赖：init 服务先执行，其他服务等待
+RUN mkdir -p /etc/services.d/monitor/dependencies && \
+    touch /etc/services.d/monitor/dependencies/init && \
+    mkdir -p /etc/services.d/docker/dependencies && \
+    touch /etc/services.d/docker/dependencies/init && \
+    mkdir -p /etc/services.d/docker-ready/dependencies && \
+    touch /etc/services.d/docker-ready/dependencies/init
+
 # 添加用户到 docker 组
 RUN usermod -aG docker abc
 
