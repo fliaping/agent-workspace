@@ -1,11 +1,6 @@
 # LinuxServer Webtop + DinD + GPU 加速 + 完整开发环境
 #
-# 持久化：挂载 /config 目录，首次启动自动初始化
-#
-# 运行时环境变量：
-#   ENABLE_DIND=true|false        - 是否启用 Docker-in-Docker (默认: true)
-#   USE_CHINA_MIRROR=true|false   - 是否使用国内软件源 (默认: false)
-#   SYSTEM_LANG=zh_CN|en_US       - 系统语言 (默认: zh_CN)
+# 使用 LinuxServer 标准持久化方式：挂载 /config
 
 services:
   webtop-full:
@@ -29,8 +24,7 @@ services:
       - PIXELFLUX_WAYLAND=true
     
     volumes:
-      # 持久化目录（包含所有数据）
-      # 首次启动为空时，自动从模板初始化
+      # LinuxServer 标准持久化目录
       - ./webtop-data:/config
     
     ports:
@@ -41,26 +35,4 @@ services:
     
     shm_size: "2gb"
     
-    deploy:
-      resources:
-        limits:
-          memory: 8G
-          cpus: '4.0'
-        reservations:
-          memory: 2G
-    
     restart: unless-stopped
-    
-    networks:
-      - webtop-full-network
-    
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:3000/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 120s
-
-networks:
-  webtop-full-network:
-    driver: bridge

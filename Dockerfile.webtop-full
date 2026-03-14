@@ -1,24 +1,19 @@
 # LinuxServer Webtop + DinD + GPU 加速 + 完整开发环境
-# 完整版 Agent 环境
 #
-# 持久化方案：
-# - 挂载 /config 目录
-# - 首次启动时，如果 /config 为空，从 /opt/template 复制初始数据
-# - 所有工具路径指向 /config 下的子目录
-#
-# 运行时环境变量：
-#   ENABLE_DIND=true|false        - 是否启用 Docker-in-Docker (默认: true)
-#   USE_CHINA_MIRROR=true|false   - 是否使用国内软件源 (默认: false)
-#   SYSTEM_LANG=zh_CN|en_US       - 系统语言 (默认: zh_CN)
+# 使用 LinuxServer 原生持久化方式：
+# - 挂载 /config 目录即可持久化所有数据
+# - 工具路径指向 /config 下的子目录
+# - LinuxServer 基础镜像自动处理初始化
 
 FROM lscr.io/linuxserver/webtop:ubuntu-xfce
 
 USER root
 
 # ==========================================
-# 阶段 1：基础配置
+# 环境变量配置
 # ==========================================
 
+# 基础配置
 ENV ENABLE_DIND=true
 ENV USE_CHINA_MIRROR=false
 ENV SYSTEM_LANG=zh_CN
@@ -27,10 +22,11 @@ ENV PUID=1000
 ENV PGID=1000
 ENV DOCKER_TLS_CERTDIR=""
 
+# 版本
 ENV GO_VERSION="go1.22.4"
 ENV NODE_VERSION="20"
 
-# 关键：所有工具路径指向 /config（持久化目录）
+# 关键：所有工具路径指向 /config（LinuxServer 持久化目录）
 ENV HOME=/config
 ENV GOROOT=/usr/local/go
 ENV GOPATH=/config/go
@@ -40,8 +36,11 @@ ENV NPM_CONFIG_PREFIX=/config/.npm-global
 ENV PIP_CACHE_DIR=/config/.cache/pip
 ENV UV_CACHE_DIR=/config/.cache/uv
 ENV HOMEBREW_PREFIX=/config/.linuxbrew
-ENV PATH=$GOPATH/bin:$CARGO_HOME/bin:$GOROOT/bin:$NPM_CONFIG_PREFIX/bin:$PATH
 
+# PATH
+ENV PATH=$GOPATH/bin:$CARGO_HOME/bin:$GOROOT/bin:$NPM_CONFIG_PREFIX/bin:/config/.linuxbrew/bin:/config/.linuxbrew/sbin:$PATH
+
+# 国内镜像源
 ENV HOMEBREW_BREW_GIT_REMOTE="https://mirrors.ustc.edu.cn/brew.git"
 ENV HOMEBREW_CORE_GIT_REMOTE="https://mirrors.ustc.edu.cn/homebrew-core.git"
 ENV HOMEBREW_BOTTLE_DOMAIN="https://mirrors.ustc.edu.cn/homebrew-bottles"
@@ -49,7 +48,10 @@ ENV HOMEBREW_NO_AUTO_UPDATE=1
 ENV UV_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
 ENV GOPROXY=https://goproxy.cn,direct
 
-# 安装基础依赖
+# ==========================================
+# 安装系统依赖
+# ==========================================
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl gnupg iptables sudo \
     build-essential git wget jq unzip xz-utils \
@@ -58,11 +60,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     locales fonts-wqy-zenhei fonts-wqy-microhei fonts-noto-cjk \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# 生成中文 locale
+# 中文 locale
 RUN sed -i 's/# zh_CN.UTF-8 UTF-8/zh_CN.UTF-8 UTF-8/' /etc/locale.gen && locale-gen zh_CN.UTF-8
 
 # ==========================================
-# 阶段 2：安装开发工具（系统级）
+# 安装开发工具
 # ==========================================
 
 # Node.js + NPM + PNPM + PM2
@@ -78,21 +80,19 @@ RUN curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION}.x | bash - \
 RUN curl -fsSL "https://go.dev/dl/${GO_VERSION}.linux-amd64.tar.gz" | tar -xz -C /usr/local
 
 # UV
-RUN pip3 install --no-cache-dir uv --break-system-packages \
-    && mkdir -p /etc/pip \
-    && echo "[global]\nindex-url = https://pypi.tuna.tsinghua.edu.cn/simple" > /etc/pip/pip.conf
+RUN pip3 install --no-cache-dir uv --break-system-packages
 
-# Cargo 配置（系统级）
-RUN mkdir -p /etc/cargo \
+# 系统级镜像源配置
+RUN mkdir -p /etc/pip \
+    && echo "[global]\nindex-url = https://pypi.tuna.tsinghua.edu.cn/simple" > /etc/pip/pip.conf \
+    && mkdir -p /etc/cargo \
     && echo '[source.crates-io]\nreplace-with = "ustc"\n\n[source.ustc]\nregistry = "sparse+https://mirrors.ustc.edu.cn/crates.io-index/"' > /etc/cargo/config.toml
 
 # Docker
-RUN curl -fsSL https://get.docker.com | sh \
-    && mkdir -p /etc/docker \
-    && echo '{"storage-driver":"overlay2","log-driver":"json-file","log-opts":{"max-size":"10m","max-file":"3"}}' > /etc/docker/daemon.json
+RUN curl -fsSL https://get.docker.com | sh
 
 # ==========================================
-# 阶段 3：KasmVNC 配置
+# KasmVNC 配置
 # ==========================================
 
 # 开启 IME 输入法
@@ -100,38 +100,12 @@ RUN if [ -f /usr/share/kasmvnc/www/assets/ui-*.js ]; then \
         sed -i 's/initSetting("enable_ime",!1)/initSetting("enable_ime",!0)/' /usr/share/kasmvnc/www/assets/ui-*.js; \
     fi
 
-# VNC 稳定性配置
+# VNC 稳定性
 RUN mkdir -p /home/kasm-user/.vnc \
     && printf 'logging:\n  log_writer_name: all\n  log_dest: logfile\n  level: 100\n\nuser_session:\n  idle_timeout: 300\n' > /home/kasm-user/.vnc/kasmvnc.yaml
 
 # ==========================================
-# 阶段 4：创建持久化模板
-# ==========================================
-
-# 创建模板目录
-RUN mkdir -p /opt/template/config && cd /opt/template/config \
-    && mkdir -p .npm-global go .cargo .rustup .cache/pip .cache/uv .config docker-data .linuxbrew agent-workspace
-
-# 安装 Rust 到模板
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
-    CARGO_HOME=/opt/template/config/.cargo RUSTUP_HOME=/opt/template/config/.rustup \
-    sh -s -- -y --default-toolchain stable --profile minimal \
-    && rm -rf /opt/template/config/.rustup/toolchains/*/share/doc
-
-# 安装 Homebrew 到模板
-RUN /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" \
-    || true
-
-# 如果 Homebrew 安装成功，复制到模板
-RUN if [ -d /home/linuxbrew/.linuxbrew ]; then \
-        cp -r /home/linuxbrew/.linuxbrew /opt/template/config/; \
-    fi
-
-# 设置模板权限
-RUN chown -R 1000:1000 /opt/template
-
-# ==========================================
-# 阶段 5：复制脚本和服务
+# 复制脚本和服务
 # ==========================================
 
 COPY scripts/ /usr/local/bin/
@@ -139,50 +113,22 @@ COPY services/ /etc/services.d/
 
 RUN chmod +x /usr/local/bin/*.sh \
     && find /etc/services.d -name "run" -exec chmod +x {} \; \
-    && mkdir -p /etc/services.d/monitor/dependencies /etc/services.d/docker/dependencies /etc/services.d/docker-ready/dependencies \
-    && touch /etc/services.d/monitor/dependencies/init \
-    && touch /etc/services.d/docker/dependencies/init \
-    && touch /etc/services.d/docker-ready/dependencies/init
+    && mkdir -p /etc/services.d/monitor/dependencies \
+    && touch /etc/services.d/monitor/dependencies/init
 
 # ==========================================
-# 阶段 6：创建入口脚本
-# ==========================================
-
-RUN echo '#!/bin/bash
-set -e
-
-TEMPLATE_DIR="/opt/template/config"
-CONFIG_DIR="/config"
-
-# 检查 /config 是否为空，为空则初始化
-if [ ! -d "$CONFIG_DIR" ] || [ -z "$(ls -A $CONFIG_DIR 2>/dev/null)" ]; then
-    echo "[init] $CONFIG_DIR is empty, initializing from template..."
-    mkdir -p "$CONFIG_DIR"
-    cp -r "$TEMPLATE_DIR/." "$CONFIG_DIR/"
-    chown -R 1000:1000 "$CONFIG_DIR"
-    echo "[init] Initialization complete."
-else
-    echo "[init] $CONFIG_DIR already has data, skipping initialization."
-fi
-
-# /home/kasm-user 指向 /config
-if [ ! -L /home/kasm-user ]; then
-    rm -rf /home/kasm-user
-    ln -sf /config /home/kasm-user
-fi
-
-exec /init
-' > /usr/local/bin/init-config.sh && chmod +x /usr/local/bin/init-config.sh
-
 # 权限配置
-RUN echo "abc ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/abc && chmod 0440 /etc/sudoers.d/abc \
+# ==========================================
+
+RUN echo "abc ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/abc \
+    && chmod 0440 /etc/sudoers.d/abc \
     && usermod -aG docker abc
 
 # ==========================================
-# 阶段 7：健康检查和入口
+# 健康检查
 # ==========================================
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
     CMD curl -f http://localhost:3000/ || exit 1
 
-ENTRYPOINT ["/usr/local/bin/init-config.sh"]
+# 使用 LinuxServer 原生的 /init 入口
