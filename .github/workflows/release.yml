@@ -1,0 +1,49 @@
+name: Release
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-scripts:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Test install.sh syntax
+      run: |
+        bash -n install.sh
+        echo "✓ install.sh syntax OK"
+    
+    - name: Test quick-install.sh syntax
+      run: |
+        bash -n quick-install.sh
+        echo "✓ quick-install.sh syntax OK"
+    
+    - name: ShellCheck
+      uses: ludeeus/action-shellcheck@master
+      with:
+        scandir: '.'
+        severity: warning
+      continue-on-error: true
+
+  update-readme-links:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Update raw URLs in scripts
+      run: |
+        REPO_URL="https://raw.githubusercontent.com/${{ github.repository }}/main"
+        sed -i "s|RAW_URL=.*|RAW_URL=\"$REPO_URL\"|" quick-install.sh
+    
+    - name: Commit changes
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git diff --quiet && git diff --staged --quiet || git commit -am "Update script URLs"
+        git push
