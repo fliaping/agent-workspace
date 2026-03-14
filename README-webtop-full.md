@@ -26,11 +26,11 @@
 ### 4. GPU 加速
 - Wayland 模式支持
 - Intel/AMD GPU 支持
-- NVIDIA GPU 支持（需额外配置）
 
-### 5. 持久化
-- 直接挂载 `/home/kasm-user` 目录
-- 所有数据自动持久化
+### 5. 智能持久化
+- 挂载 `/config` 目录
+- **首次启动自动初始化**（如果为空）
+- 已有数据则跳过初始化
 
 ## 🔧 运行时环境变量
 
@@ -50,31 +50,17 @@ docker build -f Dockerfile.webtop-full -t my-webtop-full:latest .
 
 ### 运行容器
 
-#### 基础运行（推荐）
 ```bash
+# 首次运行：自动从模板初始化 /config
 docker run -d --name webtop-full --privileged \
   -p 3000:3000 \
-  -v $(pwd)/webtop-data:/home/kasm-user \
+  -v $(pwd)/webtop-data:/config \
   my-webtop-full:latest
-```
 
-#### 使用国内源 + 英文系统
-```bash
+# 后续运行：使用已有数据
 docker run -d --name webtop-full --privileged \
   -p 3000:3000 \
-  -e USE_CHINA_MIRROR=true \
-  -e SYSTEM_LANG=en_US \
-  -v $(pwd)/webtop-data:/home/kasm-user \
-  my-webtop-full:latest
-```
-
-#### 带 GPU 加速
-```bash
-docker run -d --name webtop-full --privileged \
-  -p 3000:3000 \
-  -e PIXELFLUX_WAYLAND=true \
-  --device /dev/dri:/dev/dri \
-  -v $(pwd)/webtop-data:/home/kasm-user \
+  -v $(pwd)/webtop-data:/config \
   my-webtop-full:latest
 ```
 
@@ -86,22 +72,25 @@ docker compose -f docker-compose.webtop-full.yml up -d
 
 ## 📁 持久化说明
 
-直接挂载 `/home/kasm-user` 目录，所有数据自动持久化：
+挂载 `./webtop-data:/config`：
 
-```bash
--v $(pwd)/webtop-data:/home/kasm-user
+- **首次启动**：如果 `/config` 为空，自动从模板复制初始数据
+- **后续启动**：如果 `/config` 已有数据，跳过初始化，直接使用
+
+### 持久化目录结构
+
 ```
-
-包含：
-- NPM 全局包 (`~/.npm-global`)
-- Go 工作区 (`~/go`)
-- Cargo 缓存 (`~/.cargo`)
-- Rust 工具链 (`~/.rustup`)
-- Python 缓存 (`~/.cache`)
-- Homebrew (`~/.linuxbrew`)
-- Docker 数据 (`~/docker-data`)
-- 桌面配置 (`~/.config`)
-- 工作目录 (`~/agent-workspace`)
+webtop-data/          # 挂载到 /config
+├── .npm-global/      # NPM 全局包
+├── go/               # Go 工作区
+├── .cargo/           # Cargo 缓存
+├── .rustup/          # Rust 工具链
+├── .cache/           # pip/uv 缓存
+├── .config/          # 配置文件
+├── docker-data/      # Docker 数据
+├── .linuxbrew/       # Homebrew
+└── agent-workspace/  # 工作目录
+```
 
 ## 🌐 访问桌面
 
@@ -113,48 +102,36 @@ http://localhost:3000
 
 ## 🔧 开发工具使用
 
-### Node.js
 ```bash
-node --version    # v20.x
+# Node.js
+node --version
 npm --version
 pnpm --version
 pm2 --version
-```
 
-### Python
-```bash
+# Python
 python3 --version
 pip --version
 uv --version
-```
 
-### Go
-```bash
-go version        # go1.22.4
+# Go
+go version
 go env GOPATH
-```
 
-### Rust
-```bash
+# Rust
 cargo --version
 rustc --version
-```
 
-### Homebrew
-```bash
+# Homebrew
 brew --version
-brew install <package>
-```
 
-### Docker (DinD)
-```bash
+# Docker (DinD)
 docker ps
-docker run hello-world
 ```
 
 ## 📝 说明
 
-- 所有开发工具在**构建时**安装完成
-- 直接挂载 `/home/kasm-user` 实现持久化
-- 中文输入法使用**本地电脑输入法**（KasmVNC IME）
-- VNC 连接稳定性已优化（idle_timeout: 300s）
+- 所有开发工具在**构建时**安装
+- 工具路径指向 `/config` 下的子目录
+- `/home/kasm-user` 软链接到 `/config`
+- 中文输入法使用**本地电脑输入法**
