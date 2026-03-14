@@ -60,9 +60,31 @@ RUN /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/instal
 
 
 # ==========================================
+# Stage 3.5: VNC Connection Stability Fix
+# KasmVNC has a known issue: when websocket layer disconnects but VNC protocol
+# layer doesn't clean up the session, "ghost connections" block all new handshakes,
+# causing "unable to connect" errors on the frontend.
+# Fix: idle_timeout to auto-clean dead sessions + watchdog for periodic health checks
+# ==========================================
+USER 1000
+
+# [VNC Fix] Configure idle_timeout to prevent ghost connections
+RUN mkdir -p /home/kasm-user/.vnc \
+    && printf 'logging:\n  log_writer_name: all\n  log_dest: logfile\n  level: 100\n\nuser_session:\n  idle_timeout: 300\n' \
+       > /home/kasm-user/.vnc/kasmvnc.yaml
+
+# [VNC Fix] Health check script + watchdog daemon
+COPY scripts/vnc-healthcheck.sh /home/kasm-user/vnc-healthcheck.sh
+COPY scripts/vnc-watchdog.sh /home/kasm-user/vnc-watchdog.sh
+
+USER root
+RUN chmod +x /home/kasm-user/vnc-healthcheck.sh /home/kasm-user/vnc-watchdog.sh \
+    && chown 1000:1000 /home/kasm-user/vnc-healthcheck.sh /home/kasm-user/vnc-watchdog.sh \
+    && chown -R 1000:1000 /home/kasm-user/.vnc
+
+# ==========================================
 # Stage 4: Startup Daemons & Persistence Templates
 # ==========================================
-USER root
 
 RUN cp -a /home/kasm-user /opt/kasm-user-template \
     && chown -R 1000:1000 /opt/kasm-user-template
@@ -96,6 +118,12 @@ if [ -z "$DISABLE_CUSTOM_STARTUP" ]; then\n\
         fi\n\
         sleep 1\n\
     done &\n\
+\n\
+    # [VNC Fix] Start VNC watchdog (checks every 2 min if Xvnc is stuck)\n\
+    if [ -x "/home/kasm-user/vnc-watchdog.sh" ]; then\n\
+        echo "[custom_startup] Starting VNC watchdog"\n\
+        nohup /home/kasm-user/vnc-watchdog.sh >> /tmp/vnc-watchdog.log 2>&1 &\n\
+    fi\n\
 \n\
     if [ -f "$USER_STARTUP" ] && [ -x "$USER_STARTUP" ]; then\n\
         echo "[custom_startup] Running user startup script: $USER_STARTUP"\n\

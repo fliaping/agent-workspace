@@ -130,9 +130,30 @@ RUN /bin/bash -c "$(curl -fsSL https://mirrors.ustc.edu.cn/misc/brew-install.sh)
 
 
 # ==========================================
+# 阶段 3.5：VNC 连接稳定性修复
+# KasmVNC 存在已知问题：websocket 层断开后 VNC 协议层的会话未被清理，
+# 形成"幽灵连接"阻塞后续所有新连接的握手，导致前端显示"无法连接"。
+# 修复方案：idle_timeout 自动清理僵死会话 + 看门狗定期健康检查
+# ==========================================
+USER 1000
+
+# [VNC修复] 配置 idle_timeout 防止幽灵连接
+RUN mkdir -p /home/kasm-user/.vnc \
+    && printf 'logging:\n  log_writer_name: all\n  log_dest: logfile\n  level: 100\n\nuser_session:\n  idle_timeout: 300\n' \
+       > /home/kasm-user/.vnc/kasmvnc.yaml
+
+# [VNC修复] 健康检查脚本 + 看门狗守护进程
+COPY scripts/vnc-healthcheck.sh /home/kasm-user/vnc-healthcheck.sh
+COPY scripts/vnc-watchdog.sh /home/kasm-user/vnc-watchdog.sh
+
+USER root
+RUN chmod +x /home/kasm-user/vnc-healthcheck.sh /home/kasm-user/vnc-watchdog.sh \
+    && chown 1000:1000 /home/kasm-user/vnc-healthcheck.sh /home/kasm-user/vnc-watchdog.sh \
+    && chown -R 1000:1000 /home/kasm-user/.vnc
+
+# ==========================================
 # 阶段 4：打包防丢挂载模板 & 后台守护者系统
 # ==========================================
-USER root
 
 # [模板集] 收罗已完成改造配置的用户目录打包至光面层。防止将来用户初挂载宿主空文件夹直接顶掉所有环境。
 RUN cp -a /home/kasm-user /opt/kasm-user-template \
@@ -173,6 +194,11 @@ if [ -z "$DISABLE_CUSTOM_STARTUP" ]; then\n\
         sleep 1\n\
     done &\n\
 \n\
+    # [中文] 默认启用 KasmVNC IME 输入模式（本地输入法支持）\n\
+    # 在 KasmVNC 前端 HTML 中注入 script，让 enable_ime 默认为 true\n\
+    sed -i '"'"'s|<head>|<head><script>try{if(localStorage.getItem("enable_ime")===null)localStorage.setItem("enable_ime","true")}catch(e){}</script>|'"'"' /usr/share/kasmvnc/www/index.html || true\n\
+    sed -i '"'"'s|<head>|<head><script>try{if(localStorage.getItem("enable_ime")===null)localStorage.setItem("enable_ime","true")}catch(e){}</script>|'"'"' /usr/share/kasmvnc/www/vnc.html || true\n\
+\n\
     # [中文] 启动 Fcitx5 输入法\n\
     echo "[custom_startup] Starting Fcitx5"\n\
     export GTK_IM_MODULE=fcitx\n\
@@ -181,6 +207,12 @@ if [ -z "$DISABLE_CUSTOM_STARTUP" ]; then\n\
     fcitx5 -d || echo "[custom_startup] Fcitx5 failed to start"\n\
     # 等待 fcitx5 加载 pinyin 插件后自动切换到拼音\n\
     (sleep 5 && fcitx5-remote -s pinyin) &\n\
+\n\
+    # [VNC修复] 启动 VNC 健康检查看门狗（每2分钟检测 Xvnc 是否假死）\n\
+    if [ -x "/home/kasm-user/vnc-watchdog.sh" ]; then\n\
+        echo "[custom_startup] Starting VNC watchdog"\n\
+        nohup /home/kasm-user/vnc-watchdog.sh >> /tmp/vnc-watchdog.log 2>&1 &\n\
+    fi\n\
 \n\
     if [ -f "$USER_STARTUP" ] && [ -x "$USER_STARTUP" ]; then\n\
         echo "[custom_startup] Running user startup script: $USER_STARTUP"\n\
