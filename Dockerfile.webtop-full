@@ -1,0 +1,279 @@
+# LinuxServer Webtop + DinD + GPU 加速
+# 完整版 Agent 环境（可配置）
+#
+# 环境变量：
+#   ENABLE_DIND=true|false        - 是否启用 Docker-in-Docker (默认: true)
+#   USE_CHINA_MIRROR=true|false   - 是否使用国内软件源 (默认: false)
+#   SYSTEM_LANG=zh_CN|en_US       - 系统语言 (默认: zh_CN)
+#
+# 构建：
+#   docker build -f Dockerfile.webtop-full -t my-webtop-full:latest .
+#
+# 运行示例：
+#   # 基础运行
+#   docker run -d --name webtop-full --privileged -p 3000:3000 my-webtop-full:latest
+#
+#   # 禁用 DinD
+#   docker run -d --name webtop-full --privileged -p 3000:3000 -e ENABLE_DIND=false my-webtop-full:latest
+#
+#   # 使用国内源 + 英文系统
+#   docker run -d --name webtop-full --privileged -p 3000:3000 \
+#     -e USE_CHINA_MIRROR=true \
+#     -e SYSTEM_LANG=en_US \
+#     my-webtop-full:latest
+
+FROM lscr.io/linuxserver/webtop:ubuntu-xfce
+
+# ==========================================
+# 可配置环境变量
+# ==========================================
+
+# 是否启用 DinD (默认: true)
+ENV ENABLE_DIND=true
+
+# 是否使用国内软件源 (默认: false)
+ENV USE_CHINA_MIRROR=false
+
+# 系统语言 (默认: zh_CN)
+ENV SYSTEM_LANG=zh_CN
+
+# 基础配置
+ENV TZ=Asia/Shanghai
+ENV PUID=1000
+ENV PGID=1000
+ENV DOCKER_TLS_CERTDIR=""
+
+USER root
+
+# ==========================================
+# 配置软件源
+# ==========================================
+
+RUN if [ "$USE_CHINA_MIRROR" = "true" ]; then \
+        echo "配置国内软件源..."; \
+        # Ubuntu 阿里云源
+        cat > /etc/apt/sources.list << 'EOF'
+deb http://mirrors.aliyun.com/ubuntu/ noble main restricted universe multiverse
+deb http://mirrors.aliyun.com/ubuntu/ noble-updates main restricted universe multiverse
+deb http://mirrors.aliyun.com/ubuntu/ noble-backports main restricted universe multiverse
+deb http://mirrors.aliyun.com/ubuntu/ noble-security main restricted universe multiverse
+EOF
+        # Docker 阿里云源
+        mkdir -p /etc/apt/keyrings && \
+        curl -fsSL http://mirrors.aliyun.com/docker-ce/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc && \
+        chmod a+r /etc/apt/keyrings/docker.asc && \
+        echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] http://mirrors.aliyun.com/docker-ce/linux/ubuntu noble stable" > /etc/apt/sources.list.d/docker.list; \
+    else \
+        echo "使用默认软件源"; \
+    fi
+
+# ==========================================
+# 安装 Docker (DinD)
+# ==========================================
+
+# 安装 Docker 依赖
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    curl \
+    gnupg \
+    iptables \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# 安装 Docker
+RUN curl -fsSL https://get.docker.com -o get-docker.sh && \
+    sh get-docker.sh || {
+        echo "Docker 安装脚本失败，尝试手动安装..."; \
+        apt-get update && \
+        apt-get install -y docker.io docker-compose; \
+    } && \
+    rm -f get-docker.sh
+
+# 配置 Docker daemon
+RUN mkdir -p /etc/docker && \
+    cat > /etc/docker/daemon.json << 'EOF'
+{
+  "storage-driver": "overlay2",
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3"
+  },
+  "experimental": false
+}
+EOF
+
+# ==========================================
+# 配置系统语言
+# ==========================================
+
+RUN if [ "$SYSTEM_LANG" = "zh_CN" ]; then \
+        echo "配置中文环境..."; \
+        apt-get update && apt-get install -y \
+            language-pack-zh-hans \
+            language-pack-zh-hans-base \
+            fonts-noto-cjk \
+            fonts-wqy-zenhei \
+            fonts-wqy-microhei \
+            && apt-get clean \
+            && rm -rf /var/lib/apt/lists/*; \
+        echo "LANG=zh_CN.UTF-8" >> /etc/environment; \
+        echo "LANGUAGE=zh_CN:zh" >> /etc/environment; \
+        echo "LC_ALL=zh_CN.UTF-8" >> /etc/environment; \
+    else \
+        echo "配置英文环境..."; \
+        echo "LANG=en_US.UTF-8" >> /etc/environment; \
+        echo "LANGUAGE=en_US:en" >> /etc/environment; \
+        echo "LC_ALL=en_US.UTF-8" >> /etc/environment; \
+    fi
+
+ENV LANG=${SYSTEM_LANG}.UTF-8
+ENV LANGUAGE=${SYSTEM_LANG}:${SYSTEM_LANG%%_*}
+ENV LC_ALL=${SYSTEM_LANG}.UTF-8
+
+# ==========================================
+# 添加 Chrome 进程监控脚本
+# ==========================================
+
+RUN cat > /usr/local/bin/kasm-monitor.sh << 'EOF'
+#!/bin/bash
+MAX_CHROME_PROCS=50
+MAX_SWAP_USAGE=90
+
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
+}
+
+cleanup_chrome() {
+    local zombie_count=$(ps aux | grep -c "[c]hrome.*<defunct>" || echo 0)
+    if [ "$zombie_count" -gt 0 ]; then
+        log "发现 $zombie_count 个 Chrome 僵尸进程"
+        pkill -9 -f "chrome.*<defunct>" 2>/dev/null || true
+    fi
+    
+    local chrome_count=$(ps aux | grep -c "[c]hrome" || echo 0)
+    if [ "$chrome_count" -gt "$MAX_CHROME_PROCS" ]; then
+        log "Chrome 进程数 $chrome_count，超过阈值"
+        ps aux | grep "[c]hrome" | awk '{print $2}' | head -n -30 | xargs kill -9 2>/dev/null || true
+    fi
+}
+
+check_resources() {
+    local swap_info=$(free | grep Swap)
+    local swap_total=$(echo "$swap_info" | awk '{print $2}')
+    local swap_used=$(echo "$swap_info" | awk '{print $3}')
+    
+    if [ "$swap_total" -gt 0 ]; then
+        local swap_pct=$((swap_used * 100 / swap_total))
+        if [ "$swap_pct" -gt "$MAX_SWAP_USAGE" ]; then
+            log "Swap 使用率 ${swap_pct}%"
+            cleanup_chrome
+            sync && echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true
+        fi
+    fi
+}
+
+log "Chrome 监控脚本已启动"
+while true; do
+    cleanup_chrome
+    check_resources
+    sleep 300
+done
+EOF
+
+RUN chmod +x /usr/local/bin/kasm-monitor.sh
+
+# ==========================================
+# 创建 s6-overlay 服务
+# ==========================================
+
+# Chrome 监控服务
+RUN mkdir -p /etc/services.d/monitor && \
+    cat > /etc/services.d/monitor/run << 'EOF'
+#!/usr/bin/with-contenv bash
+exec /usr/local/bin/kasm-monitor.sh
+EOF
+RUN chmod +x /etc/services.d/monitor/run
+
+# Docker daemon 服务（根据 ENABLE_DIND 决定是否启动）
+RUN mkdir -p /etc/services.d/docker && \
+    cat > /etc/services.d/docker/run << 'EOF'
+#!/usr/bin/with-contenv bash
+
+# 检查是否启用 DinD
+if [ "$ENABLE_DIND" != "true" ]; then
+    echo "[docker] DinD disabled, skipping..."
+    sleep infinity
+fi
+
+# 检查 Docker 是否已安装
+if ! command -v dockerd &> /dev/null; then
+    echo "[docker] Docker not installed, skipping..."
+    sleep infinity
+fi
+
+sleep 2
+mkdir -p /var/lib/docker
+
+echo "[docker] Starting Docker daemon..."
+exec dockerd \
+    --host=unix:///var/run/docker.sock \
+    --host=tcp://0.0.0.0:2375 \
+    --tls=false \
+    2>&1
+EOF
+RUN chmod +x /etc/services.d/docker/run
+
+# Docker 就绪检测服务
+RUN mkdir -p /etc/services.d/docker-ready && \
+    cat > /etc/services.d/docker-ready/run << 'EOF'
+#!/usr/bin/with-contenv bash
+
+# 检查是否启用 DinD
+if [ "$ENABLE_DIND" != "true" ]; then
+    echo "[docker-ready] DinD disabled, skipping..."
+    sleep infinity
+fi
+
+# 检查 Docker 是否已安装
+if ! command -v docker &> /dev/null; then
+    echo "[docker-ready] Docker not installed, skipping..."
+    sleep infinity
+fi
+
+log() { echo "[docker-ready] $1"; }
+log "Waiting for Docker daemon..."
+
+for i in {1..30}; do
+    if docker info > /dev/null 2>&1; then
+        log "Docker daemon is ready!"
+        docker version --format 'Docker: {{.Server.Version}}' 2>/dev/null || true
+        while docker info > /dev/null 2>&1; do
+            sleep 10
+        done
+        log "Docker daemon stopped!"
+        exit 1
+    fi
+    sleep 1
+done
+
+log "Timeout waiting for Docker"
+exit 1
+EOF
+RUN chmod +x /etc/services.d/docker-ready/run
+
+# 添加用户到 docker 组
+RUN usermod -aG docker abc 2>/dev/null || true
+
+# ==========================================
+# 创建工作目录
+# ==========================================
+
+RUN mkdir -p /home/kasm-user/agent-workspace && \
+    chown -R 1000:1000 /home/kasm-user/agent-workspace
+
+# ==========================================
+# 设置工作目录
+# ==========================================
+
+USER 1000
