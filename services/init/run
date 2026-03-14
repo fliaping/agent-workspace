@@ -1,0 +1,22 @@
+#!/usr/bin/with-contenv bash
+# s6 服务：初始化配置
+# 配置软件源和语言环境
+
+echo "[init] Starting initialization..."
+
+# 配置软件源
+if [ "$USE_CHINA_MIRROR" = "true" ]; then
+    echo "[init] Configuring China mirrors..."
+    /usr/local/bin/setup-mirror.sh
+else
+    echo "[init] Using default mirrors"
+fi
+
+# 配置系统语言
+echo "[init] Configuring system language..."
+/usr/local/bin/setup-lang.sh
+
+echo "[init] Initialization complete!"
+
+# 初始化完成后退出
+exit 0

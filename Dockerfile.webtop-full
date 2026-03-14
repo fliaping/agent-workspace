@@ -112,9 +112,13 @@ COPY scripts/ /usr/local/bin/
 COPY services/ /etc/services.d/
 
 RUN chmod +x /usr/local/bin/*.sh \
-    && find /etc/services.d -name "run" -exec chmod +x {} \; \
-    && mkdir -p /etc/services.d/monitor/dependencies \
-    && touch /etc/services.d/monitor/dependencies/init
+    && find /etc/services.d -name "run" -exec chmod +x {} \;
+
+# 配置 s6 服务依赖（init 先执行，其他服务等待）
+RUN mkdir -p /etc/services.d/monitor/dependencies /etc/services.d/docker/dependencies /etc/services.d/docker-ready/dependencies \
+    && touch /etc/services.d/monitor/dependencies/init \
+    && touch /etc/services.d/docker/dependencies/init \
+    && touch /etc/services.d/docker-ready/dependencies/init
 
 # ==========================================
 # 权限配置
