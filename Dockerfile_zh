@@ -45,6 +45,11 @@ RUN mkdir -p /etc/apt/keyrings \
     && locale-gen zh_CN.UTF-8 \
     # [中文] 设置 fcitx5 为默认输入法框架
     && im-config -n fcitx5 \
+    # [中文] 预置 fcitx5 配置：拼音为默认输入法，Ctrl+Space 切换
+    && mkdir -p /home/kasm-user/.config/fcitx5/conf \
+    && printf '[Groups/0]\nName=默认\nDefault Layout=us\nDefaultIM=pinyin\n\n[Groups/0/Items/0]\nName=pinyin\nLayout=\n\n[Groups/0/Items/1]\nName=keyboard-us\nLayout=\n\n[GroupOrder]\n0=默认\n' > /home/kasm-user/.config/fcitx5/profile \
+    && printf '[Hotkey]\nEnumerateWithTriggerKeys=True\n\n[Hotkey/TriggerKeys]\n0=Control+space\n\n[Hotkey/AltTriggerKeys]\n0=Shift_L\n\n[Hotkey/EnumerateGroupForwardKeys]\n0=Super+space\n\n[Behavior]\nActiveByDefault=True\nShareInputState=No\nPreeditEnabledByDefault=True\nShowInputMethodInformation=True\nDefaultPageSize=7\nPreloadInputMethod=True\n' > /home/kasm-user/.config/fcitx5/config \
+    && chown -R 1000:1000 /home/kasm-user/.config/fcitx5 \
     # [瘦身] 清空 APT 安装期产生的海量列表缓存
     && apt-get clean && rm -rf /var/lib/apt/lists/* \
     # [APT提速] 安装完成后替换为中科大源（容器运行时使用，构建时用官方源保证海外CI可用）
@@ -174,6 +179,8 @@ if [ -z "$DISABLE_CUSTOM_STARTUP" ]; then\n\
     export QT_IM_MODULE=fcitx\n\
     export XMODIFIERS=@im=fcitx\n\
     fcitx5 -d || echo "[custom_startup] Fcitx5 failed to start"\n\
+    # 等待 fcitx5 加载 pinyin 插件后自动切换到拼音\n\
+    (sleep 5 && fcitx5-remote -s pinyin) &\n\
 \n\
     if [ -f "$USER_STARTUP" ] && [ -x "$USER_STARTUP" ]; then\n\
         echo "[custom_startup] Running user startup script: $USER_STARTUP"\n\
