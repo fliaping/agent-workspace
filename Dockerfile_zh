@@ -35,21 +35,13 @@ RUN mkdir -p /etc/apt/keyrings \
     && apt-get update && apt-get install -y --no-install-recommends \
         apt-utils build-essential git curl wget jq unzip \
         python3 python3-pip python3-venv python3-dev xz-utils libssl-dev libffi-dev \
-        # [中文] 语言包、字体、输入法支持
+        # [中文] 语言包、字体
         locales fonts-wqy-zenhei fonts-wqy-microhei fonts-noto-cjk \
-        fcitx5 fcitx5-chinese-addons fcitx5-config-qt \
-        fcitx5-frontend-gtk3 fcitx5-frontend-gtk4 fcitx5-frontend-qt5 \
-        im-config \
     # [中文] 生成中文 locale
     && sed -i 's/# zh_CN.UTF-8 UTF-8/zh_CN.UTF-8 UTF-8/' /etc/locale.gen \
     && locale-gen zh_CN.UTF-8 \
-    # [中文] 设置 fcitx5 为默认输入法框架
-    && im-config -n fcitx5 \
-    # [中文] 预置 fcitx5 配置：拼音为默认输入法，Ctrl+Space 切换
-    && mkdir -p /home/kasm-user/.config/fcitx5/conf \
-    && printf '[Groups/0]\nName=默认\nDefault Layout=us\nDefaultIM=pinyin\n\n[Groups/0/Items/0]\nName=pinyin\nLayout=\n\n[Groups/0/Items/1]\nName=keyboard-us\nLayout=\n\n[GroupOrder]\n0=默认\n' > /home/kasm-user/.config/fcitx5/profile \
-    && printf '[Hotkey]\nEnumerateWithTriggerKeys=True\n\n[Hotkey/TriggerKeys]\n0=Control+space\n\n[Hotkey/AltTriggerKeys]\n0=Shift_L\n\n[Hotkey/EnumerateGroupForwardKeys]\n0=Super+space\n\n[Behavior]\nActiveByDefault=True\nShareInputState=No\nPreeditEnabledByDefault=True\nShowInputMethodInformation=True\nDefaultPageSize=7\nPreloadInputMethod=True\n' > /home/kasm-user/.config/fcitx5/config \
-    && chown -R 1000:1000 /home/kasm-user/.config/fcitx5 \
+    # [中文] 默认开启 KasmVNC IME 输入模式（用户直接使用本地电脑输入法，无需容器内安装输入法）
+    && sed -i 's/initSetting("enable_ime",!1)/initSetting("enable_ime",!0)/' /usr/share/kasmvnc/www/assets/ui-*.js \
     # [瘦身] 清空 APT 安装期产生的海量列表缓存
     && apt-get clean && rm -rf /var/lib/apt/lists/* \
     # [APT提速] 安装完成后替换为中科大源（容器运行时使用，构建时用官方源保证海外CI可用）
@@ -159,9 +151,6 @@ RUN chmod +x /home/kasm-user/vnc-healthcheck.sh /home/kasm-user/vnc-watchdog.sh 
 RUN cp -a /home/kasm-user /opt/kasm-user-template \
     && chown -R 1000:1000 /opt/kasm-user-template
 
-# [中文] 输入法环境变量写入系统级配置，确保图形应用也能读到
-RUN printf 'GTK_IM_MODULE=fcitx\nQT_IM_MODULE=fcitx\nXMODIFIERS=@im=fcitx\n' >> /etc/environment
-
 # [启动器 1: 恢复锚点] pre_startup.sh
 # 容器主点入口。执行启动前先看用户主目录是否为首次空盘，如果是，先倾泻模板数据铺底。
 RUN echo '#!/bin/bash\n\
@@ -193,20 +182,6 @@ if [ -z "$DISABLE_CUSTOM_STARTUP" ]; then\n\
         fi\n\
         sleep 1\n\
     done &\n\
-\n\
-    # [中文] 默认启用 KasmVNC IME 输入模式（本地输入法支持）\n\
-    # 在 KasmVNC 前端 HTML 中注入 script，让 enable_ime 默认为 true\n\
-    sed -i '"'"'s|<head>|<head><script>try{if(localStorage.getItem("enable_ime")===null)localStorage.setItem("enable_ime","true")}catch(e){}</script>|'"'"' /usr/share/kasmvnc/www/index.html || true\n\
-    sed -i '"'"'s|<head>|<head><script>try{if(localStorage.getItem("enable_ime")===null)localStorage.setItem("enable_ime","true")}catch(e){}</script>|'"'"' /usr/share/kasmvnc/www/vnc.html || true\n\
-\n\
-    # [中文] 启动 Fcitx5 输入法\n\
-    echo "[custom_startup] Starting Fcitx5"\n\
-    export GTK_IM_MODULE=fcitx\n\
-    export QT_IM_MODULE=fcitx\n\
-    export XMODIFIERS=@im=fcitx\n\
-    fcitx5 -d || echo "[custom_startup] Fcitx5 failed to start"\n\
-    # 等待 fcitx5 加载 pinyin 插件后自动切换到拼音\n\
-    (sleep 5 && fcitx5-remote -s pinyin) &\n\
 \n\
     # [VNC修复] 启动 VNC 健康检查看门狗（每2分钟检测 Xvnc 是否假死）\n\
     if [ -x "/home/kasm-user/vnc-watchdog.sh" ]; then\n\
