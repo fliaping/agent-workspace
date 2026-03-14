@@ -16,6 +16,10 @@ fi
 echo "[init] Configuring system language..."
 /usr/local/bin/setup-lang.sh
 
+# 配置持久化
+echo "[init] Configuring persistence..."
+/usr/local/bin/setup-persistence.sh
+
 echo "[init] Initialization complete!"
 
 # 初始化完成后退出，s6 不会重启一次性服务

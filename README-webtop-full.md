@@ -1,14 +1,41 @@
-# LinuxServer Webtop 完整版 (DinD + GPU)
+# LinuxServer Webtop 完整版 (DinD + GPU + 开发环境)
 
-基于 LinuxServer Webtop 的完整 Agent 环境，支持 Docker-in-Docker 和 GPU 加速。
+基于 LinuxServer Webtop 的完整 Agent 环境，支持 Docker-in-Docker、GPU 加速和完整开发工具链。
 
 ## ✨ 特性
 
-- **XFCE Ubuntu** 桌面环境
-- **DinD** - 完全隔离的 Docker 环境
-- **GPU 加速** - Wayland 模式支持
-- **Chrome 进程监控** - 防止内存泄漏
-- **可配置** - 通过环境变量控制功能
+### 1. 完整开发工具链
+- **Node.js** (LTS) + NPM + PNPM + PM2 + TypeScript
+- **Python 3** + pip + UV 包管理器
+- **Go** (1.22.4)
+- **Rust** (stable) + Cargo
+- **Homebrew** (Linuxbrew)
+- **Docker CLI** (DinD Rootless)
+
+### 2. 中文支持
+- 中文 Locale (zh_CN.UTF-8)
+- 中文字体 (文泉驿/Noto)
+- **KasmVNC IME** 输入法（使用本地电脑输入法）
+- 国内镜像源加速
+
+### 3. DinD (Docker-in-Docker)
+- 完全隔离的 Docker 环境
+- 支持运行容器内的容器
+- 可配置启用/禁用
+
+### 4. GPU 加速
+- Wayland 模式支持
+- Intel/AMD GPU 支持
+- NVIDIA GPU 支持（需额外配置）
+
+### 5. 完整持久化
+- NPM 全局包
+- Go 工作区
+- Cargo 缓存
+- Python pip/uv 缓存
+- Homebrew 安装
+- Docker 数据
+- 桌面配置
 
 ## 🔧 运行时环境变量
 
@@ -16,7 +43,7 @@
 |------|--------|------|
 | `ENABLE_DIND` | `true` | 是否启用 Docker-in-Docker |
 | `USE_CHINA_MIRROR` | `false` | 是否使用国内软件源 |
-| `SYSTEM_LANG` | `zh_CN` | 系统语言 (`zh_CN` 或 `en_US`) |
+| `SYSTEM_LANG` | `zh_CN` | 系统语言 (zh_CN/en_US) |
 
 ## 🚀 使用方法
 
@@ -32,14 +59,7 @@ docker build -f Dockerfile.webtop-full -t my-webtop-full:latest .
 ```bash
 docker run -d --name webtop-full --privileged \
   -p 3000:3000 \
-  my-webtop-full:latest
-```
-
-#### 禁用 DinD
-```bash
-docker run -d --name webtop-full --privileged \
-  -p 3000:3000 \
-  -e ENABLE_DIND=false \
+  -v $(pwd)/webtop-config:/config \
   my-webtop-full:latest
 ```
 
@@ -49,6 +69,7 @@ docker run -d --name webtop-full --privileged \
   -p 3000:3000 \
   -e USE_CHINA_MIRROR=true \
   -e SYSTEM_LANG=en_US \
+  -v $(pwd)/webtop-config:/config \
   my-webtop-full:latest
 ```
 
@@ -58,6 +79,7 @@ docker run -d --name webtop-full --privileged \
   -p 3000:3000 \
   -e PIXELFLUX_WAYLAND=true \
   --device /dev/dri:/dev/dri \
+  -v $(pwd)/webtop-config:/config \
   my-webtop-full:latest
 ```
 
@@ -67,24 +89,75 @@ docker run -d --name webtop-full --privileged \
 docker compose -f docker-compose.webtop-full.yml up -d
 ```
 
-## 📁 文件结构
+## 📁 持久化目录结构
+
+挂载 `./webtop-config:/config` 后，以下数据会自动持久化：
 
 ```
-.
-├── Dockerfile.webtop-full          # 主构建文件
-├── docker-compose.webtop-full.yml  # Compose 配置
-├── scripts/                        # 外部脚本
-│   ├── kasm-monitor.sh            # Chrome 监控
-│   ├── setup-mirror.sh            # 配置软件源
-│   └── setup-lang.sh              # 配置语言
-└── services/                       # s6 服务
-    ├── monitor/run                # 监控服务
-    ├── docker/run                 # Docker 服务
-    └── docker-ready/run           # Docker 就绪检测
+webtop-config/
+├── .npm-global/      # NPM 全局包
+├── go/               # Go 工作区
+├── .cargo/           # Cargo 缓存
+├── .rustup/          # Rust 工具链
+├── .cache/           # pip/uv 缓存
+├── .config/          # 配置文件
+├── docker-data/      # Docker 数据
+├── .linuxbrew/       # Homebrew
+└── agent-workspace/  # 工作目录
+```
+
+## 🌐 访问桌面
+
+```
+http://localhost:3000
+```
+
+默认用户：abc（无密码）
+
+## 🔧 开发工具使用
+
+### Node.js
+```bash
+node --version    # v20.x
+npm --version
+pnpm --version
+pm2 --version
+```
+
+### Python
+```bash
+python3 --version
+pip --version
+uv --version
+```
+
+### Go
+```bash
+go version        # go1.22.4
+go env GOPATH
+```
+
+### Rust
+```bash
+cargo --version
+rustc --version
+```
+
+### Homebrew
+```bash
+brew --version
+brew install <package>
+```
+
+### Docker (DinD)
+```bash
+docker ps
+docker run hello-world
 ```
 
 ## 📝 说明
 
-- 所有依赖在**构建时**安装完成
-- 环境变量在**运行时**控制服务启动
-- 复杂逻辑放在外部脚本，保持 Dockerfile 精简
+- 所有开发工具在**构建时**安装完成
+- 持久化数据保存在 `/config` 目录
+- 中文输入法使用**本地电脑输入法**（KasmVNC IME）
+- VNC 连接稳定性已优化（idle_timeout: 300s）
