@@ -18,10 +18,10 @@ jobs:
         bash -n install.sh
         echo "✓ install.sh syntax OK"
     
-    - name: Test quick-install.sh syntax
+    - name: Test build-full.sh syntax
       run: |
-        bash -n quick-install.sh
-        echo "✓ quick-install.sh syntax OK"
+        bash -n build-full.sh
+        echo "✓ build-full.sh syntax OK"
     
     - name: ShellCheck
       uses: ludeeus/action-shellcheck@master
@@ -39,7 +39,7 @@ jobs:
     - name: Update raw URLs in scripts
       run: |
         REPO_URL="https://raw.githubusercontent.com/${{ github.repository }}/main"
-        sed -i "s|RAW_URL=.*|RAW_URL=\"$REPO_URL\"|" quick-install.sh
+        sed -i "s|RAW_URL=.*|RAW_URL=\"$REPO_URL\"|" install.sh || true
     
     - name: Commit changes
       run: |

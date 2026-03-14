@@ -3,7 +3,7 @@ name: Build Webtop Multi-Arch Image
 on:
   push:
     tags:
-      - 'webtop-v*'
+      - 'v*'
   workflow_dispatch:
     inputs:
       version:
@@ -53,7 +53,7 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             VERSION="${{ github.event.inputs.version }}"
           else
-            VERSION=${GITHUB_REF#refs/tags/webtop-v}
+            VERSION=${GITHUB_REF#refs/tags/v}
           fi
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
           echo "version=$VERSION"
@@ -115,7 +115,7 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             VERSION="${{ github.event.inputs.version }}"
           else
-            VERSION=${GITHUB_REF#refs/tags/webtop-v}
+            VERSION=${GITHUB_REF#refs/tags/v}
           fi
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
           echo "version=$VERSION"
