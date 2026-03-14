@@ -17,7 +17,9 @@ EOF
     mkdir -p /etc/apt/keyrings
     curl -fsSL http://mirrors.aliyun.com/docker-ce/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc 2>/dev/null || true
     chmod a+r /etc/apt/keyrings/docker.asc 2>/dev/null || true
-    echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] http://mirrors.aliyun.com/docker-ce/linux/ubuntu noble stable" > /etc/apt/sources.list.d/docker.list
+    # 自动检测架构
+    ARCH=$(dpkg --print-architecture)
+    echo "deb [arch=${ARCH} signed-by=/etc/apt/keyrings/docker.asc] http://mirrors.aliyun.com/docker-ce/linux/ubuntu noble stable" > /etc/apt/sources.list.d/docker.list
     
     echo "[setup-mirror] 国内软件源配置完成"
 else
