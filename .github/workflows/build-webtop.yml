@@ -1,0 +1,94 @@
+name: Build Webtop Multi-Arch Image
+
+on:
+  push:
+    tags:
+      - 'webtop-v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., 1.0.0)'
+        required: true
+        default: 'latest'
+
+env:
+  IMAGE_NAME: webtop-full
+  DOCKERHUB_REPO: ${{ secrets.DOCKERHUB_USERNAME }}/webtop-full
+  ALIYUN_REPO: registry.cn-hangzhou.aliyuncs.com/${{ secrets.ALIYUN_NAMESPACE }}/webtop-full
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: linux/amd64,linux/arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          platforms: linux/amd64,linux/arm64
+
+      - name: Extract version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION=${GITHUB_REF#refs/tags/webtop-v}
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "version=$VERSION"
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Login to Alibaba Cloud Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: registry.cn-hangzhou.aliyuncs.com
+          username: ${{ secrets.ALIYUN_USERNAME }}
+          password: ${{ secrets.ALIYUN_PASSWORD }}
+
+      - name: Build and push multi-arch image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.webtop-full
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.DOCKERHUB_REPO }}:${{ steps.version.outputs.VERSION }}
+            ${{ env.DOCKERHUB_REPO }}:latest
+            ${{ env.ALIYUN_REPO }}:${{ steps.version.outputs.VERSION }}
+            ${{ env.ALIYUN_REPO }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify manifests
+        run: |
+          echo "=== DockerHub Manifest ==="
+          docker manifest inspect ${{ env.DOCKERHUB_REPO }}:${{ steps.version.outputs.VERSION }} || true
+          
+          echo "=== Alibaba Cloud Manifest ==="
+          docker manifest inspect ${{ env.ALIYUN_REPO }}:${{ steps.version.outputs.VERSION }} || true
+
+      - name: Summary
+        run: |
+          echo "## ✅ Build Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Platform | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| linux/amd64 | ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "| linux/arm64 | ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Images" >> $GITHUB_STEP_SUMMARY
+          echo "- DockerHub: \`${{ env.DOCKERHUB_REPO }}:${{ steps.version.outputs.VERSION }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Alibaba Cloud: \`${{ env.ALIYUN_REPO }}:${{ steps.version.outputs.VERSION }}\`" >> $GITHUB_STEP_SUMMARY
