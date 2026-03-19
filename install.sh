@@ -758,18 +758,22 @@ install_agents_in_container() {
                     npm install -g openclaw@latest $npm_registry
                     echo 'Running OpenClaw onboarding...'
                     openclaw onboard --install-daemon || true
+                    # 动态获取 openclaw 可执行文件路径
+                    OPENCLAW_BIN=\$(which openclaw 2>/dev/null || echo \$(npm config get prefix --global)/bin/openclaw)
+                    echo \"OpenClaw binary: \$OPENCLAW_BIN\"
                     # 创建 systemd service
-                    cat > /etc/systemd/system/openclaw.service << 'UNIT'
+                    cat > /etc/systemd/system/openclaw.service << UNIT
 [Unit]
 Description=OpenClaw Gateway
 After=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/openclaw gateway run
+ExecStart=\$OPENCLAW_BIN gateway run
 Restart=always
 RestartSec=5
 Environment=NODE_OPTIONS=--max-old-space-size=2048
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$(npm config get prefix --global)/bin
 
 [Install]
 WantedBy=multi-user.target
@@ -811,17 +815,20 @@ UNIT
                 docker exec "$CONTAINER_NAME" bash -c "
                     echo 'Installing Zeroclaw via Homebrew...'
                     brew install zeroclaw
+                    ZEROCLAW_BIN=\$(which zeroclaw 2>/dev/null || echo /home/linuxbrew/.linuxbrew/bin/zeroclaw)
+                    echo \"Zeroclaw binary: \$ZEROCLAW_BIN\"
                     # 创建 systemd service
-                    cat > /etc/systemd/system/zeroclaw.service << 'UNIT'
+                    cat > /etc/systemd/system/zeroclaw.service << UNIT
 [Unit]
 Description=Zeroclaw Agent Runtime
 After=network.target
 
 [Service]
 Type=simple
-ExecStart=/home/linuxbrew/.linuxbrew/bin/zeroclaw gateway
+ExecStart=\$ZEROCLAW_BIN gateway
 Restart=always
 RestartSec=5
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/linuxbrew/.linuxbrew/bin
 
 [Install]
 WantedBy=multi-user.target
