@@ -1,63 +1,207 @@
 <div align="center">
-  <h3>Agent Workspace (For OpenClaw, Openfang etc.)</h3>
+  <h1>Agent Workspace</h1>
+  <p>Cloud Desktop for AI Agents</p>
   <p>
-    <a href="README.md">中文（简体）</a> •
+    <a href="README.md">中文</a> &bull;
     <a href="README_en.md">English</a>
   </p>
 </div>
 
 ---
 
-This is a globally customized cloud desktop development and runtime environment image tailored for **Autonomous AI Agents and Agent Operating Systems (like OpenClaw, Openfang, etc.)**.
-
-As AI agent frameworks evolve rapidly, modern agents are shifting from simple chatbots to complex "operating systems" capable of connecting to the outside world (e.g., browsers, shells, file systems, and various tools). Running these agents often involves extremely complex environment dependencies and significant security/privilege risks.
-
-Built upon Kasmweb Ubuntu Noble, this workspace embeds fully isolated Docker-in-Docker (DinD Rootless) capabilities along with a pre-optimized multi-language ecosystem. It is designed to act as the perfect foundation for secondary development, plugin creation, and secure local sandbox deployments for any cutting-edge AI framework.
+A containerized cloud desktop based on [LinuxServer Webtop](https://docs.linuxserver.io/images/docker-webtop/) (Selkies WebRTC), providing an isolated development and runtime environment for AI agents (OpenClaw, Openfang, etc.).
 
 ![web-desktop-example](./images/web-desktop-example.png)
 
-## ✨ Core Features
+## Features
 
-- **Extreme Environment Persistence**: Package caches for `PyPI/Pip`, `NPM`, `Cargo`, and binaries for `Homebrew` are completely persisted via symlink mapping. Your package fetching speeds remain instant across container restarts or rebuilds.
-- **Built-in Fast Mirrors**: Say goodbye to 403 and 404 errors! The underlying environment overrides default overseas sources with rock-solid mirrors (USTC / TUNA) for `apt-get`, `rustup`, `go`, `node`, `homebrew`, `docker.daemon`, and `PIP`, guaranteeing full-speed building.
-- **Flawless Support for Agent "Sandbox Mode"**: Native inclusion of powerful **Rootless DinD (Docker-in-Docker)** and an active Docker Socket. When your agent frameworks (such as OpenClaw) enable Sandbox Mode, they can dynamically spin up ephemeral "Russian Doll" sub-containers *inside* this workspace to execute untrusted browser sessions, shell commands, and file manipulations. This provides an absolutely shielded proving ground without any risk of polluting the host machine!
-- **Out-of-the-Box Full GUI Desktop**: Far beyond a rigid CLI container. It features a buttery-smooth KasmVNC graphical desktop equipped with comprehensive language environments. Perfectly suited for pairing with visually driven Web Agent frameworks (like `browser-use`) to handle browser automation and flow interception.
+- **Selkies WebRTC Desktop** — Full Linux desktop via browser (HTTPS), with Wayland, adaptive resolution, and DPI scaling
+- **3 Desktop Environments** — LXQt (lightweight ~300MB) / XFCE (medium ~800MB) / KDE (full ~1.1GB)
+- **Complete Dev Toolchain** — Node.js 22, Go 1.22, Rust, Python 3, Homebrew, uv
+- **Multiple Docker Modes** — Disabled / DinD (standalone Docker inside container) / Host Docker socket mount
+- **GPU Acceleration** — Auto-detect NVIDIA / Intel / AMD GPU for hardware rendering and encoding
+- **China Mirror Support** — Switch to China mirrors at runtime with `USE_CHINA_MIRROR=true` (APT, npm, pip, Go, Rust, Homebrew)
+- **Data Persistence** — LinuxServer `/config` standard mount for all tools, caches, and user data
+- **systemctl Process Management** — Manage agent processes via docker-systemctl-replacement
 
-## 🚀 Quick Start
+## Quick Start
 
-### 1. Launch Services (Quickstart via Pre-built Images)
+### One-Click Install (Recommended)
 
-We offer out-of-the-box pre-built images hosted on Docker Hub. You can start the workspace instantly using either a pure Docker command or Docker Compose:
+Interactive script with 9-step guided setup (language, desktop, Docker mode, registry, version, data dir, port, agents, agent ports):
 
-#### Method A: Spin up via Docker CLI (Fastest)
-No need to clone the repository. Run the following one-liner to pull and start your agent workspace in the background:
-
+**Linux / macOS**
 ```bash
-# ⚡️ Start the International pure version (Official direct connections)
-docker run -d --name agent-workspace -p 6901:6901 -p 19789:18789 --privileged \
-  -v $(pwd)/home:/home/kasm-user xuping/agent-workspace:v1.0.0-en
+# China users (GitCode mirror)
+curl -fsSL https://raw.gitcode.com/fliaping0/agent-workspace/raw/main/install.sh | bash
 
-# Or start the Chinese mirror-accelerated version
-# docker run -d --name agent-workspace -p 6901:6901 -p 19789:18789 --privileged \
-#   -v $(pwd)/home:/home/kasm-user xuping/agent-workspace:v1.0.0-zh
+# International users (GitHub)
+curl -fsSL https://raw.githubusercontent.com/fliaping/agent-workspace/main/install.sh | bash
 ```
 
-#### Method B: Spin up via Docker Compose (Best for integration)
-If you have cloned the repository, you can utilize the `docker-compose.yml` manifest.
-Edit the `image` field in `docker-compose.yml` to reflect your desired environment version:
-- International: `image: xuping/agent-workspace:v1.0.0-en`
-- Chinese mirrors: `image: xuping/agent-workspace:v1.0.0-zh`
+**Windows (PowerShell)**
+```powershell
+# China users (GitCode mirror)
+irm https://raw.gitcode.com/fliaping0/agent-workspace/raw/main/install.ps1 -OutFile install.ps1; .\install.ps1
 
-Then, launch the background daemon:
+# International users (GitHub)
+irm https://raw.githubusercontent.com/fliaping/agent-workspace/main/install.ps1 -OutFile install.ps1; .\install.ps1
+```
+
+### Docker CLI
+
 ```bash
+docker run -d --name agent-workspace \
+  --restart unless-stopped --shm-size 2gb \
+  -e PUID=1000 -e PGID=1000 \
+  -e TZ=Etc/UTC \
+  -e SELKIES_ENABLE_WAYLAND=true \
+  -p 3001:3001 \
+  -v ~/agent-workspace-data:/config \
+  xuping/agent-workspace:ubuntu-lxqt
+```
+
+Access the desktop at **https://localhost:3001**.
+
+> China mirror: `registry.cn-hangzhou.aliyuncs.com/fliaping/agent-workspace:ubuntu-lxqt`
+
+### Docker Compose
+
+```bash
+git clone https://github.com/fliaping/agent-workspace.git
+cd agent-workspace
+# Edit docker-compose.yml as needed
 docker compose up -d
 ```
 
-### 2. Usage & Data
-Upon initial startup, a `./home` directory is automatically generated in your project path. This serves as your persistent cloud user "Home."
-You can freely establish `uv venv` domains and install software via `brew install xxx` directly in the persistent drive. Destroying and recreating the container won't wipe your dependencies!
+## Image Tags
 
-## ⚠️ Important Notices
+| Tag | Description |
+|-----|-------------|
+| `ubuntu-lxqt` | LXQt desktop (default, lightest) |
+| `ubuntu-xfce` | XFCE desktop |
+| `ubuntu-kde` | KDE desktop |
 
-* This image relies on `oauth-proxy` and therefore disables basic VNC authorization by default (`-disableBasicAuth`). For direct public internet exposure, ensure you enact authentication by adding `VNC_PW=YourPassword` in your `docker-compose.yml`.
-* `Homebrew` leverages an ingenious method of sticking to the official `linuxbrew` standard directory via persistent symlinks. **Never alter the system path structure of `/home/linuxbrew/.linuxbrew`**, as doing so disables rapid, pre-compiled "bottle" installations.
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PUID` / `PGID` | `1000` | Container user/group ID |
+| `TZ` | `Etc/UTC` | Timezone |
+| `LC_ALL` | - | Locale (e.g., `zh_CN.UTF-8`) |
+| `SELKIES_ENABLE_WAYLAND` | `true` | Enable Wayland display protocol |
+| `SELKIES_SCALING_DPI` | `192` | DPI scaling (192 recommended for HiDPI) |
+| `START_DOCKER` | `false` | Enable Docker inside container (requires `--privileged`) |
+| `USE_CHINA_MIRROR` | `false` | Switch to China mirrors at runtime |
+| `NODE_OPTIONS` | - | Node.js options (e.g., `--max-old-space-size=2048`) |
+
+## Docker Modes
+
+| Mode | Configuration | Description |
+|------|---------------|-------------|
+| Disabled | Default | No Docker functionality |
+| DinD | `--privileged` + `START_DOCKER=true` | Standalone Docker engine inside container |
+| Host Socket | `-v /var/run/docker.sock:/var/run/docker.sock` | Share host Docker daemon |
+
+## GPU Acceleration
+
+| GPU Type | Configuration |
+|----------|---------------|
+| NVIDIA | `--gpus all -e NVIDIA_VISIBLE_DEVICES=all -e NVIDIA_DRIVER_CAPABILITIES=all --device /dev/dri:/dev/dri` |
+| Intel/AMD | `--device /dev/dri:/dev/dri -e DRINODE=/dev/dri/renderD128` |
+
+> The install script auto-detects GPU and configures accordingly.
+
+## Built-in Toolchain
+
+| Tool | Version | Notes |
+|------|---------|-------|
+| Node.js | 22 LTS | + npm, pnpm, TypeScript |
+| Go | 1.22.4 | |
+| Rust | stable | + Cargo |
+| Python 3 | System | + pip, venv, uv |
+| Homebrew | Latest | Linux version, persisted to data dir |
+| docker-systemctl-replacement | Latest | systemd replacement for agent process management |
+
+## Agent Software
+
+The install script supports one-click installation of these agents:
+
+| Agent | Default Port | Install Method |
+|-------|--------------|----------------|
+| OpenClaw | 18789 | npm |
+| Openfang | 4200 | cargo build |
+| ZeroClaw | 42617 | brew |
+
+Manage agent processes with **systemctl**:
+
+```bash
+# Check status
+docker exec agent-workspace systemctl status openclaw
+
+# View logs
+docker exec agent-workspace journalctl -u openclaw
+
+# Restart
+docker exec agent-workspace systemctl restart openclaw
+```
+
+## Data Persistence
+
+The container's `/config` directory is mapped to the host data directory. Persisted data includes:
+
+- Homebrew packages (`/config/.linuxbrew`, auto-symlinked to `/home/linuxbrew/.linuxbrew`)
+- npm global packages (`/config/.npm-global`)
+- Go workspace (`/config/go`)
+- Cargo packages (`/config/.cargo`)
+- pip/uv cache (`/config/.cache`)
+- Desktop settings and user files
+
+## Custom Build
+
+```bash
+git clone https://github.com/fliaping/agent-workspace.git
+cd agent-workspace
+
+# Default build (LXQt + international mirrors)
+docker compose build
+
+# KDE desktop
+DESKTOP=kde docker compose build
+
+# China mirrors for faster build
+USE_CHINA_MIRROR=true docker compose build
+```
+
+## Common Commands
+
+```bash
+# View logs
+docker logs -f agent-workspace
+
+# Enter container
+docker exec -it agent-workspace bash
+
+# Stop/Start
+docker stop agent-workspace
+docker start agent-workspace
+```
+
+## Notes
+
+- Selkies WebRTC has no password by default. Use a reverse proxy with authentication for public exposure.
+- Homebrew is persisted to `/config/.linuxbrew` (auto-symlinked). Do not manually modify the `/home/linuxbrew/.linuxbrew` path structure.
+- LinuxServer automatically initializes the `/config` directory on first startup.
+
+## Architecture Support
+
+| Architecture | Docker Platform |
+|-------------|-----------------|
+| x86-64 | `linux/amd64` |
+| ARM64 | `linux/arm64` |
+
+## Links
+
+- [LinuxServer Webtop Docs](https://docs.linuxserver.io/images/docker-webtop/)
+- [Docker Hub](https://hub.docker.com/r/xuping/agent-workspace)
+- [GitHub](https://github.com/fliaping/agent-workspace)

@@ -732,6 +732,7 @@ function Main {
         "-e", "PGID=1000",
         "-e", "TZ=Asia/Shanghai",
         "-e", "LC_ALL=zh_CN.UTF-8",
+        "-e", "SELKIES_ENABLE_WAYLAND=true",
         "-e", "NODE_OPTIONS=--max-old-space-size=2048",
         "-v", "$($script:DataDir):/config",
         "-p", "$($script:DesktopPort):3001"
