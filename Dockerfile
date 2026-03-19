@@ -63,7 +63,7 @@ RUN if [ "$USE_CHINA_MIRROR" = "true" ]; then \
     fi
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates curl gnupg iptables sudo \
+    ca-certificates curl gnupg sudo \
     build-essential git wget jq unzip xz-utils \
     python3 python3-pip python3-venv python3-dev \
     libssl-dev libffi-dev \

@@ -65,9 +65,6 @@ if [ "$USE_CHINA_MIRROR" = "true" ]; then
     NPM_REGISTRY="https://registry.npmmirror.com"
     # Python: 清华源（参考 Dockerfile_zh）
     PYPI_INDEX_URL="https://pypi.tuna.tsinghua.edu.cn/simple"
-    # Docker CE: USTC 源（参考 Dockerfile_zh）
-    DOCKER_GPG_URL="https://mirrors.ustc.edu.cn/docker-ce/linux/ubuntu/gpg"
-    DOCKER_APT_REPO="https://mirrors.ustc.edu.cn/docker-ce/linux/ubuntu"
     # 运行时 GOPROXY
     GOPROXY_VALUE="https://goproxy.cn,direct"
     # GitHub 代理
@@ -90,9 +87,6 @@ else
     NPM_REGISTRY="https://registry.npmjs.org"
     # Python: 官方 PyPI
     PYPI_INDEX_URL="https://pypi.org/simple"
-    # Docker CE: 官方 get.docker.com
-    DOCKER_GPG_URL="https://download.docker.com/linux/ubuntu/gpg"
-    DOCKER_APT_REPO="https://download.docker.com/linux/ubuntu"
     # 运行时 GOPROXY
     GOPROXY_VALUE="https://proxy.golang.org,direct"
     # GitHub 直连
@@ -218,37 +212,6 @@ install_homebrew() {
 }
 
 # ============================================================
-# 安装 Docker CE
-# ============================================================
-install_docker() {
-    info "安装 Docker CE ..."
-
-    if [ "$USE_CHINA_MIRROR" = "true" ]; then
-        # 手动添加 USTC Docker CE APT 源（参考 Dockerfile_zh APT 源替换逻辑）
-        install -m 0755 -d /etc/apt/keyrings
-        curl -fsSL "${DOCKER_GPG_URL}" -o /etc/apt/keyrings/docker.asc
-        chmod a+r /etc/apt/keyrings/docker.asc
-
-        # 读取发行版代号
-        . /etc/os-release
-        echo "deb [arch=${ARCH} signed-by=/etc/apt/keyrings/docker.asc] \
-${DOCKER_APT_REPO} ${VERSION_CODENAME} stable" \
-            > /etc/apt/sources.list.d/docker.list
-
-        apt-get update -qq
-        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-            docker-ce docker-ce-cli containerd.io \
-            docker-compose-plugin docker-buildx-plugin
-        apt-get clean && rm -rf /var/lib/apt/lists/*
-    else
-        # 官方脚本安装（参考 Dockerfile_en / Dockerfile.webtop-full）
-        curl -fsSL https://get.docker.com | sh
-    fi
-
-    success "Docker $(docker --version 2>/dev/null || echo '(docker installed)') 安装完成"
-}
-
-# ============================================================
 # 安装 docker-systemctl-replacement
 # ============================================================
 install_systemctl_replacement() {
@@ -327,7 +290,6 @@ main() {
     install_rust
     install_uv
     install_homebrew
-    install_docker
     install_systemctl_replacement
     write_runtime_mirror_config
 
