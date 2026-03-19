@@ -75,6 +75,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # 通过 install-tools.sh 统一管理，支持国内/国际两种模式
 # ==========================================
 
+# 构建时需要 /config 目录存在（运行时由 volume 挂载覆盖）
+RUN mkdir -p /config && chown 1000:1000 /config
+
 COPY scripts/install-tools.sh /usr/local/bin/install-tools.sh
 RUN chmod +x /usr/local/bin/install-tools.sh \
     && USE_CHINA_MIRROR=${USE_CHINA_MIRROR} \

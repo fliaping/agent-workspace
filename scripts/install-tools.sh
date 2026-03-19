@@ -206,7 +206,7 @@ install_homebrew() {
     mkdir -p /home/linuxbrew
     chown abc:abc /home/linuxbrew
 
-    local brew_env="NONINTERACTIVE=1"
+    local brew_env="NONINTERACTIVE=1 HOME=/home/linuxbrew"
     if [ -n "$HOMEBREW_BREW_GIT_REMOTE_VALUE" ]; then
         brew_env="${brew_env} HOMEBREW_BREW_GIT_REMOTE=${HOMEBREW_BREW_GIT_REMOTE_VALUE}"
         brew_env="${brew_env} HOMEBREW_CORE_GIT_REMOTE=${HOMEBREW_CORE_GIT_REMOTE_VALUE}"
