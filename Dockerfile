@@ -29,7 +29,7 @@ ENV USE_CHINA_MIRROR=${USE_CHINA_MIRROR}
 
 # 工具版本
 ENV GO_VERSION="go1.22.4"
-ENV NODE_VERSION="20"
+ENV NODE_VERSION="22"
 
 # 工具路径（指向 /config，LinuxServer 持久化目录）
 ENV HOME=/config

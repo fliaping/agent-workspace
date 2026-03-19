@@ -675,17 +675,6 @@ install_agents_in_container() {
         npm_registry="--registry=https://registry.npmmirror.com"
     fi
 
-    # 先确保 PM2 已安装
-    print_info "Ensuring PM2 is installed..."
-    docker exec "$CONTAINER_NAME" bash -c "
-        if ! command -v pm2 &> /dev/null; then
-            echo 'Installing PM2...'
-            npm install -g pm2 $npm_registry
-        else
-            echo 'PM2 already installed'
-        fi
-    " || print_warning "PM2 安装失败"
-
     for agent in "${INSTALL_AGENTS[@]}"; do
         local agent_port="$(eval echo \$CUSTOM_PORT_${agent})"
 
@@ -697,8 +686,23 @@ install_agents_in_container() {
                     npm install -g openclaw@latest $npm_registry
                     echo 'Running OpenClaw onboarding...'
                     openclaw onboard --install-daemon || true
-                    echo 'Starting OpenClaw via PM2...'
-                    pm2 start 'openclaw gateway run' --name openclaw
+                    # 创建 systemd service
+                    cat > /etc/systemd/system/openclaw.service << 'UNIT'
+[Unit]
+Description=OpenClaw Gateway
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/openclaw gateway run
+Restart=always
+RestartSec=5
+Environment=NODE_OPTIONS=--max-old-space-size=2048
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+                    systemctl enable --now openclaw
                     echo 'OpenClaw started successfully'
                 " || print_warning "OpenClaw 安装失败，请手动安装"
                 ;;
@@ -711,8 +715,22 @@ install_agents_in_container() {
                     cd openfang
                     cargo build --release
                     cp target/release/openfang /usr/local/bin/
-                    echo 'Starting Openfang via PM2...'
-                    pm2 start 'openfang start' --name openfang
+                    # 创建 systemd service
+                    cat > /etc/systemd/system/openfang.service << 'UNIT'
+[Unit]
+Description=Openfang Agent OS
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/openfang start
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+                    systemctl enable --now openfang
                     echo 'Openfang started successfully'
                 " || print_warning "Openfang 安装失败，请手动安装"
                 ;;
@@ -721,19 +739,27 @@ install_agents_in_container() {
                 docker exec "$CONTAINER_NAME" bash -c "
                     echo 'Installing Zeroclaw via Homebrew...'
                     brew install zeroclaw
-                    echo 'Starting Zeroclaw via PM2...'
-                    pm2 start 'zeroclaw gateway' --name zeroclaw
+                    # 创建 systemd service
+                    cat > /etc/systemd/system/zeroclaw.service << 'UNIT'
+[Unit]
+Description=Zeroclaw Agent Runtime
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/home/linuxbrew/.linuxbrew/bin/zeroclaw gateway
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+                    systemctl enable --now zeroclaw
                     echo 'Zeroclaw started successfully'
                 " || print_warning "Zeroclaw 安装失败，请手动安装"
                 ;;
         esac
     done
-
-    # 保存 PM2 进程列表，以便重启后自动恢复
-    if [ ${#INSTALL_AGENTS[@]} -gt 0 ]; then
-        print_info "Saving PM2 process list..."
-        docker exec "$CONTAINER_NAME" bash -c "pm2 save" || true
-    fi
 
     print_success "$(get_text agent_install_success)"
 }
@@ -1166,10 +1192,10 @@ print_access_info() {
             fi
         done
         echo ""
-        print_info "🔧 PM2 管理命令:"
-        echo "    查看进程: docker exec $CONTAINER_NAME pm2 list"
-        echo "    查看日志: docker exec $CONTAINER_NAME pm2 logs <name>"
-        echo "    重启进程: docker exec $CONTAINER_NAME pm2 restart <name>"
+        print_info "🔧 systemctl 管理命令:"
+        echo "    查看状态: docker exec $CONTAINER_NAME systemctl status <name>"
+        echo "    查看日志: docker exec $CONTAINER_NAME journalctl -u <name>"
+        echo "    重启服务: docker exec $CONTAINER_NAME systemctl restart <name>"
     fi
 
     echo ""

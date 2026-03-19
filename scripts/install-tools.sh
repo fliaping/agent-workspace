@@ -16,7 +16,7 @@ set -e
 # ============================================================
 USE_CHINA_MIRROR="${USE_CHINA_MIRROR:-false}"
 GO_VERSION="${GO_VERSION:-go1.22.4}"
-NODE_VERSION="${NODE_VERSION:-20}"
+NODE_VERSION="${NODE_VERSION:-22}"
 SYSTEM_LANG="${SYSTEM_LANG:-zh_CN}"
 
 # 派生语言模式（与 install.sh 保持一致：cn/en）
@@ -124,7 +124,7 @@ print(vers[0] if vers else '')
 
     # 配置 npm 仓库（构建时加速）
     npm config set registry "${NPM_REGISTRY}" --global
-    npm install -g pnpm pm2 typescript
+    npm install -g pnpm typescript
     pnpm config set registry "${NPM_REGISTRY}"
     npm cache clean --force
 
