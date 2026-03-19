@@ -59,7 +59,6 @@ services:
       - ./webtop-data:/config
 
     ports:
-      - "3000:3000"   # HTTP
       - "3001:3001"   # HTTPS
 
     devices:

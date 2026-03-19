@@ -59,7 +59,7 @@ TEXT_cn_data_dir_custom="自定义目录"
 TEXT_cn_enter_data_dir="请输入数据目录路径"
 TEXT_cn_step4_title="步骤 6/8: 配置桌面端口"
 TEXT_cn_port_config_title="配置服务端口"
-TEXT_cn_port_desktop="桌面端口 (HTTP)"
+TEXT_cn_port_desktop="桌面端口 (HTTPS)"
 TEXT_cn_port_agent="Agent API 端口"
 TEXT_cn_port_auto="自动检测并分配端口"
 TEXT_cn_port_manual="手动配置端口"
@@ -153,7 +153,7 @@ TEXT_en_data_dir_default="Use default directory"
 TEXT_en_data_dir_custom="Custom directory"
 TEXT_en_step4_title="Step 6/8: Configure Desktop Port"
 TEXT_en_port_config_title="Configure Service Ports"
-TEXT_en_port_desktop="Desktop Port (HTTP)"
+TEXT_en_port_desktop="Desktop Port (HTTPS)"
 TEXT_en_port_agent="Agent API Port"
 TEXT_en_port_auto="Auto detect and assign ports"
 TEXT_en_port_manual="Manually configure ports"
@@ -281,8 +281,7 @@ DEFAULT_VERSION="latest"
 
 # 容器配置
 CONTAINER_NAME="agent-workspace"
-DESKTOP_PORT="3000"
-HTTPS_PORT="3001"
+DESKTOP_PORT="3001"
 
 # 桌面环境（默认 lxqt）
 SELECTED_DESKTOP="lxqt"
@@ -546,11 +545,9 @@ select_desktop_port() {
             ;;
     esac
 
-    # HTTPS 端口自动跟随
-    HTTPS_PORT=$((DESKTOP_PORT + 1))
-
+    # HTTPS 端口
     echo ""
-    print_info "$(get_text port_desktop): $DESKTOP_PORT (HTTPS: $HTTPS_PORT)"
+    print_info "$(get_text port_desktop) (HTTPS): $DESKTOP_PORT"
 }
 
 # ============================================================================
@@ -1008,7 +1005,7 @@ main() {
     if [ "$USE_HOST_NETWORK" = false ]; then
         select_desktop_port
     else
-        print_info "host 网络模式，使用容器内默认端口 3000/3001"
+        print_info "host 网络模式，使用容器内默认端口 3001 (HTTPS)"
     fi
 
     # 步骤 7: 选择 Agent 软件
@@ -1039,7 +1036,6 @@ main() {
         if ! check_port_available $DESKTOP_PORT; then
             print_warning "$(get_text port_occupied): $DESKTOP_PORT"
             DESKTOP_PORT=$(find_available_port $DESKTOP_PORT)
-            HTTPS_PORT=$((DESKTOP_PORT + 1))
             print_info "$(get_text auto_change_port): $DESKTOP_PORT"
         fi
     fi
@@ -1078,8 +1074,7 @@ main() {
         DOCKER_ARGS+=("--network" "host")
     else
         DOCKER_ARGS+=(
-            "-p" "${DESKTOP_PORT}:3000"
-            "-p" "${HTTPS_PORT}:3001"
+            "-p" "${DESKTOP_PORT}:3001"
         )
         if [ "$IS_DIND" = true ]; then
             DOCKER_ARGS+=(
@@ -1151,11 +1146,9 @@ print_access_info() {
     fi
 
     if [ "$USE_HOST_NETWORK" = true ]; then
-        print_info "🖥️  $(get_text desktop_url) (HTTP):  http://${IP}:3000/"
-        print_info "🔒 $(get_text desktop_url) (HTTPS): https://${IP}:3001/"
+        print_info "🖥️  $(get_text desktop_url) (HTTPS): https://${IP}:3001/"
     else
-        print_info "🖥️  $(get_text desktop_url) (HTTP):  http://${IP}:${DESKTOP_PORT}/"
-        print_info "🔒 $(get_text desktop_url) (HTTPS): https://${IP}:${HTTPS_PORT}/"
+        print_info "🖥️  $(get_text desktop_url) (HTTPS): https://${IP}:${DESKTOP_PORT}/"
     fi
 
     print_info "💾 $(get_text data_dir): ${DATA_DIR}"
