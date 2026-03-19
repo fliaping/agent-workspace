@@ -65,8 +65,6 @@ if [ "$USE_CHINA_MIRROR" = "true" ]; then
     NPM_REGISTRY="https://registry.npmmirror.com"
     # Python: 清华源（参考 Dockerfile_zh）
     PYPI_INDEX_URL="https://pypi.tuna.tsinghua.edu.cn/simple"
-    # 运行时 GOPROXY
-    GOPROXY_VALUE="https://goproxy.cn,direct"
     # GitHub 代理
     GITHUB_RAW_BASE="https://gh-proxy.org/https://raw.githubusercontent.com"
     # Rust: USTC rustup 镜像
@@ -87,8 +85,6 @@ else
     NPM_REGISTRY="https://registry.npmjs.org"
     # Python: 官方 PyPI
     PYPI_INDEX_URL="https://pypi.org/simple"
-    # 运行时 GOPROXY
-    GOPROXY_VALUE="https://proxy.golang.org,direct"
     # GitHub 直连
     GITHUB_RAW_BASE="https://raw.githubusercontent.com"
     # Rust: 官方
@@ -126,11 +122,15 @@ print(vers[0] if vers else '')
     info "下载 Node.js ${node_ver}: ${node_url}"
     curl -fsSL "${node_url}" | tar -xJ -C /usr/local --strip-components=1
 
-    # 配置 npm 仓库
+    # 配置 npm 仓库（构建时加速）
     npm config set registry "${NPM_REGISTRY}" --global
     npm install -g pnpm pm2 typescript
     pnpm config set registry "${NPM_REGISTRY}"
     npm cache clean --force
+
+    # 构建完成后重置为官方源，运行时由 setup-mirror.sh 按需配置
+    npm config set registry "https://registry.npmjs.org" --global
+    pnpm config set registry "https://registry.npmjs.org"
 
     success "Node.js ${node_ver} 安装完成"
 }
@@ -159,13 +159,6 @@ install_uv() {
             --index-url "${PYPI_INDEX_URL}"
     else
         pip3 install --no-cache-dir uv --break-system-packages
-    fi
-
-    # 系统级 pip 配置（CN 模式写入，EN 模式不设置加速源）
-    mkdir -p /etc/pip
-    if [ "$USE_CHINA_MIRROR" = "true" ]; then
-        printf '[global]\nindex-url = %s\n' "${PYPI_INDEX_URL}" > /etc/pip/pip.conf
-        info "pip 全局配置: ${PYPI_INDEX_URL}"
     fi
 
     success "uv 安装完成"
@@ -226,36 +219,6 @@ install_systemctl_replacement() {
 }
 
 # ============================================================
-# 写入运行时镜像源配置到 /etc/profile.d/
-# 使容器内终端的 go、uv、npm 等工具自动使用对应加速源
-# ============================================================
-write_runtime_mirror_config() {
-    local profile_file="/etc/profile.d/mirrors.sh"
-
-    if [ "$USE_CHINA_MIRROR" = "true" ]; then
-        info "写入国内运行时镜像源配置: ${profile_file}"
-        cat > "${profile_file}" << EOF
-# 国内镜像源（由 install-tools.sh 生成，USE_CHINA_MIRROR=true）
-export GOPROXY="${GOPROXY_VALUE}"
-export UV_INDEX_URL="${PYPI_INDEX_URL}"
-export HOMEBREW_BREW_GIT_REMOTE="https://mirrors.ustc.edu.cn/brew.git"
-export HOMEBREW_CORE_GIT_REMOTE="https://mirrors.ustc.edu.cn/homebrew-core.git"
-export HOMEBREW_BOTTLE_DOMAIN="https://mirrors.ustc.edu.cn/homebrew-bottles"
-export HOMEBREW_API_DOMAIN="https://mirrors.ustc.edu.cn/homebrew-bottles/api"
-export HOMEBREW_CURL_RETRIES=3
-EOF
-        chmod +x "${profile_file}"
-    else
-        info "写入国际运行时镜像源配置: ${profile_file}"
-        cat > "${profile_file}" << EOF
-# 国际镜像源（由 install-tools.sh 生成，USE_CHINA_MIRROR=false）
-export GOPROXY="${GOPROXY_VALUE}"
-EOF
-        chmod +x "${profile_file}"
-    fi
-}
-
-# ============================================================
 # 配置系统语言 / Locale
 # ============================================================
 configure_locale() {
@@ -291,7 +254,6 @@ main() {
     install_uv
     install_homebrew
     install_systemctl_replacement
-    write_runtime_mirror_config
 
     echo "========================================"
     success "所有工具安装完成"
