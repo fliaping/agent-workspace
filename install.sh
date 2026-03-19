@@ -128,6 +128,14 @@ TEXT_cn_need_sudo="Linux 需要 root 权限，请使用 sudo 运行"
 TEXT_cn_usage="使用方法"
 TEXT_cn_dind_sudo_warning="DinD 环境中使用 sudo 可能导致 Docker 连接失败"
 TEXT_cn_try_without_sudo="请尝试不使用 sudo 运行"
+TEXT_cn_gpu_detecting="检测 GPU 加速支持..."
+TEXT_cn_gpu_nvidia="检测到 NVIDIA GPU"
+TEXT_cn_gpu_nvidia_runtime="NVIDIA Container Runtime 可用"
+TEXT_cn_gpu_nvidia_no_runtime="未检测到 NVIDIA Container Runtime，跳过 GPU 加速"
+TEXT_cn_gpu_nvidia_toolkit_guide="请安装 nvidia-container-toolkit: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html"
+TEXT_cn_gpu_intel_amd="检测到 Intel/AMD GPU (DRI)"
+TEXT_cn_gpu_none="未检测到 GPU，使用 CPU 软件渲染"
+TEXT_cn_gpu_enabled="GPU 加速已启用"
 
 # 英文文本
 TEXT_en_welcome_title="Agent Workspace Deployment"
@@ -223,6 +231,14 @@ TEXT_en_need_sudo="Linux requires root privileges, please run with sudo"
 TEXT_en_usage="Usage"
 TEXT_en_dind_sudo_warning="Using sudo in DinD environment may cause Docker connection failure"
 TEXT_en_try_without_sudo="Please try running without sudo"
+TEXT_en_gpu_detecting="Detecting GPU acceleration support..."
+TEXT_en_gpu_nvidia="NVIDIA GPU detected"
+TEXT_en_gpu_nvidia_runtime="NVIDIA Container Runtime available"
+TEXT_en_gpu_nvidia_no_runtime="NVIDIA Container Runtime not found, skipping GPU acceleration"
+TEXT_en_gpu_nvidia_toolkit_guide="Please install nvidia-container-toolkit: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html"
+TEXT_en_gpu_intel_amd="Intel/AMD GPU detected (DRI)"
+TEXT_en_gpu_none="No GPU detected, using CPU software rendering"
+TEXT_en_gpu_enabled="GPU acceleration enabled"
 TEXT_cn_windows_wsl2_detected="检测到 Windows WSL2 环境"
 TEXT_cn_windows_wsl2_recommended="推荐使用 WSL2 + Docker 方式运行"
 TEXT_cn_windows_wsl2_install_docker="请在 WSL2 中安装 Docker："
@@ -309,6 +325,11 @@ INSTALL_AGENTS=()
 # DinD 和网络模式（全局变量，提前设置以便端口检测使用）
 IS_DIND=false
 USE_HOST_NETWORK=false
+
+# GPU 检测结果
+GPU_TYPE=""          # nvidia / intel_amd / none
+HAS_NVIDIA_RUNTIME=false
+DRINODE_PATH=""
 # ============================================================================
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -791,6 +812,59 @@ detect_os() {
     fi
 }
 
+# 检测 GPU 加速支持
+detect_gpu() {
+    print_info "$(get_text gpu_detecting)"
+
+    # DinD 环境下跳过 GPU 检测（无法直接访问宿主机设备）
+    if [ "$IS_DIND" = true ]; then
+        GPU_TYPE="none"
+        print_info "$(get_text gpu_none) (DinD)"
+        return
+    fi
+
+    # 1. 检测 NVIDIA GPU
+    if command -v nvidia-smi &> /dev/null && nvidia-smi &> /dev/null; then
+        GPU_TYPE="nvidia"
+        local gpu_name
+        gpu_name=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1)
+        print_success "$(get_text gpu_nvidia): ${gpu_name}"
+
+        # 检测 NVIDIA Container Runtime
+        if docker info 2>/dev/null | grep -qi "nvidia"; then
+            HAS_NVIDIA_RUNTIME=true
+            print_success "$(get_text gpu_nvidia_runtime)"
+        else
+            HAS_NVIDIA_RUNTIME=false
+            print_warning "$(get_text gpu_nvidia_no_runtime)"
+            print_info "$(get_text gpu_nvidia_toolkit_guide)"
+        fi
+
+        # NVIDIA 也有 /dev/dri
+        if [ -d /dev/dri ]; then
+            DRINODE_PATH=$(ls /dev/dri/renderD* 2>/dev/null | head -1)
+        fi
+        return
+    fi
+
+    # 2. 检测 Intel/AMD GPU (DRI 设备)
+    if [ -d /dev/dri ] && ls /dev/dri/renderD* &> /dev/null; then
+        GPU_TYPE="intel_amd"
+        DRINODE_PATH=$(ls /dev/dri/renderD* 2>/dev/null | head -1)
+        local gpu_info=""
+        if command -v lspci &> /dev/null; then
+            gpu_info=$(lspci 2>/dev/null | grep -iE "VGA|3D|Display" | head -1 | sed 's/.*: //')
+        fi
+        print_success "$(get_text gpu_intel_amd): ${gpu_info:-${DRINODE_PATH}}"
+        return
+    fi
+
+    # 3. macOS（Docker Desktop 不支持 GPU 直通）
+    # 4. 无 GPU
+    GPU_TYPE="none"
+    print_info "$(get_text gpu_none)"
+}
+
 # 检测是否在 WSL2 环境
 check_wsl2() {
     if [ -f /proc/version ]; then
@@ -994,6 +1068,9 @@ main() {
         exit 1
     fi
 
+    # 检测 GPU 加速
+    detect_gpu
+
     # 步骤 1: 选择语言
     select_language
 
@@ -1092,8 +1169,31 @@ main() {
         "-e" "START_DOCKER=true"
         "-e" "NODE_OPTIONS=--max-old-space-size=2048"
         "-v" "${DATA_DIR}:/config"
-        "--device" "/dev/dri:/dev/dri"
     )
+
+    # GPU 加速配置
+    if [ "$GPU_TYPE" = "nvidia" ] && [ "$HAS_NVIDIA_RUNTIME" = true ]; then
+        # NVIDIA GPU: --gpus all + 环境变量
+        DOCKER_ARGS+=(
+            "--gpus" "all"
+            "-e" "NVIDIA_VISIBLE_DEVICES=all"
+            "-e" "NVIDIA_DRIVER_CAPABILITIES=all"
+        )
+        if [ -d /dev/dri ]; then
+            DOCKER_ARGS+=("--device" "/dev/dri:/dev/dri")
+        fi
+        if [ -n "$DRINODE_PATH" ]; then
+            DOCKER_ARGS+=("-e" "DRINODE=${DRINODE_PATH}")
+        fi
+        print_success "$(get_text gpu_enabled) (NVIDIA)"
+    elif [ "$GPU_TYPE" = "intel_amd" ]; then
+        # Intel/AMD GPU: DRI 设备直通
+        DOCKER_ARGS+=(
+            "--device" "/dev/dri:/dev/dri"
+            "-e" "DRINODE=${DRINODE_PATH:-/dev/dri/renderD128}"
+        )
+        print_success "$(get_text gpu_enabled) (Intel/AMD)"
+    fi
 
     # 网络配置
     if [ "$USE_HOST_NETWORK" = true ]; then

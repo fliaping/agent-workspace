@@ -46,9 +46,12 @@ services:
       - SELKIES_SCALING_DPI=${SELKIES_SCALING_DPI:-192}
       - XCURSOR_THEME=Adwaita
       - XCURSOR_SIZE=32
-      # --- GPU 渲染/编码设备路径 ---
-      - DRINODE=/dev/dri/renderD128
-      - DRI_NODE=/dev/dri/renderD128
+      # --- GPU 渲染/编码设备路径（按需启用）---
+      # Intel/AMD: 取消注释 DRINODE + devices 部分
+      # NVIDIA: 还需取消注释 deploy 部分 + NVIDIA_* 变量
+      #- DRINODE=/dev/dri/renderD128
+      #- NVIDIA_VISIBLE_DEVICES=all
+      #- NVIDIA_DRIVER_CAPABILITIES=all
       # --- 自定义（仅 init 服务使用）---
       - USE_CHINA_MIRROR=false
       # --- Node.js ---
@@ -61,8 +64,18 @@ services:
     ports:
       - "3001:3001"   # HTTPS
 
-    devices:
-      - /dev/dri:/dev/dri
+    # GPU 设备直通（按需启用）
+    # Intel/AMD GPU: 取消注释 devices
+    # NVIDIA GPU: 取消注释 devices + deploy
+    #devices:
+    #  - /dev/dri:/dev/dri
+    #deploy:
+    #  resources:
+    #    reservations:
+    #      devices:
+    #        - driver: nvidia
+    #          count: all
+    #          capabilities: [gpu]
 
     shm_size: "2gb"
 
