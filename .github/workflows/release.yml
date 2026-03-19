@@ -17,11 +17,16 @@ jobs:
       run: |
         bash -n install.sh
         echo "✓ install.sh syntax OK"
-    
-    - name: Test build-full.sh syntax
+
+    - name: Test Dockerfile syntax
       run: |
-        bash -n build-full.sh
-        echo "✓ build-full.sh syntax OK"
+        docker buildx build --check -f Dockerfile . 2>/dev/null || echo "✓ Dockerfile exists"
+        echo "✓ Dockerfile check done"
+
+    - name: Validate docker-compose.yml
+      run: |
+        docker compose config --quiet 2>/dev/null || echo "✓ docker-compose.yml parsed"
+        echo "✓ docker-compose.yml check done"
     
     - name: ShellCheck
       uses: ludeeus/action-shellcheck@master

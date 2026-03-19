@@ -1,32 +1,70 @@
-version: '3.8'
+# LinuxServer Webtop + DinD + GPU 加速 + 完整开发环境
+#
+# 基于 linuxserver/webtop:ubuntu-{desktop}（2025.06+ Selkies）
+# 官方文档: https://docs.linuxserver.io/images/docker-webtop/
+#
+# 使用 LinuxServer 标准持久化方式：挂载 /config
+#
+# 构建选项:
+#   默认 lxqt 桌面:   docker compose build
+#   KDE 桌面:         DESKTOP=kde docker compose build
+#   国内源:            USE_CHINA_MIRROR=true docker compose build
+#   或在 .env 文件中设置: DESKTOP=kde
+#                         USE_CHINA_MIRROR=true
+#
+# 分辨率: Selkies 自适应浏览器窗口大小（推荐）
+#   固定分辨率: SELKIES_MANUAL_WIDTH=1440 + SELKIES_MANUAL_HEIGHT=900
 
 services:
-  my-agent-workspace:
-    image: agent-workspace:v1.0.0
-    build: 
+  agent-workspace:
+    build:
       context: .
-      dockerfile: ./Dockerfile_zh
-    container_name: my-agent-workspace
-    ports:
-      - "6901:6901"
-      - "19789:18789"
+      dockerfile: Dockerfile
+      args:
+        # 构建时参数（仅影响镜像构建，运行时无效）
+        # DESKTOP: kde(1.1G) | xfce(800M) | lxqt(300M)
+        - DESKTOP=${DESKTOP:-lxqt}
+        - USE_CHINA_MIRROR=${USE_CHINA_MIRROR:-false}
+
+    image: xuping/agent-workspace:ubuntu-${DESKTOP:-lxqt}
+    container_name: agent-workspace
+    hostname: agent-workspace
+
+    # DinD: privileged 模式下官方 svc-docker 自动启动 Docker daemon
     privileged: true
+
     environment:
-      # - VNC_PW=xx2016  # 需要密码时设置这个
-      - VNCOPTIONS=-disableBasicAuth   # 使用 oauth-proxy，无需 VNC 内部独立密码
+      # --- LinuxServer 标准变量 ---
+      - PUID=1000
+      - PGID=1000
+      - TZ=Asia/Shanghai
+      - LC_ALL=zh_CN.UTF-8
+      - TITLE=Webtop
+      # --- Docker-in-Docker（官方 svc-docker）---
+      - START_DOCKER=true
+      # --- Selkies 显示 ---
+      - SELKIES_SCALING_DPI=${SELKIES_SCALING_DPI:-192}
+      - XCURSOR_THEME=Adwaita
+      - XCURSOR_SIZE=32
+      # --- GPU 渲染/编码设备路径 ---
+      - DRINODE=/dev/dri/renderD128
+      - DRI_NODE=/dev/dri/renderD128
+      # --- 自定义（仅 init 服务使用）---
+      - USE_CHINA_MIRROR=false
+      # --- Node.js ---
       - NODE_OPTIONS=--max-old-space-size=2048
-      - CHROME_FLAGS=--js-flags='--max-old-space-size=512' --memory-model=low
+
     volumes:
-      # 直接映射当前目录下的 home 文件夹作为容器用户的持久化家目录
-      - ./home:/home/kasm-user
-    restart: unless-stopped
+      # LinuxServer 标准持久化目录
+      - ./webtop-data:/config
+
+    ports:
+      - "3000:3000"   # HTTP
+      - "3001:3001"   # HTTPS
+
+    devices:
+      - /dev/dri:/dev/dri
+
     shm_size: "2gb"
-    
-    # 【优化项】资源限制，确保底座服务运行平稳且防止意外内存溢出导致宿主机奔溃
-    deploy:
-      resources:
-        limits:
-          memory: 16G
-          cpus: '12'
-        reservations:
-          memory: 4G
+
+    restart: unless-stopped

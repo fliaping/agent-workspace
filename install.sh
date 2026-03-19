@@ -1,6 +1,7 @@
 #!/bin/bash
 #
 # Agent Workspace 一键部署脚本
+# 基于 LinuxServer webtop (Selkies)
 # 支持多语言: 中文 / English
 # 使用方法: curl -fsSL https://raw.githubusercontent.com/fliaping/agent-workspace/main/install.sh | sudo bash
 #
@@ -36,40 +37,45 @@ declare -A TEXTS
 
 # 中文文本
 TEXTS[cn_welcome_title]="Agent Workspace 一键部署"
-TEXTS[cn_step1_title]="步骤 1/7: 选择语言"
+TEXTS[cn_step1_title]="步骤 1/8: 选择语言"
 TEXTS[cn_lang_cn]="1) 中文 (Chinese)"
 TEXTS[cn_lang_en]="2) English (英文)"
-TEXTS[cn_step_registry_title]="步骤 2/7: 选择镜像源"
+TEXTS[cn_step_desktop_title]="步骤 2/8: 选择桌面环境"
+TEXTS[cn_desktop_lxqt]="1) LXQt  — 轻量 (~300MB 内存)"
+TEXTS[cn_desktop_xfce]="2) XFCE  — 中等 (~800MB 内存)"
+TEXTS[cn_desktop_kde]="3) KDE   — 完整 (~1.1GB 内存)"
+TEXTS[cn_selected_desktop]="已选择桌面"
+TEXTS[cn_step_registry_title]="步骤 3/8: 选择镜像源"
 TEXTS[cn_registry_cn]="1) 阿里云镜像（国内推荐）"
 TEXTS[cn_registry_en]="2) Docker Hub（海外推荐）"
 TEXTS[cn_enter_choice]="请输入选项"
 TEXTS[cn_invalid_choice]="无效选项，请重新输入"
-TEXTS[cn_step2_title]="步骤 3/7: 选择镜像版本"
+TEXTS[cn_step2_title]="步骤 4/8: 选择镜像版本"
 TEXTS[cn_version_latest]="1) latest (最新版)"
 TEXTS[cn_version_custom]="2) 自定义版本"
 TEXTS[cn_enter_version]="请输入版本号"
-TEXTS[cn_step3_title]="步骤 4/7: 配置数据目录"
+TEXTS[cn_step3_title]="步骤 5/8: 配置数据目录"
 TEXTS[cn_data_dir_default]="使用默认目录"
 TEXTS[cn_data_dir_custom]="自定义目录"
 TEXTS[cn_enter_data_dir]="请输入数据目录路径"
-TEXTS[cn_step4_title]="步骤 5/7: 配置 VNC 桌面端口"
+TEXTS[cn_step4_title]="步骤 6/8: 配置桌面端口"
 TEXTS[cn_port_config_title]="配置服务端口"
-TEXTS[cn_port_vnc]="VNC 桌面端口"
+TEXTS[cn_port_desktop]="桌面端口 (HTTP)"
 TEXTS[cn_port_agent]="Agent API 端口"
 TEXTS[cn_port_auto]="自动检测并分配端口"
 TEXTS[cn_port_manual]="手动配置端口"
-TEXTS[cn_enter_vnc_port]="请输入 VNC 端口"
+TEXTS[cn_enter_desktop_port]="请输入桌面端口"
 TEXTS[cn_enter_agent_port]="请输入 Agent 端口"
 TEXTS[cn_port_in_use]="端口已被占用"
 TEXTS[cn_port_available]="端口可用"
-TEXTS[cn_step5_title]="步骤 6/7: 选择 Agent 软件"
+TEXTS[cn_step5_title]="步骤 7/8: 选择 Agent 软件"
 TEXTS[cn_agent_install_title]="选择要安装的 Agent 软件（可多选，空格分隔）"
 TEXTS[cn_agent_openclaw]="1) OpenClaw - 个人自主开源 AI 助手，支持 WhatsApp/Telegram/Discord 等多平台通信"
 TEXTS[cn_agent_openfang]="2) Openfang - Rust 构建的 Agent OS，零依赖单二进制，180ms 冷启动"
 TEXTS[cn_agent_zeroclaw]="3) Zeroclaw - 超轻量 Agent 运行时，<5MB 内存，<10ms 启动"
 TEXTS[cn_agent_skip]="4) 跳过，不安装任何软件"
 TEXTS[cn_enter_agents]="请输入选项（如：1 2 3）"
-TEXTS[cn_step6_title]="步骤 7/7: 配置 Agent 软件端口"
+TEXTS[cn_step6_title]="步骤 8/8: 配置 Agent 软件端口"
 TEXTS[cn_agent_port_config]="配置 Agent 软件端口"
 TEXTS[cn_agent_port_default]="使用默认端口"
 TEXTS[cn_agent_port_custom]="自定义端口"
@@ -89,7 +95,7 @@ TEXTS[cn_run_success]="容器启动成功"
 TEXTS[cn_run_failed]="容器启动失败"
 TEXTS[cn_complete]="部署完成"
 TEXTS[cn_access_info]="访问信息"
-TEXTS[cn_vnc_desktop]="VNC桌面"
+TEXTS[cn_desktop_url]="桌面"
 TEXTS[cn_agent_port]="Agent端口"
 TEXTS[cn_data_dir]="数据目录"
 TEXTS[cn_common_commands]="常用命令"
@@ -126,39 +132,45 @@ TEXTS[cn_try_without_sudo]="请尝试不使用 sudo 运行"
 
 # 英文文本
 TEXTS[en_welcome_title]="Agent Workspace Deployment"
-TEXTS[en_step1_title]="Step 1/7: Select Language"
+TEXTS[en_step1_title]="Step 1/8: Select Language"
 TEXTS[en_lang_cn]="1) 中文 (Chinese)"
 TEXTS[en_lang_en]="2) English"
+TEXTS[en_step_desktop_title]="Step 2/8: Select Desktop"
+TEXTS[en_desktop_lxqt]="1) LXQt  — Lightweight (~300MB RAM)"
+TEXTS[en_desktop_xfce]="2) XFCE  — Medium (~800MB RAM)"
+TEXTS[en_desktop_kde]="3) KDE   — Full (~1.1GB RAM)"
+TEXTS[en_selected_desktop]="Selected desktop"
 TEXTS[en_enter_choice]="Enter your choice"
 TEXTS[en_invalid_choice]="Invalid choice, please try again"
-TEXTS[en_step_registry_title]="Step 2/7: Select Registry"
+TEXTS[en_step_registry_title]="Step 3/8: Select Registry"
 TEXTS[en_registry_cn]="1) Alibaba Cloud (Recommended for China)"
 TEXTS[en_registry_en]="2) Docker Hub (Recommended overseas)"
+TEXTS[en_step2_title]="Step 4/8: Select Version"
 TEXTS[en_version_latest]="1) latest"
 TEXTS[en_version_custom]="2) Custom version"
 TEXTS[en_enter_version]="Enter version tag"
-TEXTS[en_step3_title]="Step 4/7: Configure Data Directory"
+TEXTS[en_step3_title]="Step 5/8: Configure Data Directory"
 TEXTS[en_data_dir_default]="Use default directory"
 TEXTS[en_data_dir_custom]="Custom directory"
-TEXTS[en_step4_title]="Step 5/7: Configure VNC Desktop Port"
+TEXTS[en_step4_title]="Step 6/8: Configure Desktop Port"
 TEXTS[en_port_config_title]="Configure Service Ports"
-TEXTS[en_port_vnc]="VNC Desktop Port"
+TEXTS[en_port_desktop]="Desktop Port (HTTP)"
 TEXTS[en_port_agent]="Agent API Port"
 TEXTS[en_port_auto]="Auto detect and assign ports"
 TEXTS[en_port_manual]="Manually configure ports"
-TEXTS[en_enter_vnc_port]="Enter VNC port"
+TEXTS[en_enter_desktop_port]="Enter desktop port"
 TEXTS[en_enter_agent_port]="Enter Agent port"
 TEXTS[en_port_in_use]="Port is in use"
 TEXTS[en_port_available]="Port is available"
 TEXTS[en_enter_data_dir]="Enter data directory path"
-TEXTS[en_step5_title]="Step 6/7: Select Agent Software"
+TEXTS[en_step5_title]="Step 7/8: Select Agent Software"
 TEXTS[en_agent_install_title]="Select Agent software to install (multiple choices allowed, space separated)"
 TEXTS[en_agent_openclaw]="1) OpenClaw - Personal autonomous AI assistant, multi-platform"
 TEXTS[en_agent_openfang]="2) Openfang - Rust Agent OS, zero-dep single binary, 180ms cold start"
 TEXTS[en_agent_zeroclaw]="3) Zeroclaw - Ultra-light Agent runtime, <5MB mem, <10ms start"
 TEXTS[en_agent_skip]="4) Skip, don't install any software"
 TEXTS[en_enter_agents]="Enter options (e.g., 1 2 3)"
-TEXTS[en_step6_title]="Step 7/7: Configure Agent Software Ports"
+TEXTS[en_step6_title]="Step 8/8: Configure Agent Software Ports"
 TEXTS[en_agent_port_config]="Configure Agent Software Ports"
 TEXTS[en_agent_port_default]="Use default port"
 TEXTS[en_agent_port_custom]="Custom port"
@@ -178,7 +190,7 @@ TEXTS[en_run_success]="Container started successfully"
 TEXTS[en_run_failed]="Failed to start container"
 TEXTS[en_complete]="Deployment Complete"
 TEXTS[en_access_info]="Access Information"
-TEXTS[en_vnc_desktop]="VNC Desktop"
+TEXTS[en_desktop_url]="Desktop"
 TEXTS[en_agent_port]="Agent Port"
 TEXTS[en_data_dir]="Data Directory"
 TEXTS[en_common_commands]="Common Commands"
@@ -270,7 +282,11 @@ DEFAULT_VERSION="latest"
 
 # 容器配置
 CONTAINER_NAME="agent-workspace"
-VNC_PORT="6901"
+DESKTOP_PORT="3000"
+HTTPS_PORT="3001"
+
+# 桌面环境（默认 lxqt）
+SELECTED_DESKTOP="lxqt"
 
 # Agent 软件默认端口配置（容器内端口，不可修改）
 declare -A AGENT_PORTS
@@ -318,17 +334,17 @@ select_language() {
     echo "  $(get_text welcome_title)"
     echo "========================================"
     echo ""
-    
+
     echo ""
     print_info "$(get_text step1_title)"
     echo "  $(get_text lang_cn)"
     echo "  $(get_text lang_en)"
     echo ""
-    
+
     while true; do
         prompt_read lang_choice "$(get_text enter_choice) [1-2, default 1]: "
         lang_choice=${lang_choice:-1}
-        
+
         case $lang_choice in
             1)
                 LANG="cn"
@@ -348,7 +364,32 @@ select_language() {
 }
 
 # ============================================================================
-# 步骤 2: 选择镜像源
+# 步骤 2: 选择桌面环境
+# ============================================================================
+select_desktop() {
+    echo ""
+    print_info "$(get_text step_desktop_title)"
+    echo "  $(get_text desktop_lxqt)"
+    echo "  $(get_text desktop_xfce)"
+    echo "  $(get_text desktop_kde)"
+    echo ""
+
+    prompt_read desktop_choice "$(get_text enter_choice) [1-3, default 1]: "
+    desktop_choice=${desktop_choice:-1}
+
+    case $desktop_choice in
+        1) SELECTED_DESKTOP="lxqt" ;;
+        2) SELECTED_DESKTOP="xfce" ;;
+        3) SELECTED_DESKTOP="kde" ;;
+        *) SELECTED_DESKTOP="lxqt" ;;
+    esac
+
+    echo ""
+    print_info "$(get_text selected_desktop): $SELECTED_DESKTOP"
+}
+
+# ============================================================================
+# 步骤 3: 选择镜像源
 # ============================================================================
 select_registry() {
     echo ""
@@ -356,10 +397,10 @@ select_registry() {
     echo "  $(get_text registry_cn)"
     echo "  $(get_text registry_en)"
     echo ""
-    
+
     prompt_read registry_choice "$(get_text enter_choice) [1-2, default 1]: "
     registry_choice=${registry_choice:-1}
-    
+
     case $registry_choice in
         1)
             REGISTRY="$REGISTRY_CN"
@@ -371,13 +412,13 @@ select_registry() {
             REGISTRY="$REGISTRY_CN"
             ;;
     esac
-    
+
     echo ""
     print_info "$(get_text using_registry): $REGISTRY"
 }
 
 # ============================================================================
-# 步骤 3: 选择镜像版本
+# 步骤 4: 选择镜像版本
 # ============================================================================
 select_version() {
     echo ""
@@ -385,10 +426,10 @@ select_version() {
     echo "  $(get_text version_latest)"
     echo "  $(get_text version_custom)"
     echo ""
-    
+
     prompt_read version_choice "$(get_text enter_choice) [1-2, default 1]: "
     version_choice=${version_choice:-1}
-    
+
     case $version_choice in
         1)
             VERSION="$DEFAULT_VERSION"
@@ -401,32 +442,36 @@ select_version() {
             VERSION="$DEFAULT_VERSION"
             ;;
     esac
-    
-    # 构建完整镜像名
-    SELECTED_IMAGE="${REGISTRY}:${VERSION}"
-    
+
+    # 构建完整镜像名：{registry}:ubuntu-{desktop}[-{version}]
+    if [ "$VERSION" = "$DEFAULT_VERSION" ]; then
+        SELECTED_IMAGE="${REGISTRY}:ubuntu-${SELECTED_DESKTOP}"
+    else
+        SELECTED_IMAGE="${REGISTRY}:ubuntu-${SELECTED_DESKTOP}-${VERSION}"
+    fi
+
     echo ""
     print_info "$(get_text selected_image): $SELECTED_IMAGE"
 }
 
 # ============================================================================
-# 步骤 3: 配置数据目录
+# 步骤 5: 配置数据目录
 # ============================================================================
 select_data_dir() {
     echo ""
     print_info "$(get_text step3_title)"
-    
+
     # 获取默认目录（当前用户 home 目录下的 agent-workspace-data）
     local default_dir="$HOME/agent-workspace-data"
-    
+
     echo ""
     echo "  1) $(get_text data_dir_default): $default_dir"
     echo "  2) $(get_text data_dir_custom)"
     echo ""
-    
+
     prompt_read dir_choice "$(get_text enter_choice) [1-2, default 1]: "
     dir_choice=${dir_choice:-1}
-    
+
     case $dir_choice in
         1)
             DATA_DIR="$default_dir"
@@ -445,102 +490,105 @@ select_data_dir() {
             DATA_DIR="$default_dir"
             ;;
     esac
-    
+
     # 展开路径中的 ~
     DATA_DIR="${DATA_DIR/#\~/$HOME}"
-    
+
     echo ""
     print_info "$(get_text data_dir): $DATA_DIR"
 }
 
 # ============================================================================
-# 步骤 5: 配置 VNC 端口
+# 步骤 6: 配置桌面端口
 # ============================================================================
-select_vnc_port() {
+select_desktop_port() {
     echo ""
     print_info "$(get_text step4_title)"
     echo ""
-    print_info "$(get_text port_vnc): $VNC_PORT"
+    print_info "$(get_text port_desktop): $DESKTOP_PORT"
     echo ""
     echo "  1) $(get_text port_auto)"
     echo "  2) $(get_text port_manual)"
     echo ""
-    
+
     prompt_read port_choice "$(get_text enter_choice) [1-2, default 1]: "
     port_choice=${port_choice:-1}
-    
+
     case $port_choice in
         1)
             # 自动检测端口
             print_info "$(get_text port_auto)..."
-            if ! check_port_available $VNC_PORT; then
-                print_warning "$(get_text port_vnc) $VNC_PORT $(get_text port_in_use)"
-                VNC_PORT=$(find_available_port $VNC_PORT)
-                print_info "$(get_text port_vnc) $(get_text auto_change_port): $VNC_PORT"
+            if ! check_port_available $DESKTOP_PORT; then
+                print_warning "$(get_text port_desktop) $DESKTOP_PORT $(get_text port_in_use)"
+                DESKTOP_PORT=$(find_available_port $DESKTOP_PORT)
+                print_info "$(get_text port_desktop) $(get_text auto_change_port): $DESKTOP_PORT"
             else
-                print_success "$(get_text port_vnc) $VNC_PORT $(get_text port_available)"
+                print_success "$(get_text port_desktop) $DESKTOP_PORT $(get_text port_available)"
             fi
             ;;
         2)
             # 手动配置端口
             echo ""
-            prompt_read custom_vnc_port "$(get_text enter_vnc_port) [default $VNC_PORT]: "
-            if [ -n "$custom_vnc_port" ]; then
-                if check_port_available $custom_vnc_port; then
-                    VNC_PORT=$custom_vnc_port
-                    print_success "$(get_text port_vnc) $VNC_PORT $(get_text port_available)"
+            prompt_read custom_port "$(get_text enter_desktop_port) [default $DESKTOP_PORT]: "
+            if [ -n "$custom_port" ]; then
+                if check_port_available $custom_port; then
+                    DESKTOP_PORT=$custom_port
+                    print_success "$(get_text port_desktop) $DESKTOP_PORT $(get_text port_available)"
                 else
-                    print_warning "$(get_text port_vnc) $custom_vnc_port $(get_text port_in_use)"
-                    VNC_PORT=$(find_available_port $custom_vnc_port)
-                    print_info "$(get_text port_vnc) $(get_text auto_change_port): $VNC_PORT"
+                    print_warning "$(get_text port_desktop) $custom_port $(get_text port_in_use)"
+                    DESKTOP_PORT=$(find_available_port $custom_port)
+                    print_info "$(get_text port_desktop) $(get_text auto_change_port): $DESKTOP_PORT"
                 fi
             fi
             ;;
         *)
             # 默认自动检测
-            if ! check_port_available $VNC_PORT; then
-                VNC_PORT=$(find_available_port $VNC_PORT)
+            if ! check_port_available $DESKTOP_PORT; then
+                DESKTOP_PORT=$(find_available_port $DESKTOP_PORT)
             fi
             ;;
     esac
-    
+
+    # HTTPS 端口自动跟随
+    HTTPS_PORT=$((DESKTOP_PORT + 1))
+
     echo ""
-    print_info "$(get_text port_vnc): $VNC_PORT"
+    print_info "$(get_text port_desktop): $DESKTOP_PORT (HTTPS: $HTTPS_PORT)"
 }
 
 # ============================================================================
-# 步骤 6: 配置 Agent 软件端口
+# 步骤 8: 配置 Agent 软件端口
 # ============================================================================
 configure_agent_ports() {
     if [ ${#INSTALL_AGENTS[@]} -eq 0 ]; then
         return
     fi
-    
+
     echo ""
     print_info "$(get_text step6_title)"
     echo ""
     print_info "$(get_text agent_port_config)"
     echo ""
-    
+
     for agent in "${INSTALL_AGENTS[@]}"; do
         local default_port="${AGENT_PORTS[$agent]}"
         local port_name=""
-        
+
         case $agent in
             openclaw) port_name="$(get_text agent_port_openclaw)" ;;
             openfang) port_name="$(get_text agent_port_openfang)" ;;
             zeroclaw) port_name="$(get_text agent_port_zeroclaw)" ;;
         esac
-        
+
         echo ""
         echo "  $port_name"
         echo "  1) $(get_text agent_port_default): $default_port"
         echo "  2) $(get_text agent_port_custom)"
         echo ""
-        
+
         prompt_read port_choice "$(get_text enter_choice) [1-2, default 1]: "
         port_choice=${port_choice:-1}
-        
+
         case $port_choice in
             1)
                 CUSTOM_AGENT_PORTS[$agent]=$default_port
@@ -576,7 +624,7 @@ configure_agent_ports() {
                 ;;
         esac
     done
-    
+
     # 显示配置的端口
     echo ""
     print_info "Agent 软件端口配置:"
@@ -586,7 +634,7 @@ configure_agent_ports() {
 }
 
 # ============================================================================
-# 步骤 5: 选择要安装的 Agent 软件
+# 步骤 7: 选择要安装的 Agent 软件
 # ============================================================================
 select_agents() {
     echo ""
@@ -598,24 +646,24 @@ select_agents() {
     echo "  $(get_text agent_zeroclaw)"
     echo "  $(get_text agent_skip)"
     echo ""
-    
+
     prompt_read agent_choices "$(get_text enter_agents) [1-4, default 4]: "
     agent_choices=${agent_choices:-4}
-    
+
     # 解析用户选择
     for choice in $agent_choices; do
         case $choice in
             1) INSTALL_AGENTS+=("openclaw") ;;
             2) INSTALL_AGENTS+=("openfang") ;;
             3) INSTALL_AGENTS+=("zeroclaw") ;;
-            4) 
+            4)
                 INSTALL_AGENTS=()
                 print_info "跳过 Agent 软件安装"
                 return
                 ;;
         esac
     done
-    
+
     if [ ${#INSTALL_AGENTS[@]} -gt 0 ]; then
         echo ""
         print_info "将安装以下软件: ${INSTALL_AGENTS[*]}"
@@ -628,11 +676,11 @@ select_agents() {
 install_agents_in_container() {
     # 根据语言选择镜像源
     local npm_registry=""
-    
+
     if [ "$LANG" = "cn" ]; then
         npm_registry="--registry=https://registry.npmmirror.com"
     fi
-    
+
     # 先确保 PM2 已安装
     print_info "Ensuring PM2 is installed..."
     docker exec "$CONTAINER_NAME" bash -c "
@@ -643,14 +691,12 @@ install_agents_in_container() {
             echo 'PM2 already installed'
         fi
     " || print_warning "PM2 安装失败"
-    
+
     for agent in "${INSTALL_AGENTS[@]}"; do
         local agent_port="${CUSTOM_AGENT_PORTS[$agent]}"
-        
+
         case $agent in
             openclaw)
-                # OpenClaw 安装方式：https://github.com/openclaw/openclaw
-                # 容器内始终使用默认端口 18789，宿主机端口通过 docker -p 映射
                 print_info "Installing OpenClaw..."
                 docker exec "$CONTAINER_NAME" bash -c "
                     echo 'Installing OpenClaw...'
@@ -663,8 +709,6 @@ install_agents_in_container() {
                 " || print_warning "OpenClaw 安装失败，请手动安装"
                 ;;
             openfang)
-                # Openfang 安装方式：https://github.com/RightNow-AI/openfang
-                # 容器内始终使用默认端口 4200，宿主机端口通过 docker -p 映射
                 print_info "Installing Openfang..."
                 docker exec "$CONTAINER_NAME" bash -c "
                     echo 'Installing Openfang...'
@@ -679,8 +723,6 @@ install_agents_in_container() {
                 " || print_warning "Openfang 安装失败，请手动安装"
                 ;;
             zeroclaw)
-                # Zeroclaw 安装方式：https://github.com/zeroclaw-labs/zeroclaw
-                # 容器内始终使用默认端口 42617，宿主机端口通过 docker -p 映射
                 print_info "Installing Zeroclaw..."
                 docker exec "$CONTAINER_NAME" bash -c "
                     echo 'Installing Zeroclaw via Homebrew...'
@@ -692,13 +734,13 @@ install_agents_in_container() {
                 ;;
         esac
     done
-    
+
     # 保存 PM2 进程列表，以便重启后自动恢复
     if [ ${#INSTALL_AGENTS[@]} -gt 0 ]; then
         print_info "Saving PM2 process list..."
         docker exec "$CONTAINER_NAME" bash -c "pm2 save" || true
     fi
-    
+
     print_success "$(get_text agent_install_success)"
 }
 
@@ -746,7 +788,7 @@ check_windows_environment() {
         if check_wsl2; then
             print_success "$(get_text windows_wsl2_detected)"
             print_info "$(get_text windows_wsl2_recommended)"
-            
+
             # 检查 Docker 是否已安装
             if ! command -v docker &> /dev/null; then
                 echo ""
@@ -762,7 +804,7 @@ check_windows_environment() {
         else
             # Windows 原生环境
             print_warning "$(get_text windows_native_detected)"
-            
+
             # 检查 Docker Desktop 是否已安装
             if ! command -v docker &> /dev/null; then
                 echo ""
@@ -779,7 +821,7 @@ check_windows_environment() {
     elif [[ "$OS_TYPE" == "macos" ]]; then
         # macOS 环境
         print_info "$(get_text macos_detected)"
-        
+
         # 检查 Docker 是否已安装
         if ! command -v docker &> /dev/null; then
             echo ""
@@ -848,12 +890,9 @@ check_docker_compose() {
 }
 
 check_docker_daemon() {
-    # 在 DinD 环境中，docker info 可能因为 cgroup 问题失败
-    # 但 docker ps 能工作就说明 Docker 可用
     if docker ps &> /dev/null; then
         return 0
     fi
-    # 尝试 docker info 作为备选
     if docker info &> /dev/null; then
         return 0
     fi
@@ -867,7 +906,6 @@ check_docker_daemon() {
 check_port_available() {
     local port=$1
     # 在 DinD 环境中，端口检测看到的是容器自己的端口空间，不是宿主机的
-    # 所以 DinD 环境下跳过端口检测，直接返回可用
     if [ "$IS_DIND" = true ]; then
         return 0
     fi
@@ -901,16 +939,16 @@ main() {
     # 先检测环境（DinD 检测需要在端口选择之前完成）
     detect_os
     print_info "$(get_text os_detected): $OS"
-    
+
     # Windows 环境特殊处理
     check_windows_environment
-    
+
     # 检查是否在 DinD 环境（设置全局变量）
     if check_dind; then
         IS_DIND=true
         print_warning "$(get_text dind_detected)"
     fi
-    
+
     # 检查 Docker
     if ! check_docker; then
         print_error "$(get_text docker_not_installed)"
@@ -923,31 +961,34 @@ main() {
         fi
         exit 1
     fi
-    
+
     # 检查 Docker Compose
     if ! check_docker_compose; then
         print_warning "$(get_text docker_compose_not_installed)"
     fi
-    
+
     # 检查 Docker 守护进程
     if ! check_docker_daemon; then
         print_error "$(get_text docker_not_running)"
         print_info "$(get_text start_docker_service): sudo systemctl start docker"
         exit 1
     fi
-    
+
     # 步骤 1: 选择语言
     select_language
-    
-    # 步骤 2: 选择镜像源
+
+    # 步骤 2: 选择桌面环境
+    select_desktop
+
+    # 步骤 3: 选择镜像源
     select_registry
-    
-    # 步骤 3: 选择版本
+
+    # 步骤 4: 选择版本
     select_version
-    
-    # 步骤 4: 配置数据目录
+
+    # 步骤 5: 配置数据目录
     select_data_dir
-    
+
     # DinD 环境网络模式选择（在端口配置之前）
     if [ "$IS_DIND" = true ]; then
         echo ""
@@ -965,17 +1006,20 @@ main() {
             print_info "$(get_text using_bridge_network)"
         fi
     fi
-    
-    # 步骤 5: 配置 VNC 端口（host 模式下跳过）
+
+    # 步骤 6: 配置桌面端口（host 模式下跳过）
     if [ "$USE_HOST_NETWORK" = false ]; then
-        select_vnc_port
+        select_desktop_port
     else
-        print_info "host 网络模式，使用容器内默认 VNC 端口 6901"
+        print_info "host 网络模式，使用容器内默认端口 3000/3001"
     fi
-    
-    # 步骤 6: 选择 Agent 软件
+
+    # 步骤 7: 选择 Agent 软件
     select_agents
-    
+
+    # 步骤 8: 配置 Agent 端口
+    configure_agent_ports
+
     # 检查/删除旧容器
     if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
         print_warning "$(get_text container_exists): $CONTAINER_NAME"
@@ -992,20 +1036,21 @@ main() {
             return
         fi
     fi
-    
+
     # 端口检查（非 host 模式）
     if [ "$USE_HOST_NETWORK" = false ]; then
-        if ! check_port_available $VNC_PORT; then
-            print_warning "$(get_text port_occupied): $VNC_PORT"
-            VNC_PORT=$(find_available_port $VNC_PORT)
-            print_info "$(get_text auto_change_port): $VNC_PORT"
+        if ! check_port_available $DESKTOP_PORT; then
+            print_warning "$(get_text port_occupied): $DESKTOP_PORT"
+            DESKTOP_PORT=$(find_available_port $DESKTOP_PORT)
+            HTTPS_PORT=$((DESKTOP_PORT + 1))
+            print_info "$(get_text auto_change_port): $DESKTOP_PORT"
         fi
     fi
-    
+
     # 创建数据目录
     print_info "$(get_text creating_data_dir)"
     mkdir -p "$DATA_DIR"
-    
+
     # 拉取镜像
     print_info "$(get_text pulling)"
     if ! docker pull "$SELECTED_IMAGE"; then
@@ -1013,7 +1058,7 @@ main() {
         exit 1
     fi
     print_success "$(get_text pull_success)"
-    
+
     # 构建 docker run 命令
     DOCKER_ARGS=(
         "-d"
@@ -1021,17 +1066,23 @@ main() {
         "--privileged"
         "--restart" "unless-stopped"
         "--shm-size" "2gb"
-        "-e" "VNCOPTIONS=-disableBasicAuth"
+        "-e" "PUID=1000"
+        "-e" "PGID=1000"
+        "-e" "TZ=Asia/Shanghai"
+        "-e" "LC_ALL=zh_CN.UTF-8"
+        "-e" "START_DOCKER=true"
         "-e" "NODE_OPTIONS=--max-old-space-size=2048"
-        "-v" "${DATA_DIR}:/home/kasm-user"
+        "-v" "${DATA_DIR}:/config"
+        "--device" "/dev/dri:/dev/dri"
     )
-    
+
     # 网络配置
     if [ "$USE_HOST_NETWORK" = true ]; then
         DOCKER_ARGS+=("--network" "host")
     else
         DOCKER_ARGS+=(
-            "-p" "${VNC_PORT}:6901"
+            "-p" "${DESKTOP_PORT}:3000"
+            "-p" "${HTTPS_PORT}:3001"
         )
         if [ "$IS_DIND" = true ]; then
             DOCKER_ARGS+=(
@@ -1040,8 +1091,8 @@ main() {
             )
         fi
     fi
-    
-    # 添加 Agent 软件端口映射（通过 docker -p 映射，容器内使用默认端口）
+
+    # 添加 Agent 软件端口映射
     if [ ${#INSTALL_AGENTS[@]} -gt 0 ] && [ "$USE_HOST_NETWORK" = false ]; then
         for agent in "${INSTALL_AGENTS[@]}"; do
             local custom_port="${CUSTOM_AGENT_PORTS[$agent]}"
@@ -1049,37 +1100,37 @@ main() {
             DOCKER_ARGS+=("-p" "${custom_port}:${internal_port}")
         done
     fi
-    
+
     DOCKER_ARGS+=("$SELECTED_IMAGE")
-    
+
     # 启动容器
     print_info "$(get_text running)"
     if ! docker run "${DOCKER_ARGS[@]}"; then
         print_error "$(get_text run_failed)"
         exit 1
     fi
-    
-    # 等待服务就绪
+
+    # 等待服务就绪（HTTP 探测）
     print_info "$(get_text waiting_service)"
-    local max_wait=60
+    local max_wait=120
     local waited=0
     while [ $waited -lt $max_wait ]; do
-        if docker logs "$CONTAINER_NAME" 2>&1 | grep -q "KasmVNC"; then
+        if docker exec "$CONTAINER_NAME" curl -sf http://localhost:3000/ > /dev/null 2>&1; then
             break
         fi
-        sleep 2
-        waited=$((waited + 2))
+        sleep 3
+        waited=$((waited + 3))
         echo -n "."
     done
     echo ""
-    
+
     # 如果有 Agent 软件需要安装，在容器内直接执行安装命令
     if [ ${#INSTALL_AGENTS[@]} -gt 0 ]; then
         echo ""
         print_info "$(get_text installing_agents)"
         install_agents_in_container
     fi
-    
+
     print_success "$(get_text complete)!"
     print_access_info
 }
@@ -1094,22 +1145,24 @@ print_access_info() {
     echo "  $(get_text access_info)"
     echo "========================================"
     echo ""
-    
+
     local IP
     if command -v hostname &> /dev/null; then
         IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "localhost")
     else
         IP="localhost"
     fi
-    
+
     if [ "$USE_HOST_NETWORK" = true ]; then
-        print_info "🖥️  $(get_text vnc_desktop): https://${IP}:6901/"
+        print_info "🖥️  $(get_text desktop_url) (HTTP):  http://${IP}:3000/"
+        print_info "🔒 $(get_text desktop_url) (HTTPS): https://${IP}:3001/"
     else
-        print_info "🖥️  $(get_text vnc_desktop): https://${IP}:${VNC_PORT}/"
+        print_info "🖥️  $(get_text desktop_url) (HTTP):  http://${IP}:${DESKTOP_PORT}/"
+        print_info "🔒 $(get_text desktop_url) (HTTPS): https://${IP}:${HTTPS_PORT}/"
     fi
-    
+
     print_info "💾 $(get_text data_dir): ${DATA_DIR}"
-    
+
     if [ ${#INSTALL_AGENTS[@]} -gt 0 ]; then
         echo ""
         print_info "📦 已安装 Agent 软件:"
@@ -1128,7 +1181,7 @@ print_access_info() {
         echo "    查看日志: docker exec $CONTAINER_NAME pm2 logs <name>"
         echo "    重启进程: docker exec $CONTAINER_NAME pm2 restart <name>"
     fi
-    
+
     echo ""
     print_info "📋 $(get_text common_commands):"
     echo "    $(get_text view_logs): docker logs -f $CONTAINER_NAME"

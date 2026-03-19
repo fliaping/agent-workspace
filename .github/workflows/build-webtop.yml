@@ -1,4 +1,4 @@
-name: Build Webtop Multi-Arch Image
+name: Build Multi-Arch Image
 
 on:
   push:
@@ -14,11 +14,11 @@ on:
 env:
   REGISTRY_DOCKERHUB: xuping
   REGISTRY_ALIYUN: registry.cn-hangzhou.aliyuncs.com/fliaping
-  IMAGE_NAME: webtop-full
+  IMAGE_NAME: agent-workspace
 
 jobs:
   # ==========================================
-  # Docker Hub - 构建多架构镜像
+  # Docker Hub - 构建多架构镜像（3 桌面变体）
   # ==========================================
   build-dockerhub:
     runs-on: ubuntu-latest
@@ -26,6 +26,9 @@ jobs:
     permissions:
       contents: read
       packages: write
+    strategy:
+      matrix:
+        desktop: [lxqt, xfce, kde]
 
     steps:
       - name: Checkout repository
@@ -56,7 +59,6 @@ jobs:
             VERSION=${GITHUB_REF#refs/tags/v}
           fi
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-          echo "version=$VERSION"
 
       - name: Extract metadata
         id: meta
@@ -64,29 +66,33 @@ jobs:
         with:
           images: ${{ env.REGISTRY_DOCKERHUB }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=${{ steps.version.outputs.VERSION }}
-            type=raw,value=latest
+            type=raw,value=ubuntu-${{ matrix.desktop }}
+            type=raw,value=ubuntu-${{ matrix.desktop }}-${{ steps.version.outputs.VERSION }},enable=${{ steps.version.outputs.VERSION != 'latest' }}
 
-      - name: Build and push Docker Hub (Multi-Arch)
+      - name: Build and push Docker Hub
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./Dockerfile.webtop-full
+          file: ./Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          build-args: DESKTOP=${{ matrix.desktop }}
+          cache-from: type=gha,scope=${{ matrix.desktop }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.desktop }}
           platforms: linux/amd64,linux/arm64
 
   # ==========================================
-  # 阿里云 - 构建多架构镜像
+  # 阿里云 - 构建多架构镜像（3 桌面变体）
   # ==========================================
   build-aliyun:
     runs-on: ubuntu-latest
     environment: aliyun
     permissions:
       contents: read
+    strategy:
+      matrix:
+        desktop: [lxqt, xfce, kde]
 
     steps:
       - name: Checkout repository
@@ -118,7 +124,6 @@ jobs:
             VERSION=${GITHUB_REF#refs/tags/v}
           fi
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-          echo "version=$VERSION"
 
       - name: Extract metadata
         id: meta
@@ -126,17 +131,18 @@ jobs:
         with:
           images: ${{ env.REGISTRY_ALIYUN }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=${{ steps.version.outputs.VERSION }}
-            type=raw,value=latest
+            type=raw,value=ubuntu-${{ matrix.desktop }}
+            type=raw,value=ubuntu-${{ matrix.desktop }}-${{ steps.version.outputs.VERSION }},enable=${{ steps.version.outputs.VERSION != 'latest' }}
 
-      - name: Build and push Aliyun (Multi-Arch)
+      - name: Build and push Aliyun
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./Dockerfile.webtop-full
+          file: ./Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          build-args: DESKTOP=${{ matrix.desktop }}
+          cache-from: type=gha,scope=${{ matrix.desktop }}-aliyun
+          cache-to: type=gha,mode=max,scope=${{ matrix.desktop }}-aliyun
           platforms: linux/amd64,linux/arm64
