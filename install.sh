@@ -36,28 +36,28 @@ prompt_read() {
 
 # 中文文本
 TEXT_cn_welcome_title="Agent Workspace 一键部署"
-TEXT_cn_step1_title="步骤 1/8: 选择语言"
+TEXT_cn_step1_title="步骤 1/9: 选择语言"
 TEXT_cn_lang_cn="1) 中文 (Chinese)"
 TEXT_cn_lang_en="2) English (英文)"
-TEXT_cn_step_desktop_title="步骤 2/8: 选择桌面环境"
+TEXT_cn_step_desktop_title="步骤 2/9: 选择桌面环境"
 TEXT_cn_desktop_lxqt="1) LXQt  — 轻量 (~300MB 内存)"
 TEXT_cn_desktop_xfce="2) XFCE  — 中等 (~800MB 内存)"
 TEXT_cn_desktop_kde="3) KDE   — 完整 (~1.1GB 内存)"
 TEXT_cn_selected_desktop="已选择桌面"
-TEXT_cn_step_registry_title="步骤 3/8: 选择镜像源"
+TEXT_cn_step_registry_title="步骤 4/9: 选择镜像源"
 TEXT_cn_registry_cn="1) 阿里云镜像（国内推荐）"
 TEXT_cn_registry_en="2) Docker Hub（海外推荐）"
 TEXT_cn_enter_choice="请输入选项"
 TEXT_cn_invalid_choice="无效选项，请重新输入"
-TEXT_cn_step2_title="步骤 4/8: 选择镜像版本"
+TEXT_cn_step2_title="步骤 5/9: 选择镜像版本"
 TEXT_cn_version_latest="1) latest (最新版)"
 TEXT_cn_version_custom="2) 自定义版本"
 TEXT_cn_enter_version="请输入版本号"
-TEXT_cn_step3_title="步骤 5/8: 配置数据目录"
+TEXT_cn_step3_title="步骤 6/9: 配置数据目录"
 TEXT_cn_data_dir_default="使用默认目录"
 TEXT_cn_data_dir_custom="自定义目录"
 TEXT_cn_enter_data_dir="请输入数据目录路径"
-TEXT_cn_step4_title="步骤 6/8: 配置桌面端口"
+TEXT_cn_step4_title="步骤 7/9: 配置桌面端口"
 TEXT_cn_port_config_title="配置服务端口"
 TEXT_cn_port_desktop="桌面端口 (HTTPS)"
 TEXT_cn_port_agent="Agent API 端口"
@@ -67,14 +67,14 @@ TEXT_cn_enter_desktop_port="请输入桌面端口"
 TEXT_cn_enter_agent_port="请输入 Agent 端口"
 TEXT_cn_port_in_use="端口已被占用"
 TEXT_cn_port_available="端口可用"
-TEXT_cn_step5_title="步骤 7/8: 选择 Agent 软件"
+TEXT_cn_step5_title="步骤 8/9: 选择 Agent 软件"
 TEXT_cn_agent_install_title="选择要安装的 Agent 软件（可多选，空格分隔）"
 TEXT_cn_agent_openclaw="1) OpenClaw - 个人自主开源 AI 助手，支持 WhatsApp/Telegram/Discord 等多平台通信"
 TEXT_cn_agent_openfang="2) Openfang - Rust 构建的 Agent OS，零依赖单二进制，180ms 冷启动"
 TEXT_cn_agent_zeroclaw="3) Zeroclaw - 超轻量 Agent 运行时，<5MB 内存，<10ms 启动"
 TEXT_cn_agent_skip="4) 跳过，不安装任何软件"
 TEXT_cn_enter_agents="请输入选项（如：1 2 3）"
-TEXT_cn_step6_title="步骤 8/8: 配置 Agent 软件端口"
+TEXT_cn_step6_title="步骤 9/9: 配置 Agent 软件端口"
 TEXT_cn_agent_port_config="配置 Agent 软件端口"
 TEXT_cn_agent_port_default="使用默认端口"
 TEXT_cn_agent_port_custom="自定义端口"
@@ -136,30 +136,38 @@ TEXT_cn_gpu_nvidia_toolkit_guide="请安装 nvidia-container-toolkit: https://do
 TEXT_cn_gpu_intel_amd="检测到 Intel/AMD GPU (DRI)"
 TEXT_cn_gpu_none="未检测到 GPU，使用 CPU 软件渲染"
 TEXT_cn_gpu_enabled="GPU 加速已启用"
+TEXT_cn_step_docker_title="步骤 3/9: Docker 配置"
+TEXT_cn_docker_mode_none="1) 不启用 Docker（默认）"
+TEXT_cn_docker_mode_dind="2) DinD 模式（容器内独立 Docker，需要 --privileged）"
+TEXT_cn_docker_mode_socket="3) 挂载宿主机 Docker（共享宿主机 Docker 守护进程）"
+TEXT_cn_docker_mode_selected="Docker 模式"
+TEXT_cn_docker_mode_none_desc="不启用"
+TEXT_cn_docker_mode_dind_desc="DinD（独立 Docker）"
+TEXT_cn_docker_mode_socket_desc="挂载宿主机 Docker"
 
 # 英文文本
 TEXT_en_welcome_title="Agent Workspace Deployment"
-TEXT_en_step1_title="Step 1/8: Select Language"
+TEXT_en_step1_title="Step 1/9: Select Language"
 TEXT_en_lang_cn="1) 中文 (Chinese)"
 TEXT_en_lang_en="2) English"
-TEXT_en_step_desktop_title="Step 2/8: Select Desktop"
+TEXT_en_step_desktop_title="Step 2/9: Select Desktop"
 TEXT_en_desktop_lxqt="1) LXQt  — Lightweight (~300MB RAM)"
 TEXT_en_desktop_xfce="2) XFCE  — Medium (~800MB RAM)"
 TEXT_en_desktop_kde="3) KDE   — Full (~1.1GB RAM)"
 TEXT_en_selected_desktop="Selected desktop"
 TEXT_en_enter_choice="Enter your choice"
 TEXT_en_invalid_choice="Invalid choice, please try again"
-TEXT_en_step_registry_title="Step 3/8: Select Registry"
+TEXT_en_step_registry_title="Step 4/9: Select Registry"
 TEXT_en_registry_cn="1) Alibaba Cloud (Recommended for China)"
 TEXT_en_registry_en="2) Docker Hub (Recommended overseas)"
-TEXT_en_step2_title="Step 4/8: Select Version"
+TEXT_en_step2_title="Step 5/9: Select Version"
 TEXT_en_version_latest="1) latest"
 TEXT_en_version_custom="2) Custom version"
 TEXT_en_enter_version="Enter version tag"
-TEXT_en_step3_title="Step 5/8: Configure Data Directory"
+TEXT_en_step3_title="Step 6/9: Configure Data Directory"
 TEXT_en_data_dir_default="Use default directory"
 TEXT_en_data_dir_custom="Custom directory"
-TEXT_en_step4_title="Step 6/8: Configure Desktop Port"
+TEXT_en_step4_title="Step 7/9: Configure Desktop Port"
 TEXT_en_port_config_title="Configure Service Ports"
 TEXT_en_port_desktop="Desktop Port (HTTPS)"
 TEXT_en_port_agent="Agent API Port"
@@ -170,14 +178,14 @@ TEXT_en_enter_agent_port="Enter Agent port"
 TEXT_en_port_in_use="Port is in use"
 TEXT_en_port_available="Port is available"
 TEXT_en_enter_data_dir="Enter data directory path"
-TEXT_en_step5_title="Step 7/8: Select Agent Software"
+TEXT_en_step5_title="Step 8/9: Select Agent Software"
 TEXT_en_agent_install_title="Select Agent software to install (multiple choices allowed, space separated)"
 TEXT_en_agent_openclaw="1) OpenClaw - Personal autonomous AI assistant, multi-platform"
 TEXT_en_agent_openfang="2) Openfang - Rust Agent OS, zero-dep single binary, 180ms cold start"
 TEXT_en_agent_zeroclaw="3) Zeroclaw - Ultra-light Agent runtime, <5MB mem, <10ms start"
 TEXT_en_agent_skip="4) Skip, don't install any software"
 TEXT_en_enter_agents="Enter options (e.g., 1 2 3)"
-TEXT_en_step6_title="Step 8/8: Configure Agent Software Ports"
+TEXT_en_step6_title="Step 9/9: Configure Agent Software Ports"
 TEXT_en_agent_port_config="Configure Agent Software Ports"
 TEXT_en_agent_port_default="Use default port"
 TEXT_en_agent_port_custom="Custom port"
@@ -239,6 +247,14 @@ TEXT_en_gpu_nvidia_toolkit_guide="Please install nvidia-container-toolkit: https
 TEXT_en_gpu_intel_amd="Intel/AMD GPU detected (DRI)"
 TEXT_en_gpu_none="No GPU detected, using CPU software rendering"
 TEXT_en_gpu_enabled="GPU acceleration enabled"
+TEXT_en_step_docker_title="Step 3/9: Docker Configuration"
+TEXT_en_docker_mode_none="1) Disable Docker (default)"
+TEXT_en_docker_mode_dind="2) DinD mode (standalone Docker inside container, requires --privileged)"
+TEXT_en_docker_mode_socket="3) Mount host Docker (share host Docker daemon)"
+TEXT_en_docker_mode_selected="Docker mode"
+TEXT_en_docker_mode_none_desc="Disabled"
+TEXT_en_docker_mode_dind_desc="DinD (standalone Docker)"
+TEXT_en_docker_mode_socket_desc="Mount host Docker"
 TEXT_cn_windows_wsl2_detected="检测到 Windows WSL2 环境"
 TEXT_cn_windows_wsl2_recommended="推荐使用 WSL2 + Docker 方式运行"
 TEXT_cn_windows_wsl2_install_docker="请在 WSL2 中安装 Docker："
@@ -330,6 +346,9 @@ USE_HOST_NETWORK=false
 GPU_TYPE=""          # nvidia / intel_amd / none
 HAS_NVIDIA_RUNTIME=false
 DRINODE_PATH=""
+
+# Docker 模式: none / dind / socket
+DOCKER_MODE="none"
 # ============================================================================
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -406,7 +425,39 @@ select_desktop() {
 }
 
 # ============================================================================
-# 步骤 3: 选择镜像源
+# 步骤 3: Docker 配置
+# ============================================================================
+select_docker_mode() {
+    echo ""
+    print_info "$(get_text step_docker_title)"
+    echo "  $(get_text docker_mode_none)"
+    echo "  $(get_text docker_mode_dind)"
+    echo "  $(get_text docker_mode_socket)"
+    echo ""
+
+    prompt_read docker_choice "$(get_text enter_choice) [1-3, default 1]: "
+    docker_choice=${docker_choice:-1}
+
+    case $docker_choice in
+        1) DOCKER_MODE="none" ;;
+        2) DOCKER_MODE="dind" ;;
+        3) DOCKER_MODE="socket" ;;
+        *) DOCKER_MODE="none" ;;
+    esac
+
+    local mode_desc=""
+    case $DOCKER_MODE in
+        none)   mode_desc="$(get_text docker_mode_none_desc)" ;;
+        dind)   mode_desc="$(get_text docker_mode_dind_desc)" ;;
+        socket) mode_desc="$(get_text docker_mode_socket_desc)" ;;
+    esac
+
+    echo ""
+    print_info "$(get_text docker_mode_selected): $mode_desc"
+}
+
+# ============================================================================
+# 步骤 4: 选择镜像源
 # ============================================================================
 select_registry() {
     echo ""
@@ -1077,13 +1128,16 @@ main() {
     # 步骤 2: 选择桌面环境
     select_desktop
 
-    # 步骤 3: 选择镜像源
+    # 步骤 3: Docker 配置
+    select_docker_mode
+
+    # 步骤 4: 选择镜像源
     select_registry
 
-    # 步骤 4: 选择版本
+    # 步骤 5: 选择版本
     select_version
 
-    # 步骤 5: 配置数据目录
+    # 步骤 6: 配置数据目录
     select_data_dir
 
     # DinD 环境网络模式选择（在端口配置之前）
@@ -1159,17 +1213,34 @@ main() {
     DOCKER_ARGS=(
         "-d"
         "--name" "$CONTAINER_NAME"
-        "--privileged"
         "--restart" "unless-stopped"
         "--shm-size" "2gb"
         "-e" "PUID=1000"
         "-e" "PGID=1000"
         "-e" "TZ=Asia/Shanghai"
         "-e" "LC_ALL=zh_CN.UTF-8"
-        "-e" "START_DOCKER=true"
         "-e" "NODE_OPTIONS=--max-old-space-size=2048"
         "-v" "${DATA_DIR}:/config"
     )
+
+    # Docker 模式配置
+    case $DOCKER_MODE in
+        dind)
+            DOCKER_ARGS+=(
+                "--privileged"
+                "-e" "START_DOCKER=true"
+            )
+            ;;
+        socket)
+            DOCKER_ARGS+=(
+                "-v" "/var/run/docker.sock:/var/run/docker.sock"
+                "-e" "START_DOCKER=false"
+            )
+            ;;
+        none)
+            DOCKER_ARGS+=("-e" "START_DOCKER=false")
+            ;;
+    esac
 
     # GPU 加速配置
     if [ "$GPU_TYPE" = "nvidia" ] && [ "$HAS_NVIDIA_RUNTIME" = true ]; then
@@ -1278,6 +1349,13 @@ print_access_info() {
     fi
 
     print_info "💾 $(get_text data_dir): ${DATA_DIR}"
+
+    # 显示 Docker 模式
+    case $DOCKER_MODE in
+        dind)   print_info "🐳 Docker: DinD ($(get_text docker_mode_dind_desc))" ;;
+        socket) print_info "🐳 Docker: $(get_text docker_mode_socket_desc)" ;;
+        none)   print_info "🐳 Docker: $(get_text docker_mode_none_desc)" ;;
+    esac
 
     if [ ${#INSTALL_AGENTS[@]} -gt 0 ]; then
         echo ""

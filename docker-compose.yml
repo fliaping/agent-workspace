@@ -30,8 +30,11 @@ services:
     container_name: agent-workspace
     hostname: agent-workspace
 
-    # DinD: privileged 模式下官方 svc-docker 自动启动 Docker daemon
-    privileged: true
+    # Docker 模式（按需选择一种）:
+    #   DinD 模式:      取消注释 privileged + START_DOCKER=true
+    #   挂载宿主机模式:  取消注释 volumes 中的 docker.sock
+    #   不启用 Docker:   保持默认（START_DOCKER=false）
+    #privileged: true
 
     environment:
       # --- LinuxServer 标准变量 ---
@@ -40,8 +43,9 @@ services:
       - TZ=Asia/Shanghai
       - LC_ALL=zh_CN.UTF-8
       - TITLE=Webtop
-      # --- Docker-in-Docker（官方 svc-docker）---
-      - START_DOCKER=true
+      # --- Docker（默认不启用，按需选择模式）---
+      - START_DOCKER=false
+      #- START_DOCKER=true  # DinD 模式时启用
       # --- Selkies 显示 ---
       - SELKIES_SCALING_DPI=${SELKIES_SCALING_DPI:-192}
       - XCURSOR_THEME=Adwaita
@@ -60,6 +64,8 @@ services:
     volumes:
       # LinuxServer 标准持久化目录
       - ./webtop-data:/config
+      # 挂载宿主机 Docker 模式时取消注释
+      #- /var/run/docker.sock:/var/run/docker.sock
 
     ports:
       - "3001:3001"   # HTTPS
