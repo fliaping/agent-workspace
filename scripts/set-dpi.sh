@@ -27,8 +27,11 @@ fi
 echo "[set-dpi] Setting DPI to $DPI"
 
 SCALE_FACTOR=$(awk "BEGIN { printf \"%.1f\", $DPI / 96 }")
+SCALE_INT=$(awk "BEGIN { v=$DPI/96; printf \"%d\", (v>=1.75) ? 2 : 1 }")
 CURSOR_SIZE=$(awk "BEGIN { printf \"%d\", $DPI / 96 * 32 + 0.5 }")
 XSETTINGS_DPI=$(( DPI * 1024 ))
+# Gdk/UnscaledDPI = base DPI (before integer scale factor) * 1024
+UNSCALED_DPI=$(( (DPI / SCALE_INT) * 1024 ))
 
 # ── Common: .Xresources ────────────────────────────────────
 # svc-de/run loads this via xrdb before starting the DE.
@@ -68,10 +71,23 @@ Xft/Hinting 1
 Xft/HintStyle "hintfull"
 Xft/RGBA "rgb"
 Xft/DPI $XSETTINGS_DPI
+Gdk/WindowScalingFactor $SCALE_INT
+Gdk/UnscaledDPI $UNSCALED_DPI
 EOF
     fi
+    # Ensure Gdk entries exist (for pre-existing files)
+    if ! grep -q "^Gdk/WindowScalingFactor" "$XSET"; then
+        echo "Gdk/WindowScalingFactor $SCALE_INT" >> "$XSET"
+    else
+        sed -i "s|^Gdk/WindowScalingFactor.*|Gdk/WindowScalingFactor $SCALE_INT|" "$XSET"
+    fi
+    if ! grep -q "^Gdk/UnscaledDPI" "$XSET"; then
+        echo "Gdk/UnscaledDPI $UNSCALED_DPI" >> "$XSET"
+    else
+        sed -i "s|^Gdk/UnscaledDPI.*|Gdk/UnscaledDPI $UNSCALED_DPI|" "$XSET"
+    fi
     chown abc:abc "$XSET"
-    echo "[set-dpi] .xsettingsd: Xft/DPI=$XSETTINGS_DPI"
+    echo "[set-dpi] .xsettingsd: Xft/DPI=$XSETTINGS_DPI, Gdk/WindowScalingFactor=$SCALE_INT, Gdk/UnscaledDPI=$UNSCALED_DPI"
 }
 
 # ── XFCE: pre-populate xfconf XML ──────────────────────────
@@ -166,6 +182,44 @@ EOF
     echo "[set-dpi] KDE: ScaleFactor=$SCALE_FACTOR, forceFontDPI=$DPI"
 }
 
+# ── LXQt: pre-populate session.conf ─────────────────────────
+# lxqt-session reads font_dpi from session.conf at startup.
+setup_lxqt() {
+    local LXQT_DIR="${HOME}/.config/lxqt"
+    local SESSION_CONF="${LXQT_DIR}/session.conf"
+
+    mkdir -p "$LXQT_DIR"
+
+    if [ -f "$SESSION_CONF" ]; then
+        if grep -q "^font_dpi=" "$SESSION_CONF"; then
+            sed -i "s|^font_dpi=.*|font_dpi=$DPI|" "$SESSION_CONF"
+        elif grep -q "^\[General\]" "$SESSION_CONF"; then
+            sed -i "/^\[General\]/a font_dpi=$DPI" "$SESSION_CONF"
+        else
+            printf "\n[General]\nfont_dpi=%s\n" "$DPI" >> "$SESSION_CONF"
+        fi
+        # Ensure QT_FONT_DPI in [Environment] section
+        if grep -q "^QT_FONT_DPI=" "$SESSION_CONF"; then
+            sed -i "s|^QT_FONT_DPI=.*|QT_FONT_DPI=$DPI|" "$SESSION_CONF"
+        elif grep -q "^\[Environment\]" "$SESSION_CONF"; then
+            sed -i "/^\[Environment\]/a QT_FONT_DPI=$DPI" "$SESSION_CONF"
+        else
+            printf "\n[Environment]\nQT_FONT_DPI=%s\n" "$DPI" >> "$SESSION_CONF"
+        fi
+    else
+        cat > "$SESSION_CONF" <<EOF
+[General]
+__userfile__=true
+font_dpi=$DPI
+
+[Environment]
+QT_FONT_DPI=$DPI
+EOF
+    fi
+    chown -R abc:abc "$LXQT_DIR"
+    echo "[set-dpi] LXQt session.conf: font_dpi=$DPI, QT_FONT_DPI=$DPI"
+}
+
 # ── Detect DE and apply ─────────────────────────────────────
 # Detection order matches Selkies: KDE → XFCE → Openbox (LXQt)
 if command -v startplasma-x11 >/dev/null 2>&1; then
@@ -181,6 +235,7 @@ else
     echo "[set-dpi] Detected: LXQt/Openbox (default)"
     setup_xresources
     setup_xsettingsd
+    setup_lxqt
 fi
 
 echo "[set-dpi] Done (DPI=$DPI, Scale=${SCALE_FACTOR}x, Cursor=${CURSOR_SIZE}px)"
