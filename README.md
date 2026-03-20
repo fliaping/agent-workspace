@@ -93,7 +93,7 @@ docker compose up -d
 | `LC_ALL` | - | 语言环境（如 `zh_CN.UTF-8`） |
 | `SELKIES_ENABLE_WAYLAND` | `true` | 启用 Wayland 显示协议 |
 | `PIXELFLUX_WAYLAND` | `false` | 强制 X11 模式（`true` 时 Selkies 无法输入中文） |
-| `SELKIES_SCALING_DPI` | `192` | DPI 缩放（高分屏推荐 192） |
+| `SELKIES_SCALING_DPI` | `96` | DPI 缩放（高分屏/Retina 推荐 192） |
 | `START_DOCKER` | `false` | 启用容器内 Docker（需 `--privileged`） |
 | `USE_CHINA_MIRROR` | `false` | 运行时切换国内镜像源 |
 | `NODE_OPTIONS` | - | Node.js 选项（如 `--max-old-space-size=2048`） |

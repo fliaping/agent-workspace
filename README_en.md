@@ -92,7 +92,7 @@ docker compose up -d
 | `LC_ALL` | - | Locale (e.g., `zh_CN.UTF-8`) |
 | `SELKIES_ENABLE_WAYLAND` | `true` | Enable Wayland display protocol |
 | `PIXELFLUX_WAYLAND` | `false` | Force X11 mode (`true` breaks CJK input in Selkies) |
-| `SELKIES_SCALING_DPI` | `192` | DPI scaling (192 recommended for HiDPI) |
+| `SELKIES_SCALING_DPI` | `96` | DPI scaling (use 192 for HiDPI/Retina) |
 | `START_DOCKER` | `false` | Enable Docker inside container (requires `--privileged`) |
 | `USE_CHINA_MIRROR` | `false` | Switch to China mirrors at runtime |
 | `NODE_OPTIONS` | - | Node.js options (e.g., `--max-old-space-size=2048`) |
