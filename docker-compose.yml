@@ -48,6 +48,7 @@ services:
       #- START_DOCKER=true  # DinD 模式时启用
       # --- Selkies 显示 ---
       - SELKIES_ENABLE_WAYLAND=true
+      - PIXELFLUX_WAYLAND=false  # 强制 X11，Wayland 下 Selkies 无法输入中文
       - SELKIES_SCALING_DPI=${SELKIES_SCALING_DPI:-192}
       - XCURSOR_THEME=Adwaita
       - XCURSOR_SIZE=32

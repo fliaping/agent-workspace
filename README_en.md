@@ -56,6 +56,7 @@ docker run -d --name agent-workspace \
   -e PUID=1000 -e PGID=1000 \
   -e TZ=Etc/UTC \
   -e SELKIES_ENABLE_WAYLAND=true \
+  -e PIXELFLUX_WAYLAND=false \
   -p 3001:3001 \
   -v ~/agent-workspace-data:/config \
   xuping/agent-workspace:ubuntu-lxqt
@@ -90,6 +91,7 @@ docker compose up -d
 | `TZ` | `Etc/UTC` | Timezone |
 | `LC_ALL` | - | Locale (e.g., `zh_CN.UTF-8`) |
 | `SELKIES_ENABLE_WAYLAND` | `true` | Enable Wayland display protocol |
+| `PIXELFLUX_WAYLAND` | `false` | Force X11 mode (`true` breaks CJK input in Selkies) |
 | `SELKIES_SCALING_DPI` | `192` | DPI scaling (192 recommended for HiDPI) |
 | `START_DOCKER` | `false` | Enable Docker inside container (requires `--privileged`) |
 | `USE_CHINA_MIRROR` | `false` | Switch to China mirrors at runtime |
