@@ -2,29 +2,47 @@
 # ============================================================
 # watch-dpi.sh — Dynamic DPI watcher
 #
-# Monitors ~/.xsettingsd for changes (written by Selkies when
-# a web client connects with a different DPI). When DPI changes,
-# dynamically updates:
-#   - LXQt panel size and icon size
-#   - Openbox theme padding (regenerate HiDPI theme)
+# Monitors DPI changes from Selkies and dynamically adjusts
+# DE-specific settings (panel size, icon size, WM theme).
+#
+# Selkies writes DPI via:
+#   KDE/LXQt → .xsettingsd (via _run_xrdb)
+#   XFCE     → xfconf-query (persisted to xsettings.xml)
 #
 # Runs as an s6 service after DE starts.
 # ============================================================
 
-XSET="${HOME}/.xsettingsd"
 LAST_DPI=0
 
-# Wait for the file and DE to be ready
+# ── Detect DE ───────────────────────────────────────────────
+if command -v startplasma-x11 >/dev/null 2>&1; then
+    DE="kde"
+elif command -v xfce4-session >/dev/null 2>&1; then
+    DE="xfce"
+else
+    DE="lxqt"
+fi
+echo "[watch-dpi] Detected DE: $DE"
+
+# ── Watch target ────────────────────────────────────────────
+# Selkies writes different files per DE
+if [ "$DE" = "xfce" ]; then
+    WATCH_FILE="${HOME}/.config/xfce4/xfconf/xfce-perchannel-xml/xsettings.xml"
+else
+    WATCH_FILE="${HOME}/.xsettingsd"
+fi
+
+# Wait for the file to exist
 for i in $(seq 1 30); do
-    [ -f "$XSET" ] && break
+    [ -f "$WATCH_FILE" ] && break
     sleep 2
 done
-[ -f "$XSET" ] || { echo "[watch-dpi] $XSET not found, exiting"; exit 0; }
+[ -f "$WATCH_FILE" ] || { echo "[watch-dpi] $WATCH_FILE not found, exiting"; exit 0; }
 
-# Read initial DPI
-read_dpi() {
+# ── Read DPI functions ──────────────────────────────────────
+read_dpi_xsettingsd() {
     local raw
-    raw=$(grep "^Xft/DPI" "$XSET" 2>/dev/null | awk '{print $2}')
+    raw=$(grep "^Xft/DPI" "${HOME}/.xsettingsd" 2>/dev/null | awk '{print $2}')
     if [ -n "$raw" ] && [ "$raw" -gt 0 ] 2>/dev/null; then
         echo $(( raw / 1024 ))
     else
@@ -32,10 +50,35 @@ read_dpi() {
     fi
 }
 
-LAST_DPI=$(read_dpi)
-echo "[watch-dpi] Initial DPI: $LAST_DPI, watching $XSET for changes"
+read_dpi_xfce() {
+    # Parse DPI from xsettings.xml: <property name="DPI" type="int" value="192"/>
+    local val
+    val=$(grep -oP 'name="DPI"[^/]*value="\K[0-9]+' "$WATCH_FILE" 2>/dev/null | head -1)
+    if [ -n "$val" ] && [ "$val" -gt 0 ] 2>/dev/null; then
+        echo "$val"
+    else
+        # Fallback: try xfconf-query (as session user for D-Bus access)
+        val=$(su abc -s /bin/bash -c "DISPLAY=:1 xfconf-query -c xsettings -p /Xft/DPI" 2>/dev/null)
+        if [ -n "$val" ] && [ "$val" -gt 0 ] 2>/dev/null; then
+            echo "$val"
+        else
+            echo 0
+        fi
+    fi
+}
 
-# ── Update functions ────────────────────────────────────────
+read_dpi() {
+    if [ "$DE" = "xfce" ]; then
+        read_dpi_xfce
+    else
+        read_dpi_xsettingsd
+    fi
+}
+
+LAST_DPI=$(read_dpi)
+echo "[watch-dpi] Initial DPI: $LAST_DPI, watching $WATCH_FILE"
+
+# ── LXQt update functions ──────────────────────────────────
 
 update_lxqt_panel() {
     local dpi=$1
@@ -60,28 +103,24 @@ update_lxqt_panel() {
 update_openbox_theme() {
     local dpi=$1
 
-    # Find current theme
     local ob_rc="${HOME}/.config/openbox/rc.xml"
     [ -f "$ob_rc" ] || ob_rc="/etc/xdg/openbox/rc.xml"
     local current_theme
     current_theme=$(grep -oP '<name>\K[^<]+' "$ob_rc" 2>/dev/null | head -1)
     [ -z "$current_theme" ] && return
 
-    # Determine base theme name (strip -HiDPI suffix if present)
     local base_theme="${current_theme%-HiDPI}"
 
     if [ "$dpi" -le 96 ]; then
-        # Restore original theme
         if [ "$current_theme" != "$base_theme" ] && [ -f "${HOME}/.config/openbox/rc.xml" ]; then
             sed -i "s|<name>${current_theme}</name>|<name>${base_theme}</name>|" \
                 "${HOME}/.config/openbox/rc.xml"
             DISPLAY=:1 openbox --reconfigure 2>/dev/null
-            echo "[watch-dpi] Openbox: restored theme $base_theme"
+            echo "[watch-dpi] Openbox: restored $base_theme"
         fi
         return
     fi
 
-    # Create/update HiDPI theme
     local src="/usr/share/themes/${base_theme}/openbox-3"
     [ -d "$src" ] || return
     local dst="${HOME}/.themes/${base_theme}-HiDPI/openbox-3"
@@ -100,7 +139,6 @@ update_openbox_theme() {
     fi
     chown -R abc:abc "${HOME}/.themes"
 
-    # Apply HiDPI theme if not already active
     if [ "$current_theme" != "${base_theme}-HiDPI" ]; then
         mkdir -p "${HOME}/.config/openbox"
         [ -f "${HOME}/.config/openbox/rc.xml" ] || cp /etc/xdg/openbox/rc.xml "${HOME}/.config/openbox/rc.xml"
@@ -115,22 +153,89 @@ update_lxqt_session() {
     local dpi=$1
     local session_conf="${HOME}/.config/lxqt/session.conf"
     [ -f "$session_conf" ] || return
+    grep -q "^font_dpi=" "$session_conf" && sed -i "s|^font_dpi=.*|font_dpi=$dpi|" "$session_conf"
+    grep -q "^QT_FONT_DPI=" "$session_conf" && sed -i "s|^QT_FONT_DPI=.*|QT_FONT_DPI=$dpi|" "$session_conf"
+}
 
-    if grep -q "^font_dpi=" "$session_conf"; then
-        sed -i "s|^font_dpi=.*|font_dpi=$dpi|" "$session_conf"
+# ── XFCE update functions ──────────────────────────────────
+
+update_xfce_panel() {
+    local dpi=$1
+    which xfconf-query >/dev/null 2>&1 || return
+
+    local panel_size=$(awk "BEGIN { printf \"%d\", 32 * $dpi / 96 + 0.5 }")
+    local icon_size=$(awk "BEGIN { printf \"%d\", 22 * $dpi / 96 + 0.5 }")
+
+    # Run xfconf-query as session user (abc) for D-Bus access
+    su abc -s /bin/bash -c "
+        export DISPLAY=:1
+        panels=\$(xfconf-query -c xfce4-panel -p /panels 2>/dev/null | grep -oP '\d+')
+        [ -z \"\$panels\" ] && panels='0'
+        for pid in \$panels; do
+            xfconf-query -c xfce4-panel -p \"/panels/panel-\$pid/size\" \
+                -s $panel_size --create -t int 2>/dev/null
+            xfconf-query -c xfce4-panel -p \"/panels/panel-\$pid/icon-size\" \
+                -s $icon_size --create -t int 2>/dev/null
+        done
+    " 2>/dev/null
+    echo "[watch-dpi] XFCE panel: size=$panel_size, icon-size=$icon_size"
+}
+
+update_xfwm4_font() {
+    local dpi=$1
+    which xfconf-query >/dev/null 2>&1 || return
+
+    # Scale title font: base 10pt at 96 DPI
+    local font_size=$(awk "BEGIN { printf \"%d\", 10 * $dpi / 96 + 0.5 }")
+    su abc -s /bin/bash -c \
+        "DISPLAY=:1 xfconf-query -c xfwm4 -p /general/title_font -s 'Sans Bold $font_size'" 2>/dev/null
+    echo "[watch-dpi] xfwm4: title_font=Sans Bold $font_size"
+}
+
+# ── KDE update functions ───────────────────────────────────
+
+update_kde_scaling() {
+    local dpi=$1
+    local scale=$(awk "BEGIN { printf \"%.1f\", $dpi / 96 }")
+
+    # Update kdeglobals
+    local kdeglobals="${HOME}/.config/kdeglobals"
+    if [ -f "$kdeglobals" ]; then
+        if grep -q "^\[KScreen\]" "$kdeglobals"; then
+            sed -i "/^\[KScreen\]/,/^\[/{s|^ScaleFactor=.*|ScaleFactor=$scale|}" "$kdeglobals"
+            if ! grep -A 20 "^\[KScreen\]" "$kdeglobals" | grep -q "^ScaleFactor="; then
+                sed -i "/^\[KScreen\]/a ScaleFactor=$scale" "$kdeglobals"
+            fi
+        else
+            printf "\n[KScreen]\nScaleFactor=%s\n" "$scale" >> "$kdeglobals"
+        fi
     fi
-    if grep -q "^QT_FONT_DPI=" "$session_conf"; then
-        sed -i "s|^QT_FONT_DPI=.*|QT_FONT_DPI=$dpi|" "$session_conf"
+
+    # Update kcmfonts
+    local kcmfonts="${HOME}/.config/kcmfonts"
+    if [ -f "$kcmfonts" ]; then
+        if grep -q "^forceFontDPI=" "$kcmfonts"; then
+            sed -i "s|^forceFontDPI=.*|forceFontDPI=$dpi|" "$kcmfonts"
+        fi
+    fi
+    echo "[watch-dpi] KDE: ScaleFactor=$scale, forceFontDPI=$dpi"
+
+    # Restart plasmashell and KWin to apply
+    if pgrep -x plasmashell >/dev/null 2>&1; then
+        echo "[watch-dpi] KDE: restarting plasmashell + kwin..."
+        DISPLAY=:1 su abc -s /bin/bash -c '
+            kquitapp5 plasmashell 2>/dev/null; sleep 1; kstart5 plasmashell 2>/dev/null &
+            kwin_x11 --replace 2>/dev/null &
+        ' 2>/dev/null
+        echo "[watch-dpi] KDE: restart complete"
     fi
 }
 
 # ── Main watch loop ─────────────────────────────────────────
 
 while true; do
-    # Wait for file modification
-    inotifywait -qq -e modify "$XSET" 2>/dev/null || { sleep 5; continue; }
+    inotifywait -qq -e modify -e close_write "$WATCH_FILE" 2>/dev/null || { sleep 5; continue; }
 
-    # Small delay to let Selkies finish writing
     sleep 0.3
 
     NEW_DPI=$(read_dpi)
@@ -138,16 +243,19 @@ while true; do
         echo "[watch-dpi] DPI changed: $LAST_DPI → $NEW_DPI"
         LAST_DPI=$NEW_DPI
 
-        # Detect DE and apply
-        if command -v startplasma-x11 >/dev/null 2>&1; then
-            : # KDE handles its own scaling
-        elif command -v xfce4-session >/dev/null 2>&1; then
-            : # XFCE uses xfconf, Selkies handles it
-        else
-            # LXQt/Openbox
-            update_lxqt_panel "$NEW_DPI"
-            update_lxqt_session "$NEW_DPI"
-            update_openbox_theme "$NEW_DPI"
-        fi
+        case "$DE" in
+            kde)
+                update_kde_scaling "$NEW_DPI"
+                ;;
+            xfce)
+                update_xfce_panel "$NEW_DPI"
+                update_xfwm4_font "$NEW_DPI"
+                ;;
+            *)  # lxqt
+                update_lxqt_panel "$NEW_DPI"
+                update_lxqt_session "$NEW_DPI"
+                update_openbox_theme "$NEW_DPI"
+                ;;
+        esac
     fi
 done
