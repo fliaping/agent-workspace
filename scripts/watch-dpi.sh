@@ -165,9 +165,10 @@ update_xfce_panel() {
 
     local scale_int=$(awk "BEGIN { v=$dpi/96; printf \"%d\", (v>=1.75) ? 2 : 1 }")
     local unscaled_dpi=$(( (dpi / scale_int) * 1024 ))
-    local dpi_scale=$(awk "BEGIN { printf \"%.1f\", 1.0 / $scale_int }")
 
-    # Update xfconf Gdk scaling
+    # Update xfconf Gdk scaling (GTK3 reads this via XSETTINGS protocol)
+    # No GDK_SCALE env var needed — WindowScalingFactor works for GTK3
+    # without affecting Chromium/Electron which handle their own HiDPI
     su abc -s /bin/bash -c "
         export DISPLAY=:1
         xfconf-query -c xsettings -p /Gdk/WindowScalingFactor \
@@ -176,32 +177,18 @@ update_xfce_panel() {
             -s $unscaled_dpi --create -t int 2>/dev/null
     " 2>/dev/null
 
-    # Update env vars for new processes
-    cat > /etc/profile.d/hidpi.sh <<ENVEOF
-export GDK_SCALE=$scale_int
-export GDK_DPI_SCALE=$dpi_scale
-ENVEOF
-    local S6_ENV="/run/s6/container_environment"
-    [ -d "$S6_ENV" ] || S6_ENV="/var/run/s6/container_environment"
-    if [ -d "$S6_ENV" ]; then
-        echo "$scale_int" > "$S6_ENV/GDK_SCALE"
-        echo "$dpi_scale" > "$S6_ENV/GDK_DPI_SCALE"
-    fi
-
-    # Restart panel and xfwm4 with updated GDK_SCALE
+    # Restart panel and xfwm4 to pick up new scaling factor
     su abc -s /bin/bash -c "
         export DISPLAY=:1
-        export GDK_SCALE=$scale_int
-        export GDK_DPI_SCALE=$dpi_scale
         xfce4-panel --quit 2>/dev/null; sleep 0.5
         nohup xfce4-panel >/dev/null 2>&1 &
         xfwm4 --replace >/dev/null 2>&1 &
     " 2>/dev/null
-    echo "[watch-dpi] XFCE: GDK_SCALE=$scale_int, restarted panel+xfwm4"
+    echo "[watch-dpi] XFCE: WindowScalingFactor=$scale_int, restarted panel+xfwm4"
 }
 
 update_xfwm4_font() {
-    # No-op: GDK_SCALE handles font/widget scaling for XFCE
+    # No-op: Gdk/WindowScalingFactor handles widget scaling for XFCE
     :
 }
 
