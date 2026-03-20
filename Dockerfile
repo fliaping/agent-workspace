@@ -27,6 +27,9 @@ ARG USE_CHINA_MIRROR=false
 # 构建时传入的变量（运行时由 docker-compose 设置）
 ENV USE_CHINA_MIRROR=${USE_CHINA_MIRROR}
 
+# 强制 X11 模式（Wayland 模式下 Selkies 的 CJK 输入链路有问题）
+ENV PIXELFLUX_WAYLAND=false
+
 # 工具版本
 ENV GO_VERSION="go1.22.4"
 ENV NODE_VERSION="22"
