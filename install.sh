@@ -308,6 +308,7 @@ get_text() {
 REGISTRY_CN="registry.cn-hangzhou.aliyuncs.com/fliaping/agent-workspace"
 REGISTRY_EN="xuping/agent-workspace"
 
+
 # 默认版本
 DEFAULT_VERSION="latest"
 
@@ -740,105 +741,13 @@ select_agents() {
 # 在容器内安装 Agent 软件
 # ============================================================================
 install_agents_in_container() {
-    # 根据语言选择镜像源
-    local npm_registry=""
-
+    local flags="--non-interactive"
     if [ "$LANG" = "cn" ]; then
-        npm_registry="--registry=https://registry.npmmirror.com"
+        flags="$flags --china-mirror"
     fi
 
-    for agent in "${INSTALL_AGENTS[@]}"; do
-        local agent_port="$(eval echo \$CUSTOM_PORT_${agent})"
-
-        case $agent in
-            openclaw)
-                print_info "Installing OpenClaw..."
-                docker exec "$CONTAINER_NAME" bash -c "
-                    echo 'Installing OpenClaw...'
-                    npm install -g openclaw@latest $npm_registry
-                    echo 'Running OpenClaw onboarding...'
-                    openclaw onboard --install-daemon || true
-                    # 动态获取 openclaw 可执行文件路径
-                    OPENCLAW_BIN=\$(which openclaw 2>/dev/null || echo \$(npm config get prefix --global)/bin/openclaw)
-                    echo \"OpenClaw binary: \$OPENCLAW_BIN\"
-                    # 创建 systemd service
-                    cat > /etc/systemd/system/openclaw.service << UNIT
-[Unit]
-Description=OpenClaw Gateway
-After=network.target
-
-[Service]
-Type=simple
-ExecStart=\$OPENCLAW_BIN gateway run
-Restart=always
-RestartSec=5
-Environment=NODE_OPTIONS=--max-old-space-size=2048
-Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$(npm config get prefix --global)/bin
-
-[Install]
-WantedBy=multi-user.target
-UNIT
-                    systemctl enable --now openclaw
-                    echo 'OpenClaw started successfully'
-                " || print_warning "OpenClaw 安装失败，请手动安装"
-                ;;
-            openfang)
-                print_info "Installing Openfang..."
-                docker exec "$CONTAINER_NAME" bash -c "
-                    echo 'Installing Openfang...'
-                    cd /tmp
-                    git clone https://gitee.com/mirrors/openfang.git || git clone https://github.com/RightNow-AI/openfang.git
-                    cd openfang
-                    cargo build --release
-                    cp target/release/openfang /usr/local/bin/
-                    # 创建 systemd service
-                    cat > /etc/systemd/system/openfang.service << 'UNIT'
-[Unit]
-Description=Openfang Agent OS
-After=network.target
-
-[Service]
-Type=simple
-ExecStart=/usr/local/bin/openfang start
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-UNIT
-                    systemctl enable --now openfang
-                    echo 'Openfang started successfully'
-                " || print_warning "Openfang 安装失败，请手动安装"
-                ;;
-            zeroclaw)
-                print_info "Installing Zeroclaw..."
-                docker exec "$CONTAINER_NAME" bash -c "
-                    echo 'Installing Zeroclaw via Homebrew...'
-                    brew install zeroclaw
-                    ZEROCLAW_BIN=\$(which zeroclaw 2>/dev/null || echo /home/linuxbrew/.linuxbrew/bin/zeroclaw)
-                    echo \"Zeroclaw binary: \$ZEROCLAW_BIN\"
-                    # 创建 systemd service
-                    cat > /etc/systemd/system/zeroclaw.service << UNIT
-[Unit]
-Description=Zeroclaw Agent Runtime
-After=network.target
-
-[Service]
-Type=simple
-ExecStart=\$ZEROCLAW_BIN gateway
-Restart=always
-RestartSec=5
-Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/linuxbrew/.linuxbrew/bin
-
-[Install]
-WantedBy=multi-user.target
-UNIT
-                    systemctl enable --now zeroclaw
-                    echo 'Zeroclaw started successfully'
-                " || print_warning "Zeroclaw 安装失败，请手动安装"
-                ;;
-        esac
-    done
+    docker exec "$CONTAINER_NAME" install-agent.sh $flags ${INSTALL_AGENTS[*]} \
+        || print_warning "Agent installation failed, please install manually"
 
     print_success "$(get_text agent_install_success)"
 }

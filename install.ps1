@@ -343,8 +343,12 @@ function Select-Registry {
     $choice = Read-Host "$(T 'enter_choice') [1-2, default 1]"
     if (-not $choice) { $choice = "1" }
     switch ($choice) {
-        "2" { $script:Registry = $script:RegistryEN }
-        default { $script:Registry = $script:RegistryCN }
+        "2" {
+            $script:Registry = $script:RegistryEN
+        }
+        default {
+            $script:Registry = $script:RegistryCN
+        }
     }
     Write-Host ""
     Write-Info "$(T 'using_registry'): $($script:Registry)"
@@ -538,79 +542,19 @@ function Configure-AgentPorts {
 function Install-AgentsInContainer {
     if ($script:InstallAgents.Count -eq 0) { return }
 
-    $npmRegistry = ""
+    $flags = "--non-interactive"
     if ($script:Lang -eq "cn") {
-        $npmRegistry = "--registry=https://registry.npmmirror.com"
+        $flags += " --china-mirror"
     }
 
-    foreach ($agent in $script:InstallAgents) {
-        switch ($agent) {
-            "openclaw" {
-                Write-Info "Installing OpenClaw..."
-                docker exec $script:ContainerName bash -c @"
-npm install -g openclaw@latest $npmRegistry
-openclaw onboard --install-daemon || true
-OPENCLAW_BIN=`$(which openclaw 2>/dev/null || echo `$(npm config get prefix --global)/bin/openclaw)
-cat > /etc/systemd/system/openclaw.service << UNIT
-[Unit]
-Description=OpenClaw Gateway
-After=network.target
-[Service]
-Type=simple
-ExecStart=`$OPENCLAW_BIN gateway run
-Restart=always
-RestartSec=5
-Environment=NODE_OPTIONS=--max-old-space-size=2048
-[Install]
-WantedBy=multi-user.target
-UNIT
-systemctl enable --now openclaw
-"@
-            }
-            "openfang" {
-                Write-Info "Installing Openfang..."
-                docker exec $script:ContainerName bash -c @"
-cd /tmp
-git clone https://github.com/RightNow-AI/openfang.git
-cd openfang && cargo build --release
-cp target/release/openfang /usr/local/bin/
-cat > /etc/systemd/system/openfang.service << 'UNIT'
-[Unit]
-Description=Openfang Agent OS
-After=network.target
-[Service]
-Type=simple
-ExecStart=/usr/local/bin/openfang start
-Restart=always
-RestartSec=5
-[Install]
-WantedBy=multi-user.target
-UNIT
-systemctl enable --now openfang
-"@
-            }
-            "zeroclaw" {
-                Write-Info "Installing Zeroclaw..."
-                docker exec $script:ContainerName bash -c @"
-brew install zeroclaw
-ZEROCLAW_BIN=`$(which zeroclaw 2>/dev/null || echo /home/linuxbrew/.linuxbrew/bin/zeroclaw)
-cat > /etc/systemd/system/zeroclaw.service << UNIT
-[Unit]
-Description=Zeroclaw Agent Runtime
-After=network.target
-[Service]
-Type=simple
-ExecStart=`$ZEROCLAW_BIN gateway
-Restart=always
-RestartSec=5
-[Install]
-WantedBy=multi-user.target
-UNIT
-systemctl enable --now zeroclaw
-"@
-            }
-        }
+    $agentArgs = $script:InstallAgents -join " "
+    Write-Info "Installing agents: $agentArgs"
+
+    docker exec $script:ContainerName bash -c "install-agent.sh $flags $agentArgs"
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warn "Agent installation failed, please install manually"
     }
+
     Write-Success (T 'agent_install_success')
 }
 

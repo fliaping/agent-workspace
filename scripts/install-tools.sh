@@ -132,10 +132,10 @@ install_uv() {
     info "Installing uv ..."
 
     if [ "$USE_CHINA_MIRROR" = "true" ]; then
-        pip3 install --no-cache-dir uv --break-system-packages \
+        pip3 install --no-cache-dir uv textual --break-system-packages \
             --index-url "${PYPI_INDEX_URL}"
     else
-        pip3 install --no-cache-dir uv --break-system-packages
+        pip3 install --no-cache-dir uv textual --break-system-packages
     fi
 
     success "uv installed"
