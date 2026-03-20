@@ -26,6 +26,13 @@ for arg in "$@"; do
     fi
 done
 
+# Auto-detect China mirror from LC_ALL
+if [ "$USE_CHINA_MIRROR" != "true" ]; then
+    case "${LC_ALL:-}" in
+        zh_CN*) export USE_CHINA_MIRROR="true" ;;
+    esac
+fi
+
 # ── Ensure textual is installed ──────────────────────────────
 if ! python3 -c "import textual" 2>/dev/null; then
     echo "[bootstrap] Installing textual..."
