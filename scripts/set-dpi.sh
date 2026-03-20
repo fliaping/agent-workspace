@@ -218,6 +218,22 @@ EOF
     fi
     chown -R abc:abc "$LXQT_DIR"
     echo "[set-dpi] LXQt session.conf: font_dpi=$DPI, QT_FONT_DPI=$DPI"
+
+    # Scale panel size and icon size based on DPI
+    # Default: panelSize=32, iconSize=22 (designed for 96 DPI)
+    local PANEL_CONF="${LXQT_DIR}/panel.conf"
+    local PANEL_SIZE=$(awk "BEGIN { printf \"%d\", 32 * $DPI / 96 + 0.5 }")
+    local ICON_SIZE=$(awk "BEGIN { printf \"%d\", 22 * $DPI / 96 + 0.5 }")
+    if [ -f "$PANEL_CONF" ]; then
+        if grep -q "^panelSize=" "$PANEL_CONF"; then
+            sed -i "s|^panelSize=.*|panelSize=$PANEL_SIZE|" "$PANEL_CONF"
+        fi
+        if grep -q "^iconSize=" "$PANEL_CONF"; then
+            sed -i "s|^iconSize=.*|iconSize=$ICON_SIZE|" "$PANEL_CONF"
+        fi
+    fi
+    chown -R abc:abc "$LXQT_DIR"
+    echo "[set-dpi] LXQt panel: panelSize=$PANEL_SIZE, iconSize=$ICON_SIZE"
 }
 
 # ── Detect DE and apply ─────────────────────────────────────
