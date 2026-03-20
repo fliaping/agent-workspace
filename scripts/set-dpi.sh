@@ -348,6 +348,16 @@ export GDK_DPI_SCALE=$(awk "BEGIN { printf \"%.1f\", 1.0 / $SCALE_INT }")
 ENVEOF
     chmod 644 /etc/profile.d/hidpi.sh
     echo "[set-dpi] /etc/profile.d/hidpi.sh: GDK_SCALE=$SCALE_INT"
+
+    # Chromium/Electron handle their own HiDPI via Xft.dpi.
+    # Unset GDK_SCALE for them to prevent double-scaling.
+    mkdir -p /etc/chromium.d
+    cat > /etc/chromium.d/hidpi <<ENVEOF
+# Prevent double-scaling: Chromium uses Xft.dpi for its own HiDPI
+unset GDK_SCALE
+unset GDK_DPI_SCALE
+ENVEOF
+    echo "[set-dpi] /etc/chromium.d/hidpi: unset GDK_SCALE for Chromium"
 }
 
 setup_hidpi_env
