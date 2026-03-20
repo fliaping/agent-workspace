@@ -1,0 +1,4 @@
+#!/usr/bin/with-contenv bash
+# Wait for DE to start before watching DPI
+sleep 10
+exec /usr/local/bin/watch-dpi.sh
