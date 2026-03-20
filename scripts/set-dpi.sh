@@ -104,8 +104,19 @@ setup_xfce() {
         if grep -q 'name="DPI"' "$XSETTINGS_XML"; then
             sed -i "s|name=\"DPI\" type=\"[^\"]*\" value=\"[^\"]*\"|name=\"DPI\" type=\"int\" value=\"$DPI\"|" "$XSETTINGS_XML"
         elif grep -q 'name="Xft"' "$XSETTINGS_XML"; then
-            # Insert DPI property inside existing Xft element
             sed -i "/<property name=\"Xft\"/a\\      <property name=\"DPI\" type=\"int\" value=\"$DPI\"/>" "$XSETTINGS_XML"
+        fi
+        # Update Gdk/WindowScalingFactor
+        if grep -q 'name="WindowScalingFactor"' "$XSETTINGS_XML"; then
+            sed -i "s|name=\"WindowScalingFactor\" type=\"[^\"]*\" value=\"[^\"]*\"|name=\"WindowScalingFactor\" type=\"int\" value=\"$SCALE_INT\"|" "$XSETTINGS_XML"
+        elif grep -q 'name="Gdk"' "$XSETTINGS_XML"; then
+            sed -i "/<property name=\"Gdk\"/a\\      <property name=\"WindowScalingFactor\" type=\"int\" value=\"$SCALE_INT\"/>" "$XSETTINGS_XML"
+        else
+            sed -i "/<\/channel>/i\\  <property name=\"Gdk\" type=\"empty\">\n    <property name=\"WindowScalingFactor\" type=\"int\" value=\"$SCALE_INT\"/>\n    <property name=\"UnscaledDPI\" type=\"int\" value=\"$UNSCALED_DPI\"/>\n  </property>" "$XSETTINGS_XML"
+        fi
+        # Update Gdk/UnscaledDPI
+        if grep -q 'name="UnscaledDPI"' "$XSETTINGS_XML"; then
+            sed -i "s|name=\"UnscaledDPI\" type=\"[^\"]*\" value=\"[^\"]*\"|name=\"UnscaledDPI\" type=\"int\" value=\"$UNSCALED_DPI\"|" "$XSETTINGS_XML"
         fi
         # Update cursor size
         if grep -q 'name="CursorThemeSize"' "$XSETTINGS_XML"; then
@@ -114,7 +125,7 @@ setup_xfce() {
             sed -i "/<property name=\"Gtk\"/a\\      <property name=\"CursorThemeSize\" type=\"int\" value=\"$CURSOR_SIZE\"/>" "$XSETTINGS_XML"
         fi
     else
-        # Create a minimal xsettings.xml with DPI and cursor size
+        # Create xsettings.xml with DPI, Gdk scaling, and cursor size
         cat > "$XSETTINGS_XML" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 
@@ -126,6 +137,10 @@ setup_xfce() {
     <property name="HintStyle" type="string" value="hintfull"/>
     <property name="RGBA" type="string" value="rgb"/>
   </property>
+  <property name="Gdk" type="empty">
+    <property name="WindowScalingFactor" type="int" value="$SCALE_INT"/>
+    <property name="UnscaledDPI" type="int" value="$UNSCALED_DPI"/>
+  </property>
   <property name="Gtk" type="empty">
     <property name="CursorThemeSize" type="int" value="$CURSOR_SIZE"/>
   </property>
@@ -133,7 +148,11 @@ setup_xfce() {
 EOF
     fi
     chown -R abc:abc "${HOME}/.config/xfce4"
-    echo "[set-dpi] XFCE xsettings.xml: DPI=$DPI, CursorThemeSize=$CURSOR_SIZE"
+    echo "[set-dpi] XFCE xsettings.xml: DPI=$DPI, WindowScalingFactor=$SCALE_INT, UnscaledDPI=$UNSCALED_DPI"
+
+    # Note: XFCE panel size and xfwm4 title_font are NOT manually scaled
+    # here because GDK_SCALE (set in setup_hidpi_env) handles GTK3
+    # widget scaling automatically. Manual scaling would cause double-sizing.
 }
 
 # ── KDE: pre-populate kdeglobals + kcmfonts ─────────────────
@@ -305,3 +324,30 @@ else
 fi
 
 echo "[set-dpi] Done (DPI=$DPI, Scale=${SCALE_FACTOR}x, Cursor=${CURSOR_SIZE}px)"
+
+# ── Common: HiDPI environment variables ───────────────────
+# GDK_SCALE/QT_SCALE_FACTOR must be set BEFORE DE starts.
+# Write to s6 container environment (with-contenv picks them up)
+# and /etc/profile.d/ for shell sessions.
+setup_hidpi_env() {
+    # s6-overlay container environment (v3 path)
+    local S6_ENV="/run/s6/container_environment"
+    [ -d "$S6_ENV" ] || S6_ENV="/var/run/s6/container_environment"
+
+    if [ -d "$S6_ENV" ]; then
+        echo "$SCALE_INT" > "$S6_ENV/GDK_SCALE"
+        local DPI_SCALE=$(awk "BEGIN { printf \"%.1f\", 1.0 / $SCALE_INT }")
+        echo "$DPI_SCALE" > "$S6_ENV/GDK_DPI_SCALE"
+        echo "[set-dpi] s6 env: GDK_SCALE=$SCALE_INT, GDK_DPI_SCALE=$DPI_SCALE"
+    fi
+
+    # /etc/profile.d/ for interactive shells and X session
+    cat > /etc/profile.d/hidpi.sh <<ENVEOF
+export GDK_SCALE=$SCALE_INT
+export GDK_DPI_SCALE=$(awk "BEGIN { printf \"%.1f\", 1.0 / $SCALE_INT }")
+ENVEOF
+    chmod 644 /etc/profile.d/hidpi.sh
+    echo "[set-dpi] /etc/profile.d/hidpi.sh: GDK_SCALE=$SCALE_INT"
+}
+
+setup_hidpi_env

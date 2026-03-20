@@ -163,33 +163,46 @@ update_xfce_panel() {
     local dpi=$1
     which xfconf-query >/dev/null 2>&1 || return
 
-    local panel_size=$(awk "BEGIN { printf \"%d\", 32 * $dpi / 96 + 0.5 }")
-    local icon_size=$(awk "BEGIN { printf \"%d\", 22 * $dpi / 96 + 0.5 }")
+    local scale_int=$(awk "BEGIN { v=$dpi/96; printf \"%d\", (v>=1.75) ? 2 : 1 }")
+    local unscaled_dpi=$(( (dpi / scale_int) * 1024 ))
+    local dpi_scale=$(awk "BEGIN { printf \"%.1f\", 1.0 / $scale_int }")
 
-    # Run xfconf-query as session user (abc) for D-Bus access
+    # Update xfconf Gdk scaling
     su abc -s /bin/bash -c "
         export DISPLAY=:1
-        panels=\$(xfconf-query -c xfce4-panel -p /panels 2>/dev/null | grep -oP '\d+')
-        [ -z \"\$panels\" ] && panels='0'
-        for pid in \$panels; do
-            xfconf-query -c xfce4-panel -p \"/panels/panel-\$pid/size\" \
-                -s $panel_size --create -t int 2>/dev/null
-            xfconf-query -c xfce4-panel -p \"/panels/panel-\$pid/icon-size\" \
-                -s $icon_size --create -t int 2>/dev/null
-        done
+        xfconf-query -c xsettings -p /Gdk/WindowScalingFactor \
+            -s $scale_int --create -t int 2>/dev/null
+        xfconf-query -c xsettings -p /Gdk/UnscaledDPI \
+            -s $unscaled_dpi --create -t int 2>/dev/null
     " 2>/dev/null
-    echo "[watch-dpi] XFCE panel: size=$panel_size, icon-size=$icon_size"
+
+    # Update env vars for new processes
+    cat > /etc/profile.d/hidpi.sh <<ENVEOF
+export GDK_SCALE=$scale_int
+export GDK_DPI_SCALE=$dpi_scale
+ENVEOF
+    local S6_ENV="/run/s6/container_environment"
+    [ -d "$S6_ENV" ] || S6_ENV="/var/run/s6/container_environment"
+    if [ -d "$S6_ENV" ]; then
+        echo "$scale_int" > "$S6_ENV/GDK_SCALE"
+        echo "$dpi_scale" > "$S6_ENV/GDK_DPI_SCALE"
+    fi
+
+    # Restart panel and xfwm4 with updated GDK_SCALE
+    su abc -s /bin/bash -c "
+        export DISPLAY=:1
+        export GDK_SCALE=$scale_int
+        export GDK_DPI_SCALE=$dpi_scale
+        xfce4-panel --quit 2>/dev/null; sleep 0.5
+        nohup xfce4-panel >/dev/null 2>&1 &
+        xfwm4 --replace >/dev/null 2>&1 &
+    " 2>/dev/null
+    echo "[watch-dpi] XFCE: GDK_SCALE=$scale_int, restarted panel+xfwm4"
 }
 
 update_xfwm4_font() {
-    local dpi=$1
-    which xfconf-query >/dev/null 2>&1 || return
-
-    # Scale title font: base 10pt at 96 DPI
-    local font_size=$(awk "BEGIN { printf \"%d\", 10 * $dpi / 96 + 0.5 }")
-    su abc -s /bin/bash -c \
-        "DISPLAY=:1 xfconf-query -c xfwm4 -p /general/title_font -s 'Sans Bold $font_size'" 2>/dev/null
-    echo "[watch-dpi] xfwm4: title_font=Sans Bold $font_size"
+    # No-op: GDK_SCALE handles font/widget scaling for XFCE
+    :
 }
 
 # ── KDE update functions ───────────────────────────────────
