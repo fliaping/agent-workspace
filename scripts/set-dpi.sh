@@ -236,6 +236,55 @@ EOF
     echo "[set-dpi] LXQt panel: panelSize=$PANEL_SIZE, iconSize=$ICON_SIZE"
 }
 
+# ── Openbox: create HiDPI theme ─────────────────────────────
+# Openbox buttons and titlebar don't scale with DPI.
+# We create a scaled copy of the current theme with larger padding.
+setup_openbox_theme() {
+    [ "$DPI" -le 96 ] && return 0
+
+    # Find current theme name from rc.xml
+    local OB_RC="${HOME}/.config/openbox/rc.xml"
+    [ -f "$OB_RC" ] || OB_RC="/etc/xdg/openbox/rc.xml"
+    local CURRENT_THEME
+    CURRENT_THEME=$(grep -oP '<name>\K[^<]+' "$OB_RC" | head -1)
+    [ -z "$CURRENT_THEME" ] && CURRENT_THEME="Clearlooks"
+
+    # Skip if already a HiDPI theme
+    case "$CURRENT_THEME" in *-HiDPI) return 0 ;; esac
+
+    local SRC="/usr/share/themes/${CURRENT_THEME}/openbox-3"
+    [ -d "$SRC" ] || return 0
+
+    local DST="${HOME}/.themes/${CURRENT_THEME}-HiDPI/openbox-3"
+    mkdir -p "$DST"
+    cp "$SRC"/* "$DST/" 2>/dev/null
+
+    # Scale padding proportionally
+    local SCALE_RATIO
+    SCALE_RATIO=$(awk "BEGIN { printf \"%.0f\", $DPI / 96 }")
+    if [ -f "$DST/themerc" ]; then
+        # Read current values, scale them
+        local PW PH BW
+        PW=$(grep -oP '^padding\.width:\s*\K\d+' "$DST/themerc" || echo 4)
+        PH=$(grep -oP '^padding\.height:\s*\K\d+' "$DST/themerc" || echo 2)
+        BW=$(grep -oP '^border\.width:\s*\K\d+' "$DST/themerc" || echo 1)
+        sed -i "s/^padding\.width:.*/padding.width: $(( PW * SCALE_RATIO ))/" "$DST/themerc"
+        sed -i "s/^padding\.height:.*/padding.height: $(( PH * SCALE_RATIO ))/" "$DST/themerc"
+        sed -i "s/^border\.width:.*/border.width: $(( BW * SCALE_RATIO ))/" "$DST/themerc"
+    fi
+    chown -R abc:abc "${HOME}/.themes"
+
+    # Apply the new theme in user rc.xml
+    mkdir -p "${HOME}/.config/openbox"
+    if [ ! -f "${HOME}/.config/openbox/rc.xml" ]; then
+        cp /etc/xdg/openbox/rc.xml "${HOME}/.config/openbox/rc.xml"
+    fi
+    sed -i "s|<name>${CURRENT_THEME}</name>|<name>${CURRENT_THEME}-HiDPI</name>|" \
+        "${HOME}/.config/openbox/rc.xml"
+    chown -R abc:abc "${HOME}/.config/openbox"
+    echo "[set-dpi] Openbox theme: ${CURRENT_THEME}-HiDPI (padding scaled ${SCALE_RATIO}x)"
+}
+
 # ── Detect DE and apply ─────────────────────────────────────
 # Detection order matches Selkies: KDE → XFCE → Openbox (LXQt)
 if command -v startplasma-x11 >/dev/null 2>&1; then
@@ -252,6 +301,7 @@ else
     setup_xresources
     setup_xsettingsd
     setup_lxqt
+    setup_openbox_theme
 fi
 
 echo "[set-dpi] Done (DPI=$DPI, Scale=${SCALE_FACTOR}x, Cursor=${CURSOR_SIZE}px)"

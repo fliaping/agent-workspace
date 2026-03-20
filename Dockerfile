@@ -97,7 +97,8 @@ COPY services/ /etc/services.d/
 
 # LinuxServer custom-init: 在 DE 启动前执行的初始化脚本
 RUN mkdir -p /custom-cont-init.d \
-    && ln -sf /usr/local/bin/set-dpi.sh /custom-cont-init.d/set-dpi.sh
+    && ln -sf /usr/local/bin/set-dpi.sh /custom-cont-init.d/set-dpi.sh \
+    && ln -sf /usr/local/bin/fix-locale.sh /custom-cont-init.d/fix-locale.sh
 
 RUN chmod +x /usr/local/bin/*.sh \
     && find /etc/services.d -name "run" -exec chmod +x {} \;
