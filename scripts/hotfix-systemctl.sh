@@ -1,22 +1,37 @@
 #!/bin/bash
 # hotfix-systemctl.sh — 热修复 systemctl --user wrapper
 # 用法: docker exec agent-workspace bash /path/to/hotfix-systemctl.sh
-#
-# 修复:
-# 1. 权限问题: PID/日志目录从 /tmp 移到 ~/.local (用户可写)
-# 2. 新增 is-enabled / is-active 命令 (openclaw CLI 需要)
-# 3. 修复带引号空格的 Environment 值 (如 "KEY=value with spaces")
-
 set -e
-
-cat > /usr/local/bin/systemctl << 'EOF'
+cat > /usr/local/bin/systemctl << 'WRAPPER_EOF'
 #!/bin/bash
+# ============================================================
+# user-systemctl.sh — systemctl wrapper with --user support
+#
+# docker-systemctl-replacement does not support --user mode.
+# This wrapper intercepts --user calls and manages user-level
+# services (~/.config/systemd/user/) directly:
+#   enable/disable  — symlink in default.target.wants
+#   start/stop      — background process with PID tracking
+#   restart         — stop + start
+#   status          — check PID liveness
+#   is-enabled      — check if symlink exists
+#   is-active       — check if process is running
+#   daemon-reload   — no-op
+#
+# System-level calls (without --user) pass through to the
+# real docker-systemctl-replacement at /usr/bin/systemctl.py.
+#
+# Installed as /usr/local/bin/systemctl (higher PATH priority
+# than /usr/bin/systemctl).
+# ============================================================
+
 REAL_SYSTEMCTL=/usr/bin/systemctl.py
 USER_UNIT_DIR="${HOME}/.config/systemd/user"
 USER_WANTS_DIR="${USER_UNIT_DIR}/default.target.wants"
 USER_PID_DIR="${HOME}/.local/run/user-systemd"
 USER_LOG_DIR="${HOME}/.local/log/user-systemd"
 
+# ── Parse --user flag ─────────────────────────────────────────
 has_user=false
 args=()
 for arg in "$@"; do
@@ -27,19 +42,22 @@ for arg in "$@"; do
     fi
 done
 
+# System-level: pass through to docker-systemctl-replacement
 if ! $has_user; then
     exec "$REAL_SYSTEMCTL" "$@"
 fi
 
+# ── User-level handling ───────────────────────────────────────
 mkdir -p "$USER_UNIT_DIR" "$USER_WANTS_DIR" "$USER_PID_DIR" "$USER_LOG_DIR"
 
+# Parse action and unit from remaining args (skip flags like --now)
 action=""
 unit=""
 has_now=false
 for arg in "${args[@]}"; do
     case "$arg" in
         --now) has_now=true ;;
-        -*)    ;;
+        -*)    ;;  # skip other flags
         *)
             if [ -z "$action" ]; then
                 action="$arg"
@@ -62,6 +80,10 @@ find_unit_file() {
 
 parse_exec_start() {
     grep '^ExecStart=' "$1" 2>/dev/null | head -1 | sed 's/^ExecStart=//'
+}
+
+parse_env_vars() {
+    grep '^Environment=' "$1" 2>/dev/null | sed 's/^Environment=//'
 }
 
 get_description() {
@@ -90,9 +112,11 @@ do_start() {
 
     local log_file="$USER_LOG_DIR/${name}.log"
 
+    # Start process in subshell with exported environment
     (
         while IFS= read -r line; do
             line="${line#Environment=}"
+            # Strip surrounding quotes: "KEY=value with spaces" → KEY=value with spaces
             case "$line" in \"*\") line="${line:1:${#line}-2}" ;; esac
             export "$line"
         done < <(grep '^Environment=' "$unit_file" 2>/dev/null)
@@ -125,21 +149,25 @@ do_stop() {
     fi
 }
 
+# ── Dispatch action ───────────────────────────────────────────
 case "$action" in
     start)
         [ -z "$unit_base" ] && echo "Usage: systemctl --user start <unit>" && exit 1
         do_start "$unit_base"
         ;;
+
     stop)
         [ -z "$unit_base" ] && echo "Usage: systemctl --user stop <unit>" && exit 1
         do_stop "$unit_base"
         ;;
+
     restart)
         [ -z "$unit_base" ] && echo "Usage: systemctl --user restart <unit>" && exit 1
         do_stop "$unit_base"
         sleep 1
         do_start "$unit_base"
         ;;
+
     enable)
         [ -z "$unit_base" ] && echo "Usage: systemctl --user enable <unit>" && exit 1
         unit_file=$(find_unit_file "$unit_base")
@@ -148,11 +176,13 @@ case "$action" in
         echo "Created symlink $USER_WANTS_DIR/$(basename "$unit_file")"
         $has_now && do_start "$unit_base"
         ;;
+
     disable)
         [ -z "$unit_base" ] && echo "Usage: systemctl --user disable <unit>" && exit 1
         rm -f "$USER_WANTS_DIR/${unit_base}.service"
         echo "Removed $USER_WANTS_DIR/${unit_base}.service"
         ;;
+
     status)
         [ -z "$unit_base" ] && echo "Usage: systemctl --user status <unit>" && exit 1
         unit_file=$(find_unit_file "$unit_base")
@@ -166,6 +196,7 @@ case "$action" in
             echo "     Active: inactive (dead)"
         fi
         ;;
+
     is-enabled)
         [ -z "$unit_base" ] && exit 1
         if [ -L "$USER_WANTS_DIR/${unit_base}.service" ]; then
@@ -175,6 +206,7 @@ case "$action" in
             exit 1
         fi
         ;;
+
     is-active)
         [ -z "$unit_base" ] && exit 1
         if is_running "$unit_base"; then
@@ -184,8 +216,50 @@ case "$action" in
             exit 1
         fi
         ;;
-    daemon-reload)
+
+    show)
+        [ -z "$unit_base" ] && exit 1
+        # Parse --property flag (handles both --property=X and --property X)
+        props=""
+        i=0
+        while [ $i -lt ${#args[@]} ]; do
+            case "${args[$i]}" in
+                --property=*) props="${args[$i]#--property=}" ;;
+                --property)   i=$((i+1)); props="${args[$i]}" ;;
+            esac
+            i=$((i+1))
+        done
+        pid_val=0
+        active_state="inactive"
+        sub_state="dead"
+        if is_running "$unit_base"; then
+            pid_val=$(cat "$USER_PID_DIR/${unit_base}.pid")
+            active_state="active"
+            sub_state="running"
+        fi
+        if [ -n "$props" ]; then
+            IFS=',' read -ra prop_list <<< "$props"
+            for p in "${prop_list[@]}"; do
+                case "$p" in
+                    ActiveState)    echo "ActiveState=$active_state" ;;
+                    SubState)       echo "SubState=$sub_state" ;;
+                    MainPID)        echo "MainPID=$pid_val" ;;
+                    ExecMainStatus) echo "ExecMainStatus=0" ;;
+                    ExecMainCode)   echo "ExecMainCode=0" ;;
+                    *)              echo "$p=" ;;
+                esac
+            done
+        else
+            echo "ActiveState=$active_state"
+            echo "SubState=$sub_state"
+            echo "MainPID=$pid_val"
+        fi
         ;;
+
+    daemon-reload)
+        # No-op for user mode
+        ;;
+
     list-unit-files)
         echo "UNIT FILE                          STATE"
         for f in "$USER_UNIT_DIR"/*.service; do
@@ -198,16 +272,15 @@ case "$action" in
             fi
         done
         ;;
+
     *)
         echo "Unsupported user-mode action: $action"
-        echo "Supported: start, stop, restart, enable, disable, status, is-enabled, is-active, daemon-reload, list-unit-files"
+        echo "Supported: start, stop, restart, enable, disable, status, show, is-enabled, is-active, daemon-reload, list-unit-files"
         exit 1
         ;;
 esac
-EOF
+WRAPPER_EOF
 
 chmod +x /usr/local/bin/systemctl
 rm -rf /tmp/user-systemd-pids /tmp/user-systemd-logs 2>/dev/null
-
-echo "[hotfix] systemctl wrapper updated"
-echo "[hotfix] Verify: systemctl --user start openclaw-gateway && sleep 1 && systemctl --user status openclaw-gateway"
+echo "[hotfix] systemctl wrapper updated (show + is-enabled + env fix)"

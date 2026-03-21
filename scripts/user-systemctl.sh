@@ -212,6 +212,45 @@ case "$action" in
         fi
         ;;
 
+    show)
+        [ -z "$unit_base" ] && exit 1
+        # Parse --property flag (handles both --property=X and --property X)
+        props=""
+        i=0
+        while [ $i -lt ${#args[@]} ]; do
+            case "${args[$i]}" in
+                --property=*) props="${args[$i]#--property=}" ;;
+                --property)   i=$((i+1)); props="${args[$i]}" ;;
+            esac
+            i=$((i+1))
+        done
+        pid_val=0
+        active_state="inactive"
+        sub_state="dead"
+        if is_running "$unit_base"; then
+            pid_val=$(cat "$USER_PID_DIR/${unit_base}.pid")
+            active_state="active"
+            sub_state="running"
+        fi
+        if [ -n "$props" ]; then
+            IFS=',' read -ra prop_list <<< "$props"
+            for p in "${prop_list[@]}"; do
+                case "$p" in
+                    ActiveState)    echo "ActiveState=$active_state" ;;
+                    SubState)       echo "SubState=$sub_state" ;;
+                    MainPID)        echo "MainPID=$pid_val" ;;
+                    ExecMainStatus) echo "ExecMainStatus=0" ;;
+                    ExecMainCode)   echo "ExecMainCode=0" ;;
+                    *)              echo "$p=" ;;
+                esac
+            done
+        else
+            echo "ActiveState=$active_state"
+            echo "SubState=$sub_state"
+            echo "MainPID=$pid_val"
+        fi
+        ;;
+
     daemon-reload)
         # No-op for user mode
         ;;
@@ -231,7 +270,7 @@ case "$action" in
 
     *)
         echo "Unsupported user-mode action: $action"
-        echo "Supported: start, stop, restart, enable, disable, status, is-enabled, is-active, daemon-reload, list-unit-files"
+        echo "Supported: start, stop, restart, enable, disable, status, show, is-enabled, is-active, daemon-reload, list-unit-files"
         exit 1
         ;;
 esac
