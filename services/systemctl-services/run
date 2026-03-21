@@ -24,14 +24,15 @@ if [ "$START_DOCKER" = "true" ] && command -v docker > /dev/null 2>&1; then
     done
 fi
 
-# Start user-level services (agent onboard wizards create these)
+# Start user-level services as user abc (not root)
+# s6-setuidgid changes UID/GID while preserving contenv (HOME=/config)
 USER_WANTS_DIR="${HOME}/.config/systemd/user/default.target.wants"
 if [ -d "$USER_WANTS_DIR" ]; then
     for link in "$USER_WANTS_DIR"/*.service; do
         [ -L "$link" ] || continue
         name=$(basename "$link" .service)
         echo "[systemctl-services] Starting user service: $name"
-        systemctl --user start "$name" 2>&1 || true
+        s6-setuidgid abc systemctl --user start "$name" 2>&1 || true
     done
 fi
 
