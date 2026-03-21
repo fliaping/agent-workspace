@@ -188,9 +188,9 @@ install_systemctl_replacement() {
     info "Installing docker-systemctl-replacement ..."
 
     local base="${GITHUB_RAW_BASE}/gdraheim/docker-systemctl-replacement/master/files/docker"
-    wget -q "${base}/systemctl3.py"  -O /usr/bin/systemctl
+    wget -q "${base}/systemctl3.py"  -O /usr/bin/systemctl.py
     wget -q "${base}/journalctl3.py" -O /usr/bin/journalctl
-    chmod +x /usr/bin/systemctl /usr/bin/journalctl
+    chmod +x /usr/bin/systemctl.py /usr/bin/journalctl
 
     success "docker-systemctl-replacement installed"
 }

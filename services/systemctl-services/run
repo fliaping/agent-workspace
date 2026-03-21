@@ -31,20 +31,17 @@ if command -v docker > /dev/null 2>&1 && [ "$START_DOCKER" != "false" ]; then
     done
 fi
 
-# Promote user-level services to system-level
+# Start user-level services
 # Agent onboard wizards (e.g. openclaw onboard) create services under
-# ~/.config/systemd/user/ which docker-systemctl-replacement ignores.
-# Copy them to /etc/systemd/system/ and enable so they auto-start.
-USER_UNIT_DIR="${HOME}/.config/systemd/user"
-if [ -d "$USER_UNIT_DIR" ]; then
-    for unit in "$USER_UNIT_DIR"/*.service; do
-        [ -f "$unit" ] || continue
-        name=$(basename "$unit")
-        if [ ! -f "/etc/systemd/system/$name" ]; then
-            cp "$unit" "/etc/systemd/system/$name"
-            systemctl enable "$name" 2>/dev/null || true
-            echo "[systemctl-services] Promoted user service: $name"
-        fi
+# ~/.config/systemd/user/ with enable symlinks in default.target.wants/.
+# docker-systemctl-replacement ignores these, so we start them here.
+USER_WANTS_DIR="${HOME}/.config/systemd/user/default.target.wants"
+if [ -d "$USER_WANTS_DIR" ]; then
+    for link in "$USER_WANTS_DIR"/*.service; do
+        [ -L "$link" ] || continue
+        name=$(basename "$link" .service)
+        echo "[systemctl-services] Starting user service: $name"
+        systemctl --user start "$name" 2>&1 || true
     done
 fi
 

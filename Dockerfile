@@ -103,6 +103,12 @@ RUN mkdir -p /custom-cont-init.d \
 RUN chmod +x /usr/local/bin/*.sh \
     && find /etc/services.d -name "run" -exec chmod +x {} \;
 
+# systemctl wrapper: adds --user support on top of docker-systemctl-replacement
+# user-systemctl.sh delegates system calls to /usr/bin/systemctl.py and
+# handles user-level services (~/.config/systemd/user/) directly.
+RUN cp /usr/local/bin/user-systemctl.sh /usr/local/bin/systemctl \
+    && chmod +x /usr/local/bin/systemctl
+
 # 配置 s6 服务依赖（init 先执行，其他服务等待）
 RUN mkdir -p /etc/services.d/systemctl-services/dependencies \
     && touch /etc/services.d/systemctl-services/dependencies/init \
