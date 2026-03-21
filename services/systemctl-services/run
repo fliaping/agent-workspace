@@ -31,6 +31,23 @@ if command -v docker > /dev/null 2>&1 && [ "$START_DOCKER" != "false" ]; then
     done
 fi
 
+# Promote user-level services to system-level
+# Agent onboard wizards (e.g. openclaw onboard) create services under
+# ~/.config/systemd/user/ which docker-systemctl-replacement ignores.
+# Copy them to /etc/systemd/system/ and enable so they auto-start.
+USER_UNIT_DIR="${HOME}/.config/systemd/user"
+if [ -d "$USER_UNIT_DIR" ]; then
+    for unit in "$USER_UNIT_DIR"/*.service; do
+        [ -f "$unit" ] || continue
+        name=$(basename "$unit")
+        if [ ! -f "/etc/systemd/system/$name" ]; then
+            cp "$unit" "/etc/systemd/system/$name"
+            systemctl enable "$name" 2>/dev/null || true
+            echo "[systemctl-services] Promoted user service: $name"
+        fi
+    done
+fi
+
 # 启动所有 systemctl enable 注册的服务，过滤掉容器内已知无法满足的系统服务错误
 echo "[systemctl-services] Running: systemctl default"
 systemctl default 2>&1 | grep -v -E \

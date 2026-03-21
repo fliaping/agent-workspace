@@ -257,8 +257,34 @@ def build_install_command(agent: str) -> list[str]:
     return ["echo", f"Unknown install type for {agent}"]
 
 
+def promote_user_services(agent: str) -> bool:
+    """Copy user-level systemd services to system-level.
+
+    Agent onboard wizards (e.g. openclaw onboard) create services under
+    ~/.config/systemd/user/ which docker-systemctl-replacement ignores.
+    Returns True if any service was promoted.
+    """
+    user_dir = Path.home() / ".config" / "systemd" / "user"
+    if not user_dir.is_dir():
+        return False
+    promoted = False
+    for unit in user_dir.glob(f"{agent}*.service"):
+        dest = Path(f"/etc/systemd/system/{unit.name}")
+        if not dest.exists():
+            shutil.copy2(unit, dest)
+            promoted = True
+    return promoted
+
+
 def create_systemd_service(agent: str) -> None:
-    """Write a systemd unit file for the agent."""
+    """Write a systemd unit file for the agent.
+
+    If the agent's onboard wizard already created a user-level service,
+    promote it to system-level instead of generating a new one.
+    """
+    if promote_user_services(agent):
+        return
+
     info = AGENTS[agent]
     binary = find_binary(agent)
     extra_env = info.get("service_extra_env", "")
