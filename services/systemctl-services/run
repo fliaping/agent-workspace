@@ -1,25 +1,18 @@
 #!/usr/bin/with-contenv bash
-# s6 服务：通过 docker-systemctl-replacement 启动所有 systemctl enable 注册的服务
+# s6 service: start all registered systemctl services on container boot.
 #
-# 只在容器启动后执行一次（flag 文件保证），之后 sleep infinity 防止 s6 重启触发重复执行。
-
-FLAG="/tmp/.systemctl-services-done"
-
-# 已执行过，直接挂起（s6 重启时走此分支，不重复执行）
-if [ -f "$FLAG" ]; then
-    exec sleep infinity
-fi
+# All operations are idempotent — safe to re-run on s6 restart.
+# After work is done, sleep infinity to prevent s6 from re-triggering.
 
 echo "[systemctl-services] Starting..."
 
 if ! command -v systemctl > /dev/null 2>&1; then
     echo "[systemctl-services] systemctl not found, skipping"
-    touch "$FLAG"
     exec sleep infinity
 fi
 
-# 等待 docker daemon 就绪（最多 60 秒）
-if command -v docker > /dev/null 2>&1 && [ "$START_DOCKER" != "false" ]; then
+# Wait for Docker daemon (DinD mode only)
+if [ "$START_DOCKER" = "true" ] && command -v docker > /dev/null 2>&1; then
     echo "[systemctl-services] Waiting for Docker daemon (max 60s)..."
     for i in $(seq 1 30); do
         if docker info > /dev/null 2>&1; then
@@ -31,10 +24,7 @@ if command -v docker > /dev/null 2>&1 && [ "$START_DOCKER" != "false" ]; then
     done
 fi
 
-# Start user-level services
-# Agent onboard wizards (e.g. openclaw onboard) create services under
-# ~/.config/systemd/user/ with enable symlinks in default.target.wants/.
-# docker-systemctl-replacement ignores these, so we start them here.
+# Start user-level services (agent onboard wizards create these)
 USER_WANTS_DIR="${HOME}/.config/systemd/user/default.target.wants"
 if [ -d "$USER_WANTS_DIR" ]; then
     for link in "$USER_WANTS_DIR"/*.service; do
@@ -45,14 +35,13 @@ if [ -d "$USER_WANTS_DIR" ]; then
     done
 fi
 
-# 启动所有 systemctl enable 注册的服务，过滤掉容器内已知无法满足的系统服务错误
+# Start system-level services
 echo "[systemctl-services] Running: systemctl default"
 systemctl default 2>&1 | grep -v -E \
     "seatd|ssl-cert|console-setup|modprobe|/sbin/modprobe" \
     || true
 
 echo "[systemctl-services] Done"
-touch "$FLAG"
 
-# 保持进程存活，防止 s6 重复拉起本服务
+# Keep alive — s6 restarts services that exit
 exec sleep infinity
