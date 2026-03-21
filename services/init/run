@@ -42,4 +42,6 @@ else
 fi
 
 echo "[init] Initialization complete!"
-exit 0
+
+# Keep alive — s6 restarts services that exit
+exec sleep infinity
