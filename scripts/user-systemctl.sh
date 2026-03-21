@@ -5,11 +5,13 @@
 # docker-systemctl-replacement does not support --user mode.
 # This wrapper intercepts --user calls and manages user-level
 # services (~/.config/systemd/user/) directly:
-#   enable/disable — symlink in default.target.wants
-#   start/stop     — background process with PID tracking
-#   restart        — stop + start
-#   status         — check PID liveness
-#   daemon-reload  — no-op
+#   enable/disable  — symlink in default.target.wants
+#   start/stop      — background process with PID tracking
+#   restart         — stop + start
+#   status          — check PID liveness
+#   is-enabled      — check if symlink exists
+#   is-active       — check if process is running
+#   daemon-reload   — no-op
 #
 # System-level calls (without --user) pass through to the
 # real docker-systemctl-replacement at /usr/bin/systemctl.py.
@@ -21,8 +23,8 @@
 REAL_SYSTEMCTL=/usr/bin/systemctl.py
 USER_UNIT_DIR="${HOME}/.config/systemd/user"
 USER_WANTS_DIR="${USER_UNIT_DIR}/default.target.wants"
-USER_PID_DIR="/tmp/user-systemd-pids"
-USER_LOG_DIR="/tmp/user-systemd-logs"
+USER_PID_DIR="${HOME}/.local/run/user-systemd"
+USER_LOG_DIR="${HOME}/.local/log/user-systemd"
 
 # ── Parse --user flag ─────────────────────────────────────────
 has_user=false
@@ -76,10 +78,7 @@ parse_exec_start() {
 }
 
 parse_env_vars() {
-    # Collect Environment= lines into export statements
-    grep '^Environment=' "$1" 2>/dev/null | sed 's/^Environment=//' | while IFS= read -r line; do
-        echo "$line"
-    done
+    grep '^Environment=' "$1" 2>/dev/null | sed 's/^Environment=//'
 }
 
 get_description() {
@@ -106,23 +105,21 @@ do_start() {
     exec_cmd=$(parse_exec_start "$unit_file")
     [ -z "$exec_cmd" ] && echo "No ExecStart in $unit_file" && return 1
 
-    # Build environment
-    local env_file="$USER_PID_DIR/${name}.env"
-    : > "$env_file"
-    parse_env_vars "$unit_file" >> "$env_file"
-
     local log_file="$USER_LOG_DIR/${name}.log"
 
-    # Start process with environment
-    (
-        set -a
-        [ -s "$env_file" ] && . "$env_file"
-        set +a
-        exec $exec_cmd
-    ) >> "$log_file" 2>&1 &
+    # Build environment and start process
+    local env_args=""
+    while IFS= read -r line; do
+        [ -n "$line" ] && env_args="$env_args $line"
+    done < <(parse_env_vars "$unit_file")
+
+    if [ -n "$env_args" ]; then
+        env $env_args $exec_cmd >> "$log_file" 2>&1 &
+    else
+        $exec_cmd >> "$log_file" 2>&1 &
+    fi
     local pid=$!
     echo "$pid" > "$USER_PID_DIR/${name}.pid"
-    rm -f "$env_file"
     echo "Started ${name}.service (PID $pid)"
 }
 
@@ -133,12 +130,10 @@ do_stop() {
         local pid
         pid=$(cat "$pid_file")
         if kill "$pid" 2>/dev/null; then
-            # Wait briefly for graceful shutdown
             for _ in 1 2 3 4 5; do
                 kill -0 "$pid" 2>/dev/null || break
                 sleep 0.5
             done
-            # Force kill if still alive
             kill -0 "$pid" 2>/dev/null && kill -9 "$pid" 2>/dev/null
             echo "Stopped ${name}.service (PID $pid)"
         else
@@ -189,13 +184,32 @@ case "$action" in
         unit_file=$(find_unit_file "$unit_base")
         desc=$(get_description "$unit_file" 2>/dev/null || echo "$unit_base")
         if is_running "$unit_base"; then
-            local_pid=$(cat "$USER_PID_DIR/${unit_base}.pid")
             echo "● ${unit_base}.service - $desc"
             echo "     Active: active (running)"
-            echo "     PID: $local_pid"
+            echo "     PID: $(cat "$USER_PID_DIR/${unit_base}.pid")"
         else
             echo "● ${unit_base}.service - $desc"
             echo "     Active: inactive (dead)"
+        fi
+        ;;
+
+    is-enabled)
+        [ -z "$unit_base" ] && exit 1
+        if [ -L "$USER_WANTS_DIR/${unit_base}.service" ]; then
+            echo "enabled"
+        else
+            echo "disabled"
+            exit 1
+        fi
+        ;;
+
+    is-active)
+        [ -z "$unit_base" ] && exit 1
+        if is_running "$unit_base"; then
+            echo "active"
+        else
+            echo "inactive"
+            exit 1
         fi
         ;;
 
@@ -218,7 +232,7 @@ case "$action" in
 
     *)
         echo "Unsupported user-mode action: $action"
-        echo "Supported: start, stop, restart, enable, disable, status, daemon-reload, list-unit-files"
+        echo "Supported: start, stop, restart, enable, disable, status, is-enabled, is-active, daemon-reload, list-unit-files"
         exit 1
         ;;
 esac
