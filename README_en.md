@@ -93,6 +93,11 @@ docker compose up -d
 | `SELKIES_ENABLE_WAYLAND` | `true` | Enable Wayland display protocol |
 | `PIXELFLUX_WAYLAND` | `false` | Force X11 mode (`true` breaks CJK input in Selkies) |
 | `SELKIES_SCALING_DPI` | `96` | DPI scaling (use 192 for HiDPI/Retina) |
+| `SELKIES_USE_BROWSER_CURSORS` | `true` | CSS cursor rendering, zero-latency mouse |
+| `SELKIES_CONGESTION_CONTROL` | `true` | Network congestion control, adaptive bitrate |
+| `SELKIES_H264_CRF` | `28` | H264 quality (5-50, higher = lower quality, less latency) |
+| `SELKIES_JPEG_QUALITY` | `30` | JPEG fallback quality (1-100, default 40) |
+| `SELKIES_H264_STREAMING_MODE` | `true` | H264 streaming mode, reduces encoding latency |
 | `START_DOCKER` | `false` | Enable Docker inside container (requires `--privileged`) |
 | `USE_CHINA_MIRROR` | `false` | Switch to China mirrors at runtime |
 | `NODE_OPTIONS` | - | Node.js options (e.g., `--max-old-space-size=2048`) |

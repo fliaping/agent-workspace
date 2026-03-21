@@ -94,6 +94,11 @@ docker compose up -d
 | `SELKIES_ENABLE_WAYLAND` | `true` | 启用 Wayland 显示协议 |
 | `PIXELFLUX_WAYLAND` | `false` | 强制 X11 模式（`true` 时 Selkies 无法输入中文） |
 | `SELKIES_SCALING_DPI` | `96` | DPI 缩放（高分屏/Retina 推荐 192） |
+| `SELKIES_USE_BROWSER_CURSORS` | `true` | CSS 光标，鼠标零延迟 |
+| `SELKIES_CONGESTION_CONTROL` | `true` | 网络拥塞控制，自适应码率 |
+| `SELKIES_H264_CRF` | `28` | H264 画质（5-50，越大画质越低延迟越低） |
+| `SELKIES_JPEG_QUALITY` | `30` | JPEG 回退画质（1-100，默认 40） |
+| `SELKIES_H264_STREAMING_MODE` | `true` | H264 流式模式，降低编码延迟 |
 | `START_DOCKER` | `false` | 启用容器内 Docker（需 `--privileged`） |
 | `USE_CHINA_MIRROR` | `false` | 运行时切换国内镜像源 |
 | `NODE_OPTIONS` | - | Node.js 选项（如 `--max-old-space-size=2048`） |

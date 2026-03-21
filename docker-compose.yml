@@ -52,6 +52,12 @@ services:
       - SELKIES_SCALING_DPI=${SELKIES_SCALING_DPI:-96}  # 高分屏(Retina)设为 192
       - XCURSOR_THEME=Adwaita
       - XCURSOR_SIZE=32
+      # --- Selkies 低延迟优化 ---
+      - SELKIES_USE_BROWSER_CURSORS=true   # CSS 光标，鼠标零延迟
+      - SELKIES_CONGESTION_CONTROL=true    # 网络拥塞控制，自适应码率
+      - SELKIES_H264_CRF=28               # 画质略低，编码更快（默认 25）
+      - SELKIES_JPEG_QUALITY=30            # JPEG 回退模式低质量优先（默认 40）
+      - SELKIES_H264_STREAMING_MODE=true   # H264 流式模式，降低编码延迟
       # --- GPU 渲染/编码设备路径（按需启用）---
       # Intel/AMD: 取消注释 DRINODE + devices 部分
       # NVIDIA: 还需取消注释 deploy 部分 + NVIDIA_* 变量
