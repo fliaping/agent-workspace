@@ -144,6 +144,8 @@ TEXT_cn_docker_mode_selected="Docker 模式"
 TEXT_cn_docker_mode_none_desc="不启用"
 TEXT_cn_docker_mode_dind_desc="DinD（独立 Docker）"
 TEXT_cn_docker_mode_socket_desc="挂载宿主机 Docker"
+TEXT_cn_ssh_port="SSH 端口"
+TEXT_cn_ssh_password_prompt="设置 SSH 密码（留空则不启用 SSH）"
 
 # 英文文本
 TEXT_en_welcome_title="Agent Workspace Deployment"
@@ -255,6 +257,8 @@ TEXT_en_docker_mode_selected="Docker mode"
 TEXT_en_docker_mode_none_desc="Disabled"
 TEXT_en_docker_mode_dind_desc="DinD (standalone Docker)"
 TEXT_en_docker_mode_socket_desc="Mount host Docker"
+TEXT_en_ssh_port="SSH port"
+TEXT_en_ssh_password_prompt="Set SSH password (leave empty to disable SSH)"
 TEXT_cn_windows_wsl2_detected="检测到 Windows WSL2 环境"
 TEXT_cn_windows_wsl2_recommended="推荐使用 WSL2 + Docker 方式运行"
 TEXT_cn_windows_wsl2_install_docker="请在 WSL2 中安装 Docker："
@@ -350,6 +354,10 @@ DRINODE_PATH=""
 
 # Docker 模式: none / dind / socket
 DOCKER_MODE="none"
+
+# SSH 配置
+SSH_PASSWORD=""
+SSH_PORT="2222"
 # ============================================================================
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -621,6 +629,32 @@ select_desktop_port() {
     # HTTPS 端口
     echo ""
     print_info "$(get_text port_desktop) (HTTPS): $DESKTOP_PORT"
+}
+
+# ============================================================================
+# SSH 配置
+# ============================================================================
+configure_ssh() {
+    echo ""
+    print_info "$(get_text ssh_password_prompt)"
+    echo ""
+    prompt_read ssh_pass "$(get_text ssh_password_prompt): "
+
+    if [ -z "$ssh_pass" ]; then
+        SSH_PASSWORD=""
+        return
+    fi
+
+    SSH_PASSWORD="$ssh_pass"
+
+    echo ""
+    prompt_read custom_ssh_port "$(get_text ssh_port) [default $SSH_PORT]: "
+    if [ -n "$custom_ssh_port" ]; then
+        SSH_PORT="$custom_ssh_port"
+    fi
+
+    echo ""
+    print_info "$(get_text ssh_port): $SSH_PORT"
 }
 
 # ============================================================================
@@ -1081,6 +1115,9 @@ main() {
         print_info "host 网络模式，使用容器内默认端口 3001 (HTTPS)"
     fi
 
+    # SSH 配置
+    configure_ssh
+
     # 步骤 7: 选择 Agent 软件
     select_agents
 
@@ -1110,6 +1147,12 @@ main() {
             print_warning "$(get_text port_occupied): $DESKTOP_PORT"
             DESKTOP_PORT=$(find_available_port $DESKTOP_PORT)
             print_info "$(get_text auto_change_port): $DESKTOP_PORT"
+        fi
+        # SSH 端口
+        if [ -n "$SSH_PASSWORD" ] && ! check_port_available $SSH_PORT; then
+            print_warning "$(get_text port_occupied): $SSH_PORT"
+            SSH_PORT=$(find_available_port $SSH_PORT)
+            print_info "$(get_text auto_change_port): $SSH_PORT"
         fi
     fi
 
@@ -1187,6 +1230,14 @@ main() {
             "-e" "DRINODE=${DRINODE_PATH:-/dev/dri/renderD128}"
         )
         print_success "$(get_text gpu_enabled) (Intel/AMD)"
+    fi
+
+    # SSH（密码设置时启用）
+    if [ -n "$SSH_PASSWORD" ]; then
+        DOCKER_ARGS+=("-e" "SSH_PASSWORD=${SSH_PASSWORD}")
+        if [ "$USE_HOST_NETWORK" = false ]; then
+            DOCKER_ARGS+=("-p" "${SSH_PORT}:22")
+        fi
     fi
 
     # 网络配置
@@ -1272,6 +1323,15 @@ print_access_info() {
     fi
 
     print_info "💾 $(get_text data_dir): ${DATA_DIR}"
+
+    # 显示 SSH 连接信息
+    if [ -n "$SSH_PASSWORD" ]; then
+        if [ "$USE_HOST_NETWORK" = true ]; then
+            print_info "🔑 SSH: ssh abc@${IP} -p 22"
+        else
+            print_info "🔑 SSH: ssh abc@${IP} -p ${SSH_PORT}"
+        fi
+    fi
 
     # 显示 Docker 模式
     case $DOCKER_MODE in

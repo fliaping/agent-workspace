@@ -34,6 +34,8 @@ $Texts = @{
         docker_mode_none_desc = "不启用"
         docker_mode_dind_desc = "DinD（独立 Docker）"
         docker_mode_socket_desc = "挂载宿主机 Docker"
+        ssh_port = "SSH 端口"
+        ssh_password_prompt = "设置 SSH 密码（留空则不启用 SSH）"
         step_registry_title = "步骤 4/9: 选择镜像源"
         registry_cn = "1) 阿里云镜像（国内推荐）"
         registry_en = "2) Docker Hub（海外推荐）"
@@ -120,6 +122,8 @@ $Texts = @{
         docker_mode_none_desc = "Disabled"
         docker_mode_dind_desc = "DinD (standalone Docker)"
         docker_mode_socket_desc = "Mount host Docker"
+        ssh_port = "SSH port"
+        ssh_password_prompt = "Set SSH password (leave empty to disable SSH)"
         step_registry_title = "Step 4/9: Select Registry"
         registry_cn = "1) Alibaba Cloud (China)"
         registry_en = "2) Docker Hub (International)"
@@ -207,6 +211,8 @@ $script:CustomAgentPorts = @{}
 $script:ContainerName = "agent-workspace"
 $script:RegistryCN = "registry.cn-hangzhou.aliyuncs.com/fliaping/agent-workspace"
 $script:RegistryEN = "xuping/agent-workspace"
+$script:SshPassword = ""
+$script:SshPort = 2222
 
 # ============================================================================
 # Helpers
@@ -453,6 +459,40 @@ function Select-DesktopPort {
 }
 
 # ============================================================================
+# SSH Configuration
+# ============================================================================
+function Configure-Ssh {
+    Write-Host ""
+    Write-Info (T 'ssh_password_prompt')
+    Write-Host ""
+    $sshPass = Read-Host (T 'ssh_password_prompt')
+    if (-not $sshPass) {
+        $script:SshPassword = ""
+        return
+    }
+
+    $script:SshPassword = $sshPass
+
+    Write-Host ""
+    $customSshPort = Read-Host "$(T 'ssh_port') [default $($script:SshPort)]"
+    if ($customSshPort) {
+        $script:SshPort = [int]$customSshPort
+    }
+
+    # Check SSH port availability
+    if (-not (Test-PortAvailable $script:SshPort)) {
+        Write-Warn "$(T 'ssh_port') $($script:SshPort) $(T 'port_in_use')"
+        $script:SshPort = Find-AvailablePort $script:SshPort
+        Write-Info "$(T 'auto_change_port'): $($script:SshPort)"
+    } else {
+        Write-Success "$(T 'ssh_port') $($script:SshPort) $(T 'port_available')"
+    }
+
+    Write-Host ""
+    Write-Info "$(T 'ssh_port'): $($script:SshPort)"
+}
+
+# ============================================================================
 # Step 8: Select agents
 # ============================================================================
 function Select-Agents {
@@ -571,6 +611,11 @@ function Print-AccessInfo {
     Write-Info "$(T 'desktop_url') (HTTPS): https://localhost:$($script:DesktopPort)/"
     Write-Info "$(T 'data_dir'): $($script:DataDir)"
 
+    # SSH info
+    if ($script:SshPassword) {
+        Write-Info "SSH: ssh abc@localhost -p $($script:SshPort)"
+    }
+
     $dockerDesc = switch ($script:DockerMode) {
         "dind"   { T 'docker_mode_dind_desc' }
         "socket" { T 'docker_mode_socket_desc' }
@@ -630,6 +675,7 @@ function Main {
     Select-Version
     Select-DataDir
     Select-DesktopPort
+    Configure-Ssh
     Select-Agents
     Configure-AgentPorts
 
@@ -700,6 +746,11 @@ function Main {
         default {
             $dockerArgs += @("-e", "START_DOCKER=false")
         }
+    }
+
+    # SSH (enabled when password is set)
+    if ($script:SshPassword) {
+        $dockerArgs += @("-e", "SSH_PASSWORD=$($script:SshPassword)", "-p", "$($script:SshPort):22")
     }
 
     # Agent port mappings

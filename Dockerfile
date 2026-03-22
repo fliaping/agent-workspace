@@ -70,6 +70,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential git wget jq unzip xz-utils \
     python3 python3-pip python3-venv python3-dev \
     libssl-dev libffi-dev inotify-tools \
+    openssh-server \
     locales fonts-wqy-zenhei fonts-wqy-microhei fonts-noto-cjk \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
@@ -123,6 +124,13 @@ RUN mkdir -p /etc/services.d/systemctl-services/dependencies \
 RUN echo "abc ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/abc \
     && chmod 0440 /etc/sudoers.d/abc \
     && usermod -aG docker abc
+
+# SSH server: host keys persist in /config/.ssh-host-keys
+RUN mkdir -p /run/sshd \
+    && sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config \
+    && sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config \
+    && echo "HostKey /config/.ssh-host-keys/ssh_host_rsa_key" >> /etc/ssh/sshd_config \
+    && echo "HostKey /config/.ssh-host-keys/ssh_host_ed25519_key" >> /etc/ssh/sshd_config
 
 # ==========================================
 # 健康检查

@@ -66,6 +66,8 @@ services:
       #- NVIDIA_DRIVER_CAPABILITIES=all
       # --- 自定义（仅 init 服务使用）---
       - USE_CHINA_MIRROR=false
+      # --- SSH（设置密码即启用）---
+      #- SSH_PASSWORD=password
       # --- Node.js ---
       - NODE_OPTIONS=--max-old-space-size=2048
 
@@ -77,6 +79,7 @@ services:
 
     ports:
       - "3001:3001"   # HTTPS
+      #- "2222:22"     # SSH
 
     # GPU 设备直通（按需启用）
     # Intel/AMD GPU: 取消注释 devices
