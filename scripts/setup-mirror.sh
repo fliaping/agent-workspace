@@ -24,13 +24,22 @@ echo "[setup-mirror] APT → USTC"
 
 # ==========================================
 # npm + pnpm（npmmirror）
+# Note: init runs as root, --global writes to root's prefix which abc
+# user may not read. Write to /config/.npmrc (abc user-level config).
 # ==========================================
 if command -v npm > /dev/null 2>&1; then
     npm config set registry https://registry.npmmirror.com --global
+    # Also set user-level config for abc (HOME=/config)
+    grep -q 'registry=' /config/.npmrc 2>/dev/null \
+        && sed -i 's|^registry=.*|registry=https://registry.npmmirror.com|' /config/.npmrc \
+        || echo "registry=https://registry.npmmirror.com" >> /config/.npmrc
+    chown abc:abc /config/.npmrc 2>/dev/null || true
     echo "[setup-mirror] npm → npmmirror"
 fi
 if command -v pnpm > /dev/null 2>&1; then
     pnpm config set registry https://registry.npmmirror.com
+    # Also set for abc user (pnpm reads ~/.npmrc or its own config)
+    su -s /bin/bash abc -c "pnpm config set registry https://registry.npmmirror.com" 2>/dev/null || true
     echo "[setup-mirror] pnpm → npmmirror"
 fi
 
