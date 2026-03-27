@@ -51,19 +51,15 @@ read_dpi_xsettingsd() {
 }
 
 read_dpi_xfce() {
-    # Parse DPI from xsettings.xml: <property name="DPI" type="int" value="192"/>
+    # Always use xfconf-query for XFCE (as abc user for correct D-Bus session).
+    # Reading xsettings.xml is unreliable because xfconfd doesn't flush to disk immediately,
+    # causing stale reads and feedback loops.
     local val
-    val=$(grep -oP 'name="DPI"[^/]*value="\K[0-9]+' "$WATCH_FILE" 2>/dev/null | head -1)
+    val=$(su abc -s /bin/bash -c "DISPLAY=:1 xfconf-query -c xsettings -p /Xft/DPI" 2>/dev/null)
     if [ -n "$val" ] && [ "$val" -gt 0 ] 2>/dev/null; then
         echo "$val"
     else
-        # Fallback: try xfconf-query (as session user for D-Bus access)
-        val=$(su abc -s /bin/bash -c "DISPLAY=:1 xfconf-query -c xsettings -p /Xft/DPI" 2>/dev/null)
-        if [ -n "$val" ] && [ "$val" -gt 0 ] 2>/dev/null; then
-            echo "$val"
-        else
-            echo 0
-        fi
+        echo 0
     fi
 }
 
@@ -163,32 +159,55 @@ update_xfce_panel() {
     local dpi=$1
     which xfconf-query >/dev/null 2>&1 || return
 
-    local scale_int=$(awk "BEGIN { v=$dpi/96; printf \"%d\", (v>=1.75) ? 2 : 1 }")
-    local unscaled_dpi=$(( (dpi / scale_int) * 1024 ))
+    local scale_ratio=$(awk "BEGIN { printf \"%.4f\", $dpi / 96 }")
 
-    # Update xfconf Gdk scaling (GTK3 reads this via XSETTINGS protocol)
-    # No GDK_SCALE env var needed — WindowScalingFactor works for GTK3
-    # without affecting Chromium/Electron which handle their own HiDPI
+    # Scale panel sizes proportionally (base values at 96 DPI)
+    local panel1_size=$(awk "BEGIN { printf \"%d\", 26 * $scale_ratio + 0.5 }")
+    local panel1_icon=$(awk "BEGIN { printf \"%d\", 16 * $scale_ratio + 0.5 }")
+    local panel2_size=$(awk "BEGIN { printf \"%d\", 48 * $scale_ratio + 0.5 }")
+
+    # Find the desktop's DBUS session (from xfce4-session process)
+    local xfce_pid dbus_addr
+    xfce_pid=$(pgrep -u abc -f xfce4-session 2>/dev/null | head -1)
+    dbus_addr=$(strings /proc/$xfce_pid/environ 2>/dev/null | grep "^DBUS_SESSION_BUS_ADDRESS=" | head -1)
+
+    # Set xfconf values — xfce4-panel listens to xfconf changes live, no restart needed
     su abc -s /bin/bash -c "
         export DISPLAY=:1
-        xfconf-query -c xsettings -p /Gdk/WindowScalingFactor \
-            -s $scale_int --create -t int 2>/dev/null
-        xfconf-query -c xsettings -p /Gdk/UnscaledDPI \
-            -s $unscaled_dpi --create -t int 2>/dev/null
-    " 2>/dev/null
-
-    # Restart panel and xfwm4 to pick up new scaling factor
-    su abc -s /bin/bash -c "
-        export DISPLAY=:1
-        xfce4-panel --quit 2>/dev/null; sleep 0.5
-        nohup xfce4-panel >/dev/null 2>&1 &
+        export $dbus_addr
+        # Panel-1 (top bar) — must use uint type to match XFCE schema
+        xfconf-query -c xfce4-panel -p /panels/panel-1/size \
+            -s $panel1_size --create -t uint 2>/dev/null
+        xfconf-query -c xfce4-panel -p /panels/panel-1/icon-size \
+            -s $panel1_icon --create -t uint 2>/dev/null
+        # Panel-2 (bottom dock)
+        xfconf-query -c xfce4-panel -p /panels/panel-2/size \
+            -s $panel2_size --create -t uint 2>/dev/null
+        # xfwm4 title font — keep base size, HiDPI theme handles visual scaling
+        xfconf-query -c xfwm4 -p /general/title_font \
+            -s 'Sans Bold 9' --create -t string 2>/dev/null
+        # xfwm4 theme: switch to HiDPI variant based on DPI
+        # Default (21x29 buttons), Default-hdpi (33x43), Default-xhdpi (44x58)
+        if [ $dpi -gt 144 ]; then
+            xfconf-query -c xfwm4 -p /general/theme -s Default-xhdpi 2>/dev/null
+        elif [ $dpi -gt 96 ]; then
+            xfconf-query -c xfwm4 -p /general/theme -s Default-hdpi 2>/dev/null
+        else
+            xfconf-query -c xfwm4 -p /general/theme -s Default 2>/dev/null
+        fi
+        # xfwm4 needs --replace to pick up theme change
         xfwm4 --replace >/dev/null 2>&1 &
     " 2>/dev/null
-    echo "[watch-dpi] XFCE: WindowScalingFactor=$scale_int, restarted panel+xfwm4"
+
+    # Determine which theme was selected for logging
+    local xfwm_theme="Default"
+    [ "$dpi" -gt 144 ] && xfwm_theme="Default-xhdpi"
+    [ "$dpi" -gt 96 ] && [ "$dpi" -le 144 ] && xfwm_theme="Default-hdpi"
+    echo "[watch-dpi] XFCE: DPI=$dpi, panel1=$panel1_size, panel2=$panel2_size, icon=$panel1_icon, xfwm4Theme=$xfwm_theme"
 }
 
 update_xfwm4_font() {
-    # No-op: Gdk/WindowScalingFactor handles widget scaling for XFCE
+    # Handled in update_xfce_panel now
     :
 }
 
@@ -232,30 +251,41 @@ update_kde_scaling() {
 }
 
 # ── Main watch loop ─────────────────────────────────────────
+# XFCE: Selkies sets DPI via xfconf-query, which updates xfconfd in memory
+# but may NOT immediately flush to xsettings.xml. So inotifywait on the file
+# is unreliable for XFCE. Use a hybrid approach:
+#   - XFCE: poll xfconf-query every 2 seconds
+#   - Others: inotifywait on file changes (original behavior)
 
-while true; do
-    inotifywait -qq -e modify -e close_write "$WATCH_FILE" 2>/dev/null || { sleep 5; continue; }
-
-    sleep 0.3
-
-    NEW_DPI=$(read_dpi)
-    if [ "$NEW_DPI" -gt 0 ] && [ "$NEW_DPI" != "$LAST_DPI" ]; then
-        echo "[watch-dpi] DPI changed: $LAST_DPI → $NEW_DPI"
-        LAST_DPI=$NEW_DPI
-
-        case "$DE" in
-            kde)
-                update_kde_scaling "$NEW_DPI"
-                ;;
-            xfce)
-                update_xfce_panel "$NEW_DPI"
-                update_xfwm4_font "$NEW_DPI"
-                ;;
-            *)  # lxqt
-                update_lxqt_panel "$NEW_DPI"
-                update_lxqt_session "$NEW_DPI"
-                update_openbox_theme "$NEW_DPI"
-                ;;
-        esac
-    fi
-done
+if [ "$DE" = "xfce" ]; then
+    echo "[watch-dpi] XFCE mode: polling xfconf-query every 2s"
+    while true; do
+        sleep 2
+        NEW_DPI=$(read_dpi)
+        if [ "$NEW_DPI" -gt 0 ] && [ "$NEW_DPI" != "$LAST_DPI" ]; then
+            echo "[watch-dpi] DPI changed: $LAST_DPI → $NEW_DPI"
+            LAST_DPI=$NEW_DPI
+            update_xfce_panel "$NEW_DPI"
+        fi
+    done
+else
+    while true; do
+        inotifywait -qq -e modify -e close_write "$WATCH_FILE" 2>/dev/null || { sleep 5; continue; }
+        sleep 0.3
+        NEW_DPI=$(read_dpi)
+        if [ "$NEW_DPI" -gt 0 ] && [ "$NEW_DPI" != "$LAST_DPI" ]; then
+            echo "[watch-dpi] DPI changed: $LAST_DPI → $NEW_DPI"
+            LAST_DPI=$NEW_DPI
+            case "$DE" in
+                kde)
+                    update_kde_scaling "$NEW_DPI"
+                    ;;
+                *)  # lxqt
+                    update_lxqt_panel "$NEW_DPI"
+                    update_lxqt_session "$NEW_DPI"
+                    update_openbox_theme "$NEW_DPI"
+                    ;;
+            esac
+        fi
+    done
+fi

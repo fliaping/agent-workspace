@@ -49,7 +49,7 @@ services:
       # --- Selkies 显示 ---
       - SELKIES_ENABLE_WAYLAND=true
       - PIXELFLUX_WAYLAND=false  # 强制 X11，Wayland 下 Selkies 无法输入中文
-      - SELKIES_SCALING_DPI=${SELKIES_SCALING_DPI:-96}  # 高分屏(Retina)设为 192
+      #- SELKIES_SCALING_DPI=192  # 高分屏(Retina)设为 192，默认不设置与官方一致
       - XCURSOR_THEME=Adwaita
       - XCURSOR_SIZE=32
       # --- Selkies 低延迟优化 ---

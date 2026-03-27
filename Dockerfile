@@ -105,6 +105,15 @@ RUN mkdir -p /custom-cont-init.d \
 RUN chmod +x /usr/local/bin/*.sh \
     && find /etc/services.d -name "run" -exec chmod +x {} \;
 
+# xfconf-query wrapper: ensures Selkies connects to the desktop's DBUS session
+# (Selkies runs via s6-setuidgid without DBUS_SESSION_BUS_ADDRESS, causing
+# xfconf-query to spawn a separate xfconfd that doesn't affect the desktop)
+RUN if [ -f /usr/bin/xfconf-query ]; then \
+        mv /usr/bin/xfconf-query /usr/bin/xfconf-query.real \
+        && cp /usr/local/bin/xfconf-query-wrapper.sh /usr/bin/xfconf-query \
+        && chmod +x /usr/bin/xfconf-query; \
+    fi
+
 # systemctl wrapper: adds --user support on top of docker-systemctl-replacement
 # user-systemctl.sh delegates system calls to /usr/bin/systemctl.py and
 # handles user-level services (~/.config/systemd/user/) directly.

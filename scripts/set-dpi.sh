@@ -16,7 +16,14 @@
 #   LXQt     → .Xresources + .xsettingsd
 # ============================================================
 
-DPI="${SELKIES_SCALING_DPI:-96}"
+# If SELKIES_SCALING_DPI is not set, skip all DPI configuration
+# and let Selkies handle DPI dynamically (matching official webtop behavior).
+if [ -z "${SELKIES_SCALING_DPI}" ]; then
+    echo "[set-dpi] SELKIES_SCALING_DPI not set, skipping (Selkies will auto-detect)"
+    exit 0
+fi
+
+DPI="${SELKIES_SCALING_DPI}"
 
 # Validate
 if ! [[ "$DPI" =~ ^[0-9]+$ ]] || [ "$DPI" -le 0 ]; then
@@ -150,9 +157,23 @@ EOF
     chown -R abc:abc "${HOME}/.config/xfce4"
     echo "[set-dpi] XFCE xsettings.xml: DPI=$DPI, WindowScalingFactor=$SCALE_INT, UnscaledDPI=$UNSCALED_DPI"
 
-    # Note: XFCE panel size and xfwm4 title_font are NOT manually scaled
-    # here because GDK_SCALE (set in setup_hidpi_env) handles GTK3
-    # widget scaling automatically. Manual scaling would cause double-sizing.
+    # Scale XFCE panel size and icon size in xfconf XML
+    # Default: panel size=26, icon-size=16 (designed for 96 DPI)
+    local PANEL_SIZE=$(awk "BEGIN { printf \"%d\", 26 * $DPI / 96 + 0.5 }")
+    local PANEL_ICON_SIZE=$(awk "BEGIN { printf \"%d\", 16 * $DPI / 96 + 0.5 }")
+
+    local PANEL_XML="${XFCE_DIR}/xfce4-panel.xml"
+    if [ -f "$PANEL_XML" ]; then
+        # Update existing size value
+        if grep -q 'name="size"' "$PANEL_XML"; then
+            sed -i "s|name=\"size\" type=\"[^\"]*\" value=\"[^\"]*\"|name=\"size\" type=\"uint\" value=\"$PANEL_SIZE\"|" "$PANEL_XML"
+        fi
+        if grep -q 'name="icon-size"' "$PANEL_XML"; then
+            sed -i "s|name=\"icon-size\" type=\"[^\"]*\" value=\"[^\"]*\"|name=\"icon-size\" type=\"uint\" value=\"$PANEL_ICON_SIZE\"|" "$PANEL_XML"
+        fi
+        chown -R abc:abc "${HOME}/.config/xfce4"
+    fi
+    echo "[set-dpi] XFCE panel: size=$PANEL_SIZE, icon-size=$PANEL_ICON_SIZE"
 }
 
 # ── KDE: pre-populate kdeglobals + kcmfonts ─────────────────
