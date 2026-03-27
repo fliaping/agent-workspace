@@ -15,7 +15,7 @@ A containerized cloud desktop based on [LinuxServer Webtop](https://docs.linuxse
 
 ## Features
 
-- **Selkies WebRTC Desktop** — Full Linux desktop via browser (HTTPS), with Wayland, adaptive resolution, and DPI scaling
+- **Selkies WebRTC Desktop** — Full Linux desktop via browser (HTTPS), with Wayland, adaptive resolution, and dynamic HiDPI scaling
 - **3 Desktop Environments** — LXQt (lightweight ~300MB) / XFCE (medium ~800MB) / KDE (full ~1.1GB)
 - **Complete Dev Toolchain** — Node.js 22, Go 1.22, Rust, Python 3, Homebrew, uv
 - **Multiple Docker Modes** — Disabled / DinD (standalone Docker inside container) / Host Docker socket mount
@@ -92,7 +92,7 @@ docker compose up -d
 | `LC_ALL` | - | Locale (e.g., `zh_CN.UTF-8`) |
 | `SELKIES_ENABLE_WAYLAND` | `true` | Enable Wayland display protocol |
 | `PIXELFLUX_WAYLAND` | `false` | Force X11 mode (`true` breaks CJK input in Selkies) |
-| `SELKIES_SCALING_DPI` | `96` | DPI scaling (use 192 for HiDPI/Retina) |
+| `SELKIES_SCALING_DPI` | unset | DPI scaling (unset = Selkies auto-adapts to browser zoom; set to 192 for always-HiDPI) |
 | `SELKIES_USE_BROWSER_CURSORS` | `true` | CSS cursor rendering, zero-latency mouse |
 | `SELKIES_CONGESTION_CONTROL` | `true` | Network congestion control, adaptive bitrate |
 | `SELKIES_H264_CRF` | `28` | H264 quality (5-50, higher = lower quality, less latency) |
@@ -100,6 +100,7 @@ docker compose up -d
 | `SELKIES_H264_STREAMING_MODE` | `true` | H264 streaming mode, reduces encoding latency |
 | `START_DOCKER` | `false` | Enable Docker inside container (requires `--privileged`) |
 | `USE_CHINA_MIRROR` | `false` | Switch to China mirrors at runtime |
+| `SSH_PASSWORD` | unset | Set to enable SSH service (port 22), value is abc user password |
 | `NODE_OPTIONS` | - | Node.js options (e.g., `--max-old-space-size=2048`) |
 
 ## Docker Modes

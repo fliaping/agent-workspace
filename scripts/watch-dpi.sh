@@ -160,11 +160,14 @@ update_xfce_panel() {
     which xfconf-query >/dev/null 2>&1 || return
 
     local scale_ratio=$(awk "BEGIN { printf \"%.4f\", $dpi / 96 }")
+    local scale_int=$(awk "BEGIN { v=$dpi/96; printf \"%d\", (v>=1.75) ? 2 : 1 }")
+    local unscaled_dpi=$(( (dpi / scale_int) * 1024 ))
 
-    # Scale panel sizes proportionally (base values at 96 DPI)
-    local panel1_size=$(awk "BEGIN { printf \"%d\", 26 * $scale_ratio + 0.5 }")
-    local panel1_icon=$(awk "BEGIN { printf \"%d\", 16 * $scale_ratio + 0.5 }")
-    local panel2_size=$(awk "BEGIN { printf \"%d\", 48 * $scale_ratio + 0.5 }")
+    # Scale panel sizes: divide by scale_int to compensate for WSF doubling
+    # Physical size = panel_size * WSF = base * (dpi/96), linear across all scales
+    local panel1_size=$(awk "BEGIN { printf \"%d\", 26 * $scale_ratio / $scale_int + 0.5 }")
+    local panel1_icon=$(awk "BEGIN { printf \"%d\", 16 * $scale_ratio / $scale_int + 0.5 }")
+    local panel2_size=$(awk "BEGIN { printf \"%d\", 48 * $scale_ratio / $scale_int + 0.5 }")
 
     # Find the desktop's DBUS session (from xfce4-session process)
     local xfce_pid dbus_addr
@@ -175,6 +178,12 @@ update_xfce_panel() {
     su abc -s /bin/bash -c "
         export DISPLAY=:1
         export $dbus_addr
+        # GTK3 integer scaling — controls widget/menu/content size
+        # Must reset to 1 at 100% (DPI≤96), set to 2 at 200%+ (DPI≥168)
+        xfconf-query -c xsettings -p /Gdk/WindowScalingFactor \
+            -s $scale_int --create -t int 2>/dev/null
+        xfconf-query -c xsettings -p /Gdk/UnscaledDPI \
+            -s $unscaled_dpi --create -t int 2>/dev/null
         # Panel-1 (top bar) — must use uint type to match XFCE schema
         xfconf-query -c xfce4-panel -p /panels/panel-1/size \
             -s $panel1_size --create -t uint 2>/dev/null

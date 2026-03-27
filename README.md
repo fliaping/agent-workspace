@@ -15,7 +15,7 @@
 
 ## 核心特性
 
-- **Selkies WebRTC 桌面** — 通过浏览器访问完整 Linux 桌面（HTTPS），支持 Wayland、自适应分辨率、DPI 缩放
+- **Selkies WebRTC 桌面** — 通过浏览器访问完整 Linux 桌面（HTTPS），支持 Wayland、自适应分辨率、动态 HiDPI 缩放
 - **三种桌面环境** — LXQt（轻量 ~300MB）/ XFCE（中等 ~800MB）/ KDE（完整 ~1.1GB）
 - **完整开发工具链** — Node.js 22、Go 1.22、Rust、Python 3、Homebrew、uv
 - **多种 Docker 模式** — 不启用 / DinD（容器内独立 Docker）/ 挂载宿主机 Docker
@@ -93,7 +93,7 @@ docker compose up -d
 | `LC_ALL` | - | 语言环境（如 `zh_CN.UTF-8`） |
 | `SELKIES_ENABLE_WAYLAND` | `true` | 启用 Wayland 显示协议 |
 | `PIXELFLUX_WAYLAND` | `false` | 强制 X11 模式（`true` 时 Selkies 无法输入中文） |
-| `SELKIES_SCALING_DPI` | `96` | DPI 缩放（高分屏/Retina 推荐 192） |
+| `SELKIES_SCALING_DPI` | 不设置 | DPI 缩放（不设置时 Selkies 自动适配浏览器缩放比例，固定值如 192 适用于始终 HiDPI 场景） |
 | `SELKIES_USE_BROWSER_CURSORS` | `true` | CSS 光标，鼠标零延迟 |
 | `SELKIES_CONGESTION_CONTROL` | `true` | 网络拥塞控制，自适应码率 |
 | `SELKIES_H264_CRF` | `28` | H264 画质（5-50，越大画质越低延迟越低） |
@@ -101,6 +101,7 @@ docker compose up -d
 | `SELKIES_H264_STREAMING_MODE` | `true` | H264 流式模式，降低编码延迟 |
 | `START_DOCKER` | `false` | 启用容器内 Docker（需 `--privileged`） |
 | `USE_CHINA_MIRROR` | `false` | 运行时切换国内镜像源 |
+| `SSH_PASSWORD` | 不设置 | 设置后启用 SSH 服务（端口 22），值为 abc 用户密码 |
 | `NODE_OPTIONS` | - | Node.js 选项（如 `--max-old-space-size=2048`） |
 
 ## Docker 模式
