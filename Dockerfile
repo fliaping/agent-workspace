@@ -69,7 +69,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl gnupg sudo \
     build-essential git wget jq unzip xz-utils \
     python3 python3-pip python3-venv python3-dev \
-    libssl-dev libffi-dev inotify-tools \
+    libssl-dev libffi-dev inotify-tools lsof \
     openssh-server \
     locales fonts-wqy-zenhei fonts-wqy-microhei fonts-noto-cjk \
     && apt-get clean && rm -rf /var/lib/apt/lists/*

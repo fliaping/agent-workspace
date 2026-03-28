@@ -13,6 +13,12 @@
 #   is-active       — check if process is running
 #   daemon-reload   — no-op
 #
+# Restart=always/on-failure support:
+#   A background supervisor monitors the process and restarts
+#   it automatically on exit, honoring RestartSec. This enables
+#   programs like OpenClaw to self-update and rely on automatic
+#   restart after exiting.
+#
 # System-level calls (without --user) pass through to the
 # real docker-systemctl-replacement at /usr/bin/systemctl.py.
 #
@@ -90,6 +96,16 @@ is_running() {
     [ -f "$pid_file" ] && kill -0 "$(cat "$pid_file")" 2>/dev/null
 }
 
+parse_restart_policy() {
+    grep '^Restart=' "$1" 2>/dev/null | head -1 | sed 's/^Restart=//'
+}
+
+parse_restart_sec() {
+    local val
+    val=$(grep '^RestartSec=' "$1" 2>/dev/null | head -1 | sed 's/^RestartSec=//')
+    echo "${val:-1}"
+}
+
 do_start() {
     local name="$1"
     local unit_file
@@ -106,12 +122,44 @@ do_start() {
     [ -z "$exec_cmd" ] && echo "No ExecStart in $unit_file" && return 1
 
     local log_file="$USER_LOG_DIR/${name}.log"
+    local restart_policy
+    restart_policy=$(parse_restart_policy "$unit_file")
+    local restart_sec
+    restart_sec=$(parse_restart_sec "$unit_file")
 
-    # Start process in subshell with exported environment
+    # Kill any leftover supervisor for this unit
+    local supervisor_pid_file="$USER_PID_DIR/${name}.supervisor.pid"
+    if [ -f "$supervisor_pid_file" ]; then
+        kill "$(cat "$supervisor_pid_file")" 2>/dev/null
+        rm -f "$supervisor_pid_file"
+    fi
+
+    if [ "$restart_policy" = "always" ] || [ "$restart_policy" = "on-failure" ]; then
+        # Start a supervisor that monitors and restarts the process
+        _start_supervised "$name" "$unit_file" "$exec_cmd" "$log_file" "$restart_sec" "$restart_policy" &
+        disown
+        # Wait for supervisor to write PID file (up to 3s)
+        local waited=0
+        while [ ! -f "$USER_PID_DIR/${name}.pid" ] && [ $waited -lt 30 ]; do
+            sleep 0.1
+            waited=$((waited + 1))
+        done
+        if [ -f "$USER_PID_DIR/${name}.pid" ]; then
+            echo "Started ${name}.service (PID $(cat "$USER_PID_DIR/${name}.pid"))"
+        else
+            echo "Started ${name}.service (supervisor launched)"
+        fi
+    else
+        # Simple start without supervision
+        _start_process "$name" "$unit_file" "$exec_cmd" "$log_file"
+    fi
+}
+
+_start_process() {
+    local name="$1" unit_file="$2" exec_cmd="$3" log_file="$4"
     (
         while IFS= read -r line; do
             line="${line#Environment=}"
-            # Strip surrounding quotes: "KEY=value with spaces" → KEY=value with spaces
             case "$line" in \"*\") line="${line:1:${#line}-2}" ;; esac
             export "$line"
         done < <(grep '^Environment=' "$unit_file" 2>/dev/null)
@@ -122,9 +170,78 @@ do_start() {
     echo "Started ${name}.service (PID $pid)"
 }
 
+_start_supervised() {
+    local name="$1" unit_file="$2" exec_cmd="$3" log_file="$4"
+    local restart_sec="$5" restart_policy="$6"
+    local pid_file="$USER_PID_DIR/${name}.pid"
+    local supervisor_pid_file="$USER_PID_DIR/${name}.supervisor.pid"
+    local stop_file="$USER_PID_DIR/${name}.stop"
+
+    # Record supervisor PID
+    echo $$ > "$supervisor_pid_file"
+    # Remove any leftover stop signal
+    rm -f "$stop_file"
+
+    while true; do
+        # Launch the actual process
+        (
+            while IFS= read -r line; do
+                line="${line#Environment=}"
+                case "$line" in \"*\") line="${line:1:${#line}-2}" ;; esac
+                export "$line"
+            done < <(grep '^Environment=' "$unit_file" 2>/dev/null)
+            exec $exec_cmd
+        ) >> "$log_file" 2>&1 &
+        local child_pid=$!
+        echo "$child_pid" > "$pid_file"
+
+        # Wait for process to exit
+        wait "$child_pid" 2>/dev/null
+        local exit_code=$?
+
+        # Check if stop was requested (do_stop sets this flag)
+        if [ -f "$stop_file" ]; then
+            rm -f "$stop_file" "$supervisor_pid_file"
+            exit 0
+        fi
+
+        # on-failure: only restart on non-zero exit
+        if [ "$restart_policy" = "on-failure" ] && [ "$exit_code" -eq 0 ]; then
+            echo "[supervisor] ${name}.service exited cleanly (code 0), not restarting" >> "$log_file"
+            rm -f "$pid_file" "$supervisor_pid_file"
+            exit 0
+        fi
+
+        echo "[supervisor] ${name}.service exited (code $exit_code), restarting in ${restart_sec}s..." >> "$log_file"
+        sleep "$restart_sec"
+
+        # Re-check stop flag after sleep
+        if [ -f "$stop_file" ]; then
+            rm -f "$stop_file" "$supervisor_pid_file"
+            exit 0
+        fi
+
+        # Re-read unit file in case it was updated (e.g., after openclaw update)
+        exec_cmd=$(parse_exec_start "$unit_file")
+        if [ -z "$exec_cmd" ]; then
+            echo "[supervisor] ${name}.service: ExecStart missing after re-read, stopping" >> "$log_file"
+            rm -f "$pid_file" "$supervisor_pid_file"
+            exit 1
+        fi
+    done
+}
+
 do_stop() {
     local name="$1"
     local pid_file="$USER_PID_DIR/${name}.pid"
+    local supervisor_pid_file="$USER_PID_DIR/${name}.supervisor.pid"
+    local stop_file="$USER_PID_DIR/${name}.stop"
+
+    # Signal supervisor to stop (before killing the process)
+    if [ -f "$supervisor_pid_file" ]; then
+        touch "$stop_file"
+    fi
+
     if [ -f "$pid_file" ]; then
         local pid
         pid=$(cat "$pid_file")
@@ -141,6 +258,12 @@ do_stop() {
         rm -f "$pid_file"
     else
         echo "${name}.service is not running"
+    fi
+
+    # Kill supervisor after process is stopped
+    if [ -f "$supervisor_pid_file" ]; then
+        kill "$(cat "$supervisor_pid_file")" 2>/dev/null
+        rm -f "$supervisor_pid_file" "$stop_file"
     fi
 }
 
@@ -169,7 +292,7 @@ case "$action" in
         [ -z "$unit_file" ] && echo "Unit ${unit_base}.service not found." && exit 1
         ln -sf "$unit_file" "$USER_WANTS_DIR/$(basename "$unit_file")"
         echo "Created symlink $USER_WANTS_DIR/$(basename "$unit_file")"
-        $has_now && do_start "$unit_base"
+        if $has_now; then do_start "$unit_base"; fi
         ;;
 
     disable)
@@ -179,7 +302,11 @@ case "$action" in
         ;;
 
     status)
-        [ -z "$unit_base" ] && echo "Usage: systemctl --user status <unit>" && exit 1
+        if [ -z "$unit_base" ]; then
+            # systemctl --user status (no unit) — return OK for compatibility
+            echo "● user-systemd - active"
+            exit 0
+        fi
         unit_file=$(find_unit_file "$unit_base")
         desc=$(get_description "$unit_file" 2>/dev/null || echo "$unit_base")
         if is_running "$unit_base"; then
