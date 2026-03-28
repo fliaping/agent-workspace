@@ -250,39 +250,26 @@ update_xfwm4_font() {
 
 update_kde_scaling() {
     local dpi=$1
-    local scale=$(awk "BEGIN { printf \"%.1f\", $dpi / 96 }")
-
-    # Update kdeglobals
+    # KDE scaling is handled by Selkies via Xft/DPI in .xsettingsd.
+    # Ensure KDE's own ScaleFactor stays at 1.0 and forceFontDPI at 0
+    # to prevent double-scaling (Selkies DPI * KDE ScaleFactor).
     local kdeglobals="${HOME}/.config/kdeglobals"
-    if [ -f "$kdeglobals" ]; then
-        if grep -q "^\[KScreen\]" "$kdeglobals"; then
-            sed -i "/^\[KScreen\]/,/^\[/{s|^ScaleFactor=.*|ScaleFactor=$scale|}" "$kdeglobals"
-            if ! grep -A 20 "^\[KScreen\]" "$kdeglobals" | grep -q "^ScaleFactor="; then
-                sed -i "/^\[KScreen\]/a ScaleFactor=$scale" "$kdeglobals"
-            fi
-        else
-            printf "\n[KScreen]\nScaleFactor=%s\n" "$scale" >> "$kdeglobals"
+    if [ -f "$kdeglobals" ] && grep -q "^ScaleFactor=" "$kdeglobals"; then
+        local cur_sf=$(grep "^ScaleFactor=" "$kdeglobals" | head -1 | cut -d= -f2)
+        if [ "$cur_sf" != "1.0" ] && [ "$cur_sf" != "1" ]; then
+            sed -i "s|^ScaleFactor=.*|ScaleFactor=1.0|" "$kdeglobals"
+            echo "[watch-dpi] KDE: reset ScaleFactor from $cur_sf to 1.0"
         fi
     fi
-
-    # Update kcmfonts
     local kcmfonts="${HOME}/.config/kcmfonts"
-    if [ -f "$kcmfonts" ]; then
-        if grep -q "^forceFontDPI=" "$kcmfonts"; then
-            sed -i "s|^forceFontDPI=.*|forceFontDPI=$dpi|" "$kcmfonts"
+    if [ -f "$kcmfonts" ] && grep -q "^forceFontDPI=" "$kcmfonts"; then
+        local cur_dpi=$(grep "^forceFontDPI=" "$kcmfonts" | head -1 | cut -d= -f2)
+        if [ "$cur_dpi" != "0" ]; then
+            sed -i "s|^forceFontDPI=.*|forceFontDPI=0|" "$kcmfonts"
+            echo "[watch-dpi] KDE: reset forceFontDPI from $cur_dpi to 0"
         fi
     fi
-    echo "[watch-dpi] KDE: ScaleFactor=$scale, forceFontDPI=$dpi"
-
-    # Restart plasmashell and KWin to apply
-    if pgrep -x plasmashell >/dev/null 2>&1; then
-        echo "[watch-dpi] KDE: restarting plasmashell + kwin..."
-        DISPLAY=:1 su abc -s /bin/bash -c '
-            kquitapp5 plasmashell 2>/dev/null; sleep 1; kstart5 plasmashell 2>/dev/null &
-            kwin_x11 --replace 2>/dev/null &
-        ' 2>/dev/null
-        echo "[watch-dpi] KDE: restart complete"
-    fi
+    echo "[watch-dpi] KDE: DPI=$dpi (Selkies xsettingsd handles scaling)"
 }
 
 # ── Main watch loop ─────────────────────────────────────────
