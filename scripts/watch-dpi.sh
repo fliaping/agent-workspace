@@ -153,6 +153,32 @@ update_lxqt_session() {
     grep -q "^QT_FONT_DPI=" "$session_conf" && sed -i "s|^QT_FONT_DPI=.*|QT_FONT_DPI=$dpi|" "$session_conf"
 }
 
+update_lxqt_gtk_scaling() {
+    local dpi=$1
+    local xset="${HOME}/.xsettingsd"
+    [ -f "$xset" ] || return
+
+    local scale_int=$(awk "BEGIN { v=$dpi/96; printf \"%d\", (v>=1.75) ? 2 : 1 }")
+    local unscaled_dpi=$(( (dpi / scale_int) * 1024 ))
+
+    # Update or add Gdk/WindowScalingFactor in .xsettingsd
+    if grep -q "^Gdk/WindowScalingFactor" "$xset"; then
+        sed -i "s|^Gdk/WindowScalingFactor.*|Gdk/WindowScalingFactor $scale_int|" "$xset"
+    else
+        echo "Gdk/WindowScalingFactor $scale_int" >> "$xset"
+    fi
+    if grep -q "^Gdk/UnscaledDPI" "$xset"; then
+        sed -i "s|^Gdk/UnscaledDPI.*|Gdk/UnscaledDPI $unscaled_dpi|" "$xset"
+    else
+        echo "Gdk/UnscaledDPI $unscaled_dpi" >> "$xset"
+    fi
+    chown abc:abc "$xset"
+
+    # Signal xsettingsd to reload (SIGHUP)
+    pkill -HUP xsettingsd 2>/dev/null
+    echo "[watch-dpi] LXQt GTK scaling: WindowScalingFactor=$scale_int, UnscaledDPI=$unscaled_dpi"
+}
+
 # ── XFCE update functions ──────────────────────────────────
 
 update_xfce_panel() {
@@ -290,6 +316,7 @@ else
                     update_kde_scaling "$NEW_DPI"
                     ;;
                 *)  # lxqt
+                    update_lxqt_gtk_scaling "$NEW_DPI"
                     update_lxqt_panel "$NEW_DPI"
                     update_lxqt_session "$NEW_DPI"
                     update_openbox_theme "$NEW_DPI"
