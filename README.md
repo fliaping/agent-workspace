@@ -15,7 +15,7 @@
 
 ## 核心特性
 
-- **Selkies WebRTC 桌面** — 通过浏览器访问完整 Linux 桌面（HTTPS），支持 Wayland、自适应分辨率、动态 HiDPI 缩放
+- **Selkies WebRTC 桌面** — 通过浏览器访问完整 Linux 桌面（HTTPS），支持 Wayland、自适应分辨率、[动态 HiDPI 缩放](docs/hidpi-scaling.md)
 - **三种桌面环境** — LXQt（轻量 ~300MB）/ XFCE（中等 ~800MB）/ KDE（完整 ~1.1GB）
 - **完整开发工具链** — Node.js 22、Go 1.22、Rust、Python 3、Homebrew、uv
 - **多种 Docker 模式** — 不启用 / DinD（容器内独立 Docker）/ 挂载宿主机 Docker

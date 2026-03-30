@@ -15,7 +15,7 @@ A containerized cloud desktop based on [LinuxServer Webtop](https://docs.linuxse
 
 ## Features
 
-- **Selkies WebRTC Desktop** — Full Linux desktop via browser (HTTPS), with Wayland, adaptive resolution, and dynamic HiDPI scaling
+- **Selkies WebRTC Desktop** — Full Linux desktop via browser (HTTPS), with Wayland, adaptive resolution, and [dynamic HiDPI scaling](docs/hidpi-scaling.md)
 - **3 Desktop Environments** — LXQt (lightweight ~300MB) / XFCE (medium ~800MB) / KDE (full ~1.1GB)
 - **Complete Dev Toolchain** — Node.js 22, Go 1.22, Rust, Python 3, Homebrew, uv
 - **Multiple Docker Modes** — Disabled / DinD (standalone Docker inside container) / Host Docker socket mount
