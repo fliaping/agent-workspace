@@ -182,6 +182,12 @@ _start_supervised() {
     # Remove any leftover stop signal
     rm -f "$stop_file"
 
+    # Ignore SIGINT/SIGTERM/SIGHUP so the supervisor survives when signals
+    # are broadcast to the process group (e.g., Ctrl+C, container stop).
+    # The child process handles these signals itself; the supervisor only
+    # checks the stop_file (set by do_stop) to decide whether to exit.
+    trap '' INT TERM HUP
+
     while true; do
         # Launch the actual process
         (
@@ -260,9 +266,21 @@ do_stop() {
         echo "${name}.service is not running"
     fi
 
-    # Kill supervisor after process is stopped
+    # Wait for supervisor to notice stop_file and exit (up to 3s).
+    # Supervisor ignores TERM/INT, so we rely on the stop_file flag:
+    # after the child dies, supervisor's wait() returns and it checks stop_file.
     if [ -f "$supervisor_pid_file" ]; then
-        kill "$(cat "$supervisor_pid_file")" 2>/dev/null
+        local sup_pid
+        sup_pid=$(cat "$supervisor_pid_file")
+        local waited=0
+        while kill -0 "$sup_pid" 2>/dev/null && [ $waited -lt 30 ]; do
+            sleep 0.1
+            waited=$((waited + 1))
+        done
+        # Force kill if supervisor is still alive (shouldn't happen normally)
+        if kill -0 "$sup_pid" 2>/dev/null; then
+            kill -9 "$sup_pid" 2>/dev/null
+        fi
         rm -f "$supervisor_pid_file" "$stop_file"
     fi
 }
