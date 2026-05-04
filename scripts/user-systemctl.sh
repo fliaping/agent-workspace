@@ -96,6 +96,16 @@ is_running() {
     [ -f "$pid_file" ] && kill -0 "$(cat "$pid_file")" 2>/dev/null
 }
 
+kill_process_tree() {
+    local pid="$1" sig="${2:-TERM}"
+    local children
+    children=$(pgrep -P "$pid" 2>/dev/null)
+    for child in $children; do
+        kill_process_tree "$child" "$sig"
+    done
+    kill -"$sig" "$pid" 2>/dev/null
+}
+
 parse_restart_policy() {
     grep '^Restart=' "$1" 2>/dev/null | head -1 | sed 's/^Restart=//'
 }
@@ -251,12 +261,16 @@ do_stop() {
     if [ -f "$pid_file" ]; then
         local pid
         pid=$(cat "$pid_file")
-        if kill "$pid" 2>/dev/null; then
+        if kill -0 "$pid" 2>/dev/null; then
+            kill_process_tree "$pid" TERM
             for _ in 1 2 3 4 5; do
                 kill -0 "$pid" 2>/dev/null || break
                 sleep 0.5
             done
-            kill -0 "$pid" 2>/dev/null && kill -9 "$pid" 2>/dev/null
+            if kill -0 "$pid" 2>/dev/null; then
+                kill_process_tree "$pid" 9
+                sleep 0.5
+            fi
             echo "Stopped ${name}.service (PID $pid)"
         else
             echo "${name}.service was not running"
