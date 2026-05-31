@@ -214,7 +214,7 @@ See `addons/proxyctl/README.md` for proxyctl details and [code-server Extensions
 
 The container's `/config` directory is mapped to the host data directory. Persisted data includes:
 
-- Homebrew packages (`/config/.linuxbrew`, auto-symlinked to `/home/linuxbrew/.linuxbrew`)
+- Homebrew packages (`/config/.linuxbrew`; `/home/linuxbrew/.linuxbrew` is only a compatibility symlink and does not need a separate mount)
 - npm global packages (`/config/.npm-global`)
 - Go workspace (`/config/go`)
 - Cargo packages (`/config/.cargo`)
@@ -267,7 +267,7 @@ docker start agent-workspace
 ## Notes
 
 - Selkies WebRTC has no password by default. Use a reverse proxy with authentication for public exposure.
-- Homebrew is persisted to `/config/.linuxbrew` (auto-symlinked). Do not manually modify the `/home/linuxbrew/.linuxbrew` path structure.
+- Homebrew is persisted to `/config/.linuxbrew`; do not mount `/home/linuxbrew/.linuxbrew` separately.
 - LinuxServer automatically initializes the `/config` directory on first startup.
 
 ## Architecture Support

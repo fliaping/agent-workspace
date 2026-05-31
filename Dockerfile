@@ -45,7 +45,7 @@ ENV PIP_CACHE_DIR=/config/.cache/pip
 ENV UV_CACHE_DIR=/config/.cache/uv
 
 # PATH（运行时路径，与镜像源无关）
-ENV PATH=$GOPATH/bin:$CARGO_HOME/bin:/usr/local/cargo/bin:$GOROOT/bin:$NPM_CONFIG_PREFIX/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:$PATH
+ENV PATH=$GOPATH/bin:$CARGO_HOME/bin:/usr/local/cargo/bin:$GOROOT/bin:$NPM_CONFIG_PREFIX/bin:/config/.linuxbrew/bin:/config/.linuxbrew/sbin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:$PATH
 
 # Homebrew 基础配置（镜像源地址由 install-tools.sh 写入 /etc/profile.d/mirrors.sh）
 ENV HOMEBREW_NO_AUTO_UPDATE=1

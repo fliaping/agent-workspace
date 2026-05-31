@@ -205,7 +205,7 @@ proxyctl 详细说明见 `addons/proxyctl/README.md`，code-server 插件说明�
 
 容器 `/config` 目录映射到宿主机数据目录，以下内容持久化：
 
-- Homebrew 软件（`/config/.linuxbrew`，自动软链接到 `/home/linuxbrew/.linuxbrew`）
+- Homebrew 软件（`/config/.linuxbrew`；`/home/linuxbrew/.linuxbrew` 仅作为兼容软链接，不需要单独挂载）
 - npm 全局包（`/config/.npm-global`）
 - Go 工作区（`/config/go`）
 - Cargo 包（`/config/.cargo`）
@@ -258,7 +258,7 @@ docker start agent-workspace
 ## 注意事项
 
 - Selkies WebRTC 默认无密码认证，公网暴露请配置反向代理和认证
-- Homebrew 持久化到 `/config/.linuxbrew`（自动软链接），请勿手动修改 `/home/linuxbrew/.linuxbrew` 路径结构
+- Homebrew 持久化到 `/config/.linuxbrew`，不需要额外挂载 `/home/linuxbrew/.linuxbrew`
 - 首次启动时 LinuxServer 会自动初始化 `/config` 目录
 
 ## 架构支持

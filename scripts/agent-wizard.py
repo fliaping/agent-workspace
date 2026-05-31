@@ -186,7 +186,7 @@ AGENT_KEYS = list(AGENTS.keys())
 
 FULL_PATH = (
     "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-    ":/config/.npm-global/bin:/home/linuxbrew/.linuxbrew/bin"
+    ":/config/.npm-global/bin:/config/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/bin"
     ":/usr/local/cargo/bin"
 )
 
@@ -225,6 +225,7 @@ def find_binary(name: str) -> str:
     for d in [
         "/usr/local/bin",
         "/usr/local/cargo/bin",
+        "/config/.linuxbrew/bin",
         "/home/linuxbrew/.linuxbrew/bin",
     ]:
         p = os.path.join(d, name)
@@ -253,7 +254,8 @@ def build_install_command(agent: str) -> list[str]:
         return ["bash", "-c",
                 "curl -fsSL https://openfang.sh/install | sh"]
     elif info["install_type"] == "brew":
-        return ["/home/linuxbrew/.linuxbrew/bin/brew", "install", agent]
+        brew = shutil.which("brew") or "/config/.linuxbrew/bin/brew"
+        return [brew, "install", agent]
     return ["echo", f"Unknown install type for {agent}"]
 
 

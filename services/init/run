@@ -3,11 +3,16 @@ echo "[init] Starting initialization..."
 
 # ============================================================
 # Homebrew persistence
-# Homebrew is installed to /home/linuxbrew/.linuxbrew in image.
-# Symlink it to /config/.linuxbrew so user-installed packages
-# survive container recreation.
+# Homebrew persists under /config/.linuxbrew. The image may contain a build-time
+# copy under /home/linuxbrew/.linuxbrew; on first boot, migrate it to /config and
+# keep /home/linuxbrew/.linuxbrew only as a compatibility symlink.
 # ============================================================
-if [ -d /home/linuxbrew/.linuxbrew ] && [ ! -L /home/linuxbrew/.linuxbrew ]; then
+if [ -d /config/.linuxbrew ]; then
+    rm -rf /home/linuxbrew/.linuxbrew
+    mkdir -p /home/linuxbrew
+    ln -sf /config/.linuxbrew /home/linuxbrew/.linuxbrew
+    echo "[init] Homebrew persistence OK: /config/.linuxbrew"
+elif [ -d /home/linuxbrew/.linuxbrew ] && [ ! -L /home/linuxbrew/.linuxbrew ]; then
     if [ ! -d /config/.linuxbrew ]; then
         # First run: copy built-in Homebrew to persistent volume
         echo "[init] Copying Homebrew to /config/.linuxbrew (first run)..."
@@ -17,18 +22,12 @@ if [ -d /home/linuxbrew/.linuxbrew ] && [ ! -L /home/linuxbrew/.linuxbrew ]; the
     rm -rf /home/linuxbrew/.linuxbrew
     ln -sf /config/.linuxbrew /home/linuxbrew/.linuxbrew
     echo "[init] Homebrew symlinked: /home/linuxbrew/.linuxbrew -> /config/.linuxbrew"
-elif [ -L /home/linuxbrew/.linuxbrew ]; then
-    # Symlink already exists (container layer preserved), verify target
-    if [ ! -d /config/.linuxbrew ]; then
-        echo "[init] WARNING: Homebrew symlink exists but /config/.linuxbrew is missing"
-    else
-        echo "[init] Homebrew persistence OK"
-    fi
 else
     echo "[init] Homebrew not found, skipping persistence"
 fi
 
 # Ensure correct ownership
+chown -R abc:abc /config/.linuxbrew 2>/dev/null || true
 chown -h abc:abc /home/linuxbrew/.linuxbrew 2>/dev/null || true
 
 # ============================================================

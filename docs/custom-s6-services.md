@@ -54,7 +54,6 @@ No `/custom-cont-init.d` or `/custom-services.d` bind mount is required.
 ```yaml
 volumes:
   - ./home:/config
-  - ./linuxbrew:/home/linuxbrew/.linuxbrew
   - ./docker-compose.yml:/docker-compose.yml:ro
 ```
 
