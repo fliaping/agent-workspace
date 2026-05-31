@@ -79,8 +79,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # 通过 install-tools.sh 统一管理，支持国内/国际两种模式
 # ==========================================
 
-# 构建时需要 /config 目录存在（运行时由 volume 挂载覆盖）
-RUN mkdir -p /config && chown 1000:1000 /config
+# 构建时需要 /config 目录存在（运行时通常由 volume 挂载覆盖）
+RUN mkdir -p /config/custom-services.d /config/agent-workspace-manager \
+    && chown -R 1000:1000 /config
 
 COPY scripts/install-tools.sh /usr/local/bin/install-tools.sh
 RUN chmod +x /usr/local/bin/install-tools.sh \
@@ -88,6 +89,12 @@ RUN chmod +x /usr/local/bin/install-tools.sh \
        GO_VERSION=${GO_VERSION} \
        NODE_VERSION=${NODE_VERSION} \
        /usr/local/bin/install-tools.sh
+
+# Application-layer TUI framework. The image keeps only stable runtime
+# dependencies; application logic is installed/updated under /config by
+# agent-workspace-manager.
+RUN pip3 install --no-cache-dir textual --break-system-packages \
+    || pip3 install --no-cache-dir textual
 
 # ==========================================
 # 复制脚本和服务
@@ -102,7 +109,7 @@ RUN mkdir -p /custom-cont-init.d \
     && ln -sf /usr/local/bin/fix-locale.sh /custom-cont-init.d/fix-locale.sh \
     && ln -sf /usr/local/bin/fix-docker-tmpdir.sh /custom-cont-init.d/fix-docker-tmpdir.sh
 
-RUN chmod +x /usr/local/bin/*.sh \
+RUN chmod +x /usr/local/bin/*.sh /usr/local/bin/agent-workspace-manager \
     && find /etc/services.d -name "run" -exec chmod +x {} \;
 
 # xfconf-query wrapper: ensures Selkies connects to the desktop's DBUS session

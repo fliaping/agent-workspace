@@ -1,0 +1,623 @@
+#!/usr/bin/env python3
+"""Application-layer manager for Agent Workspace.
+
+The image provides stable runtime dependencies. This manager installs and
+updates application capabilities under /config, so proxy/code-server/agent
+logic can evolve without rebuilding the container image.
+"""
+
+from __future__ import annotations
+
+import argparse
+import importlib.util
+import os
+import shutil
+import subprocess
+import sys
+import threading
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Callable
+
+
+APP_NAME = "agent-workspace-manager"
+DEFAULT_REPO_URL = "https://github.com/fliaping/agent-workspace.git"
+DEFAULT_CHINA_REPO_URL = "https://gitcode.com/fliaping0/agent-workspace.git"
+_OUTPUT_CONTEXT = threading.local()
+
+
+class ManagerError(RuntimeError):
+    pass
+
+
+@dataclass
+class Settings:
+    config_root: Path
+    state_root: Path
+    source_dir: Path
+    repo_url: str
+    repo_ref: str
+
+    @classmethod
+    def from_env(cls) -> "Settings":
+        config_root = Path(os.environ.get("CONFIG_ROOT", "/config"))
+        state_root = Path(
+            os.environ.get(
+                "AGENT_WORKSPACE_MANAGER_HOME",
+                str(config_root / "agent-workspace-manager"),
+            )
+        )
+        source_dir = Path(
+            os.environ.get(
+                "AGENT_WORKSPACE_SOURCE_DIR",
+                str(state_root / "source"),
+            )
+        )
+        return cls(
+            config_root=config_root,
+            state_root=state_root,
+            source_dir=source_dir,
+            repo_url=os.environ.get("AGENT_WORKSPACE_REPO_URL", DEFAULT_REPO_URL),
+            repo_ref=os.environ.get("AGENT_WORKSPACE_REPO_REF", "main"),
+        )
+
+
+def log(message: str) -> None:
+    emit(f"[{APP_NAME}] {message}")
+
+
+def emit(message: str) -> None:
+    handler = getattr(_OUTPUT_CONTEXT, "handler", None)
+    if handler:
+        handler(message)
+    else:
+        print(message)
+
+
+def set_output_handler(handler: Callable[[str], None] | None) -> None:
+    _OUTPUT_CONTEXT.handler = handler
+
+
+def require_command(command: str) -> str:
+    path = shutil.which(command)
+    if not path:
+        raise ManagerError(f"missing required command: {command}")
+    return path
+
+
+def run(
+    args: list[str],
+    *,
+    cwd: Path | None = None,
+    env: dict[str, str] | None = None,
+    check: bool = True,
+) -> subprocess.CompletedProcess[str]:
+    handler = getattr(_OUTPUT_CONTEXT, "handler", None)
+    if not handler:
+        return subprocess.run(
+            args,
+            cwd=str(cwd) if cwd else None,
+            env=env,
+            text=True,
+            check=check,
+        )
+
+    emit(f"$ {' '.join(args)}")
+    process = subprocess.Popen(
+        args,
+        cwd=str(cwd) if cwd else None,
+        env=env,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        bufsize=1,
+    )
+    assert process.stdout is not None
+    for line in process.stdout:
+        emit(line.rstrip("\n"))
+    returncode = process.wait()
+    if check and returncode != 0:
+        raise subprocess.CalledProcessError(returncode, args)
+    return subprocess.CompletedProcess(args, returncode)
+
+
+def detect_embedded_source() -> Path | None:
+    script_path = Path(__file__).resolve()
+    root = script_path.parent.parent
+    if (root / "addons").is_dir() and (root / "extensions").is_dir():
+        return root
+    return None
+
+
+class WorkspaceManager:
+    def __init__(self, settings: Settings) -> None:
+        self.settings = settings
+
+    def source_root(self, *, require: bool = True) -> Path | None:
+        env_source = os.environ.get("AGENT_WORKSPACE_SOURCE_DIR")
+        if env_source:
+            source = Path(env_source)
+            if source.is_dir():
+                return source
+            if require:
+                raise ManagerError(f"AGENT_WORKSPACE_SOURCE_DIR does not exist: {source}")
+            return None
+
+        if (self.settings.source_dir / "scripts").is_dir() and (
+            self.settings.source_dir / "addons"
+        ).is_dir():
+            return self.settings.source_dir
+
+        embedded = detect_embedded_source()
+        if embedded:
+            return embedded
+
+        if require:
+            raise ManagerError("no source tree found; run: agent-workspace-manager update")
+        return None
+
+    def update_source(
+        self,
+        *,
+        china_mirror: bool = False,
+        repo_url: str | None = None,
+        repo_ref: str | None = None,
+    ) -> None:
+        require_command("git")
+
+        url = repo_url or (DEFAULT_CHINA_REPO_URL if china_mirror else self.settings.repo_url)
+        ref = repo_ref or self.settings.repo_ref
+        source = self.settings.source_dir
+
+        self.settings.state_root.mkdir(parents=True, exist_ok=True)
+
+        if (source / ".git").is_dir():
+            log(f"updating {source} from {url} ({ref})")
+            run(["git", "-C", str(source), "remote", "set-url", "origin", url], check=False)
+            run(["git", "-C", str(source), "fetch", "--depth", "1", "origin", ref])
+            run(["git", "-C", str(source), "checkout", "-B", ref, f"origin/{ref}"])
+        elif source.exists():
+            raise ManagerError(f"{source} exists but is not a git checkout")
+        else:
+            log(f"cloning {url} ({ref}) to {source}")
+            run(["git", "clone", "--depth", "1", "--branch", ref, url, str(source)])
+
+        manager = source / "scripts" / "agent-workspace-manager"
+        if manager.exists():
+            manager.chmod(0o755)
+
+        bin_dir = self.settings.config_root / "bin"
+        bin_dir.mkdir(parents=True, exist_ok=True)
+        target = bin_dir / "agent-workspace-manager"
+        if target.exists() or target.is_symlink():
+            target.unlink()
+        target.symlink_to(manager)
+
+        log(f"manager source is ready: {source}")
+        log(f"persistent command: {target}")
+
+    def install_proxyctl(self) -> None:
+        root = self.source_root()
+        assert root is not None
+        installer = root / "addons" / "proxyctl" / "install.sh"
+        if not installer.exists():
+            raise ManagerError(f"missing proxyctl installer: {installer}")
+        log(f"installing proxyctl from {installer.parent}")
+        run(["bash", str(installer)], cwd=installer.parent)
+
+    def install_code_server_extensions(self) -> None:
+        root = self.source_root()
+        assert root is not None
+        installer = root / "scripts" / "install-code-server-extensions.sh"
+        if not installer.exists():
+            raise ManagerError(f"missing code-server extension installer: {installer}")
+        log("installing code-server extensions")
+        run(["bash", str(installer)])
+
+    def install_custom_services(self) -> None:
+        root = self.source_root()
+        assert root is not None
+        services_dir = self.settings.config_root / "custom-services.d"
+        services_dir.mkdir(parents=True, exist_ok=True)
+
+        registrar = shutil.which("register-config-services.sh")
+        registrar_path = Path(registrar) if registrar else root / "scripts" / "register-config-services.sh"
+        if not registrar_path.exists():
+            raise ManagerError(f"missing custom service registrar: {registrar_path}")
+
+        env = os.environ.copy()
+        env["CUSTOM_SERVICES_DIR"] = str(services_dir)
+        log(f"registering custom s6 services from {services_dir}")
+        run(["bash", str(registrar_path)], env=env)
+
+    def load_agent_wizard(self):  # type: ignore[no-untyped-def]
+        root = self.source_root()
+        assert root is not None
+        wizard_path = root / "scripts" / "agent-wizard.py"
+        if not wizard_path.exists():
+            raise ManagerError(f"missing Agent wizard module: {wizard_path}")
+
+        spec = importlib.util.spec_from_file_location("agent_workspace_agent_wizard", wizard_path)
+        if spec is None or spec.loader is None:
+            raise ManagerError(f"cannot load Agent wizard module: {wizard_path}")
+
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    def install_agent_capability(self, agent: str) -> None:
+        wizard = self.load_agent_wizard()
+        if agent not in wizard.AGENTS:
+            raise ManagerError(f"unknown Agent: {agent}")
+
+        info = wizard.AGENTS[agent]
+        log(f"installing {info['label']}")
+
+        install_cmd = wizard.build_install_command(agent)
+        run(install_cmd)
+        log(f"{info['label']} binary installed")
+
+        log(f"creating user service for {info['label']}")
+        wizard.create_systemd_service(agent)
+        run(["systemctl", "--user", "enable", "--now", agent])
+        log(f"{agent}.service enabled and started")
+
+        onboard = info.get("onboard")
+        if onboard:
+            log(f"next setup step for {info['label']}: {onboard}")
+
+    def install_agent_capabilities(self, agents: list[str]) -> None:
+        if not agents:
+            agents = ["openclaw", "openfang", "zeroclaw"]
+        agents = [agent for agent in agents if agent != "--non-interactive"]
+        for agent in agents:
+            self.install_agent_capability(agent)
+
+    def install(self, target: str, extra_args: list[str]) -> None:
+        if target in {"foundation", "base"}:
+            self.install_proxyctl()
+            self.install_code_server_extensions()
+            self.install_custom_services()
+        elif target in {"proxyctl", "proxy", "caddy"}:
+            self.install_proxyctl()
+        elif target in {"code-server-extensions", "extensions", "vscode"}:
+            self.install_code_server_extensions()
+        elif target in {"custom-services", "s6"}:
+            self.install_custom_services()
+        elif target in {"agents", "agent"}:
+            self.install_agent_capabilities(extra_args)
+        elif target == "all":
+            self.install_proxyctl()
+            self.install_code_server_extensions()
+            self.install_custom_services()
+            self.install_agent_capabilities(extra_args)
+        else:
+            raise ManagerError(f"unknown install target: {target}")
+
+    def status_rows(self) -> list[tuple[str, str, str]]:
+        root = self.source_root(require=False)
+        ext_dir = Path(
+            os.environ.get(
+                "CODE_SERVER_EXTENSIONS_DIR",
+                str(self.settings.config_root / ".local/share/code-server/extensions"),
+            )
+        )
+
+        rows: list[tuple[str, str, str]] = [
+            ("manager home", "ok", str(self.settings.state_root)),
+            (
+                "source",
+                "ok" if root else "missing",
+                str(root) if root else "run agent-workspace-manager update",
+            ),
+            (
+                "proxyctl",
+                "ok" if (self.settings.config_root / "proxyctl/bin/proxyctl").exists() else "missing",
+                str(self.settings.config_root / "proxyctl"),
+            ),
+            (
+                "code-server extensions",
+                "ok"
+                if (
+                    list(ext_dir.glob("agent-workspace.unified-service-manager-*"))
+                    or list(ext_dir.glob("agent-workspace.service-manager-*"))
+                    or list(ext_dir.glob("self-conf.unified-service-manager-*"))
+                    or list(ext_dir.glob("self-conf.service-manager-*"))
+                )
+                and (
+                    list(ext_dir.glob("agent-workspace.caddy-proxy-manager-*"))
+                    or list(ext_dir.glob("self-conf.caddy-proxy-manager-*"))
+                )
+                else "missing",
+                str(ext_dir),
+            ),
+            (
+                "custom s6 services",
+                "ok" if (self.settings.config_root / "custom-services.d").is_dir() else "missing",
+                str(self.settings.config_root / "custom-services.d"),
+            ),
+        ]
+        return rows
+
+    def print_status(self) -> None:
+        for name, state, detail in self.status_rows():
+            emit(f"{name:<28} {state:<10} {detail}")
+
+    def doctor_rows(self) -> list[tuple[str, str, str]]:
+        rows: list[tuple[str, str, str]] = []
+        for command in ["bash", "curl", "git", "jq", "tar", "node", "python3"]:
+            path = shutil.which(command)
+            rows.append((command, "ok" if path else "missing", path or ""))
+        rows.append(("/config exists", "ok" if self.settings.config_root.is_dir() else "missing", str(self.settings.config_root)))
+        rows.append(("/config writable", "ok" if os.access(self.settings.config_root, os.W_OK) else "no", str(self.settings.config_root)))
+        return rows
+
+    def doctor(self) -> None:
+        failed = False
+        for name, state, detail in self.doctor_rows():
+            emit(f"{name:<28} {state:<10} {detail}")
+            failed = failed or state not in {"ok"}
+        if failed:
+            raise ManagerError("doctor found missing requirements")
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog=APP_NAME,
+        description="Install and update Agent Workspace application capabilities under /config.",
+    )
+    sub = parser.add_subparsers(dest="command")
+
+    update = sub.add_parser("update", help="clone or refresh the application source")
+    update.add_argument("--china-mirror", action="store_true")
+    update.add_argument("--repo")
+    update.add_argument("--ref")
+
+    install = sub.add_parser("install", help="install application capabilities")
+    install.add_argument(
+        "target",
+        nargs="?",
+        default="foundation",
+        choices=[
+            "foundation",
+            "base",
+            "proxyctl",
+            "proxy",
+            "caddy",
+            "code-server-extensions",
+            "extensions",
+            "vscode",
+            "custom-services",
+            "s6",
+            "agents",
+            "agent",
+            "all",
+        ],
+    )
+    install.add_argument("extra_args", nargs=argparse.REMAINDER)
+
+    sub.add_parser("status", help="show installed capability status")
+    sub.add_parser("doctor", help="run environment checks")
+    sub.add_parser("source", help="print selected source tree")
+    sub.add_parser("tui", help="open the interactive TUI")
+    return parser
+
+
+def run_cli(argv: list[str], manager: WorkspaceManager) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+
+    if args.command is None:
+        if sys.stdin.isatty() and sys.stdout.isatty():
+            return run_tui(manager)
+        parser.print_help()
+        return 0
+
+    if args.command == "update":
+        manager.update_source(
+            china_mirror=args.china_mirror,
+            repo_url=args.repo,
+            repo_ref=args.ref,
+        )
+    elif args.command == "install":
+        manager.install(args.target, args.extra_args)
+    elif args.command == "status":
+        manager.print_status()
+    elif args.command == "doctor":
+        manager.doctor()
+    elif args.command == "source":
+        root = manager.source_root()
+        assert root is not None
+        print(root)
+    elif args.command == "tui":
+        return run_tui(manager)
+    return 0
+
+
+def run_tui(manager: WorkspaceManager) -> int:
+    try:
+        from textual.app import App, ComposeResult
+        from textual.containers import Horizontal, Vertical
+        from textual.widgets import DataTable, Footer, Header, Label, ListItem, ListView, RichLog, Static
+    except ModuleNotFoundError as exc:
+        raise ManagerError(
+            "Textual is required for the TUI. Install it with: pip3 install textual"
+        ) from exc
+
+    class ManagerApp(App):
+        CSS = """
+        Screen {
+            layout: vertical;
+        }
+        #body {
+            height: 1fr;
+            padding: 1 2;
+        }
+        #actions {
+            width: 32;
+            padding-right: 2;
+        }
+        #details {
+            width: 1fr;
+        }
+        ListView {
+            width: 100%;
+            height: 1fr;
+        }
+        DataTable {
+            height: 45%;
+        }
+        RichLog {
+            height: 1fr;
+            border: solid $panel;
+        }
+        #message {
+            height: 2;
+        }
+        """
+
+        BINDINGS = [
+            ("q", "quit", "Quit"),
+            ("r", "refresh", "Refresh"),
+            ("u", "update_source", "Update source"),
+            ("f", "install_foundation", "Install foundation"),
+        ]
+
+        ACTIONS = {
+            "update": ("Updating application source", "Update application source"),
+            "foundation": ("Installing foundation", "Install foundation"),
+            "proxyctl": ("Installing proxyctl", "Install proxyctl / Caddy"),
+            "extensions": ("Installing code-server extensions", "Install code-server extensions"),
+            "custom_services": ("Registering custom services", "Register custom s6 services"),
+            "agents_all": ("Installing Agents", "Install Agents: all"),
+            "openclaw": ("Installing OpenClaw", "Install Agent: OpenClaw"),
+            "openfang": ("Installing Openfang", "Install Agent: Openfang"),
+            "zeroclaw": ("Installing Zeroclaw", "Install Agent: Zeroclaw"),
+            "doctor": ("Running doctor", "Doctor"),
+            "refresh": ("Refreshing status", "Refresh"),
+        }
+
+        def compose(self) -> ComposeResult:
+            yield Header(show_clock=True)
+            with Horizontal(id="body"):
+                with Vertical(id="actions"):
+                    yield Static("Actions")
+                    yield ListView(
+                        *[
+                            ListItem(Label(label), id=action_id)
+                            for action_id, (_, label) in self.ACTIONS.items()
+                        ],
+                        id="action_list",
+                    )
+                with Vertical(id="details"):
+                    yield Static("Application capabilities", id="title")
+                    yield DataTable(id="status")
+                    yield Static("", id="message")
+                    yield RichLog(id="log", highlight=True, markup=False, wrap=True)
+            yield Footer()
+
+        def on_mount(self) -> None:
+            self.busy = False
+            table = self.query_one("#status", DataTable)
+            table.add_columns("Capability", "Status", "Detail")
+            self.refresh_status()
+            action_list = self.query_one("#action_list", ListView)
+            action_list.index = 0
+            action_list.focus()
+            self.append_log("Use Up/Down to choose an action, Enter to run it.")
+
+        def refresh_status(self) -> None:
+            table = self.query_one("#status", DataTable)
+            table.clear()
+            for row in manager.status_rows():
+                table.add_row(*row)
+
+        def set_message(self, message: str) -> None:
+            self.query_one("#message", Static).update(message)
+
+        def append_log(self, message: str) -> None:
+            self.query_one("#log", RichLog).write(message)
+
+        def action_callable(self, action_id: str):  # type: ignore[no-untyped-def]
+            actions = {
+                "update": manager.update_source,
+                "foundation": lambda: manager.install("foundation", []),
+                "proxyctl": manager.install_proxyctl,
+                "extensions": manager.install_code_server_extensions,
+                "custom_services": manager.install_custom_services,
+                "agents_all": lambda: manager.install_agent_capabilities(["openclaw", "openfang", "zeroclaw"]),
+                "openclaw": lambda: manager.install_agent_capability("openclaw"),
+                "openfang": lambda: manager.install_agent_capability("openfang"),
+                "zeroclaw": lambda: manager.install_agent_capability("zeroclaw"),
+                "doctor": manager.doctor,
+                "refresh": lambda: None,
+            }
+            return actions[action_id]
+
+        def run_task(self, label: str, func) -> None:  # type: ignore[no-untyped-def]
+            if self.busy:
+                self.set_message("A task is already running")
+                return
+            self.busy = True
+            self.set_message(f"{label}...")
+            self.append_log("")
+            self.append_log(f"==> {label}")
+            self.run_worker(
+                lambda: self.run_task_worker(label, func),
+                thread=True,
+                exclusive=True,
+            )
+
+        def run_task_worker(self, label: str, func) -> None:  # type: ignore[no-untyped-def]
+            set_output_handler(lambda line: self.call_from_thread(self.append_log, line))
+            try:
+                func()
+            except Exception as exc:  # noqa: BLE001 - displayed to operator in TUI
+                self.call_from_thread(self.set_message, f"{label} failed: {exc}")
+                self.call_from_thread(self.append_log, f"ERROR: {exc}")
+            else:
+                self.call_from_thread(self.set_message, f"{label} complete")
+                self.call_from_thread(self.refresh_status)
+            finally:
+                set_output_handler(None)
+                self.call_from_thread(self.clear_busy)
+
+        def clear_busy(self) -> None:
+            self.busy = False
+
+        def on_list_view_selected(self, event: ListView.Selected) -> None:
+            action_id = event.item.id or ""
+            label = self.ACTIONS[action_id][0]
+            self.run_task(label, self.action_callable(action_id))
+
+        def action_refresh(self) -> None:
+            self.refresh_status()
+            self.set_message("Status refreshed")
+
+        def action_update_source(self) -> None:
+            self.run_task("Updating application source", manager.update_source)
+
+        def action_install_foundation(self) -> None:
+            self.run_task("Installing foundation", lambda: manager.install("foundation", []))
+
+    ManagerApp().run()
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    manager = WorkspaceManager(Settings.from_env())
+    try:
+        return run_cli(sys.argv[1:] if argv is None else argv, manager)
+    except ManagerError as exc:
+        print(f"[{APP_NAME}] ERROR: {exc}", file=sys.stderr)
+        return 1
+    except subprocess.CalledProcessError as exc:
+        print(
+            f"[{APP_NAME}] ERROR: command failed ({exc.returncode}): {' '.join(exc.cmd)}",
+            file=sys.stderr,
+        )
+        return exc.returncode or 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

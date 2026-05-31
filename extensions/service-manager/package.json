@@ -1,0 +1,140 @@
+{
+  "name": "unified-service-manager",
+  "displayName": "Unified Service Manager",
+  "description": "Manage s6 and systemd services from code-server.",
+  "version": "0.1.0",
+  "publisher": "agent-workspace",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onView:unifiedServiceManager.services",
+    "onCommand:unifiedServiceManager.refresh",
+    "onCommand:unifiedServiceManager.start",
+    "onCommand:unifiedServiceManager.stop",
+    "onCommand:unifiedServiceManager.restart",
+    "onCommand:unifiedServiceManager.showDetails"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "unifiedServiceManager",
+          "title": "Services",
+          "icon": "resources/services.svg"
+        }
+      ]
+    },
+    "views": {
+      "unifiedServiceManager": [
+        {
+          "id": "unifiedServiceManager.services",
+          "name": "Services"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "unifiedServiceManager.refresh",
+        "title": "Services: Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "unifiedServiceManager.start",
+        "title": "Services: Start",
+        "icon": "$(play)"
+      },
+      {
+        "command": "unifiedServiceManager.stop",
+        "title": "Services: Stop",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "unifiedServiceManager.restart",
+        "title": "Services: Restart",
+        "icon": "$(debug-restart)"
+      },
+      {
+        "command": "unifiedServiceManager.showDetails",
+        "title": "Services: Show Details",
+        "icon": "$(output)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "unifiedServiceManager.refresh",
+          "when": "view == unifiedServiceManager.services",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "unifiedServiceManager.start",
+          "when": "view == unifiedServiceManager.services && viewItem =~ /service/",
+          "group": "inline@1"
+        },
+        {
+          "command": "unifiedServiceManager.stop",
+          "when": "view == unifiedServiceManager.services && viewItem =~ /service/",
+          "group": "inline@2"
+        },
+        {
+          "command": "unifiedServiceManager.restart",
+          "when": "view == unifiedServiceManager.services && viewItem =~ /service/",
+          "group": "inline@3"
+        },
+        {
+          "command": "unifiedServiceManager.showDetails",
+          "when": "view == unifiedServiceManager.services && viewItem =~ /service/",
+          "group": "navigation@4"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Unified Service Manager",
+      "properties": {
+        "unifiedServiceManager.s6ServiceDirs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "/run/service"
+          ],
+          "description": "s6 servicedirs to inspect."
+        },
+        "unifiedServiceManager.systemdScopes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "user",
+              "system"
+            ]
+          },
+          "default": [
+            "user",
+            "system"
+          ],
+          "description": "systemd scopes to inspect."
+        },
+        "unifiedServiceManager.includeSystemdStates": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "enabled",
+            "disabled"
+          ],
+          "description": "Unit-file states to include when discovering systemd services."
+        }
+      }
+    }
+  }
+}

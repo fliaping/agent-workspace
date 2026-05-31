@@ -132,9 +132,36 @@ docker compose up -d
 | Homebrew | 最新 | Linux 版，持久化到数据目录 |
 | docker-systemctl-replacement | 最新 | systemd 替代，管理 Agent 进程 |
 
+## 应用层能力管理
+
+镜像主要负责稳定的系统依赖、桌面、开发工具链和 s6 基础服务。代理、code-server 插件、Agent 安装器等变化更快的应用逻辑由 `agent-workspace-manager` 管理，并安装到持久化的 `/config`。
+
+进入容器后直接运行会打开 TUI：
+
+```bash
+agent-workspace-manager
+```
+
+TUI 支持方向键选择、Enter 执行，下载和安装日志会留在界面内的日志区域，不会直接写回原始 Terminal。Agent 安装也是 manager 自己的流程，不会嵌套启动另一个 TUI。
+
+常用命令：
+
+```bash
+# 更新应用层源码到 /config/agent-workspace-manager/source
+agent-workspace-manager update
+
+# 安装基础应用能力：proxyctl、code-server 插件、自定义 s6 服务注册
+agent-workspace-manager install foundation
+
+# 查看应用能力状态
+agent-workspace-manager status
+```
+
+`AGENT_WORKSPACE_SOURCE_DIR` 可以指向已有源码目录，便于测试本地 checkout；默认源码会持久化在 `/config/agent-workspace-manager/source`。详见 [Agent Workspace Manager](docs/agent-workspace-manager.md)。
+
 ## Agent 软件管理
 
-安装脚本支持一键安装以下 Agent 软件：
+`agent-workspace-manager install agents` 使用 manager 自己的安装流程，支持一键安装以下 Agent 软件：
 
 | Agent | 默认端口 | 安装方式 |
 |-------|----------|----------|
@@ -155,6 +182,25 @@ docker exec agent-workspace journalctl -u openclaw
 docker exec agent-workspace systemctl restart openclaw
 ```
 
+## 可选能力模块
+
+仓库内置了一组可选模块。推荐通过 `agent-workspace-manager` 安装，模块源码也可以单独调试：
+
+| 模块 | 路径 | 说明 |
+|------|------|------|
+| proxyctl + Caddy 路由 | `addons/proxyctl` | 轻量 Caddy 反向代理、命名路由管理、code-server 子域端口代理 |
+| 服务管理插件 | `extensions/service-manager` | 在 code-server 侧栏查看和管理 s6 / systemd 服务 |
+| Caddy 代理插件 | `extensions/caddy-proxy-manager` | 在 code-server 侧栏查看和管理 proxyctl 路由 |
+| 自定义 s6 服务 | `scripts/register-config-services.sh` | 自动注册 `/config/custom-services.d/<name>/run` 到 s6 |
+
+安装 code-server 插件：
+
+```bash
+agent-workspace-manager install code-server-extensions
+```
+
+proxyctl 详细说明见 `addons/proxyctl/README.md`，code-server 插件说明见 [code-server Extensions](docs/code-server-extensions.md)。
+
 ## 数据持久化
 
 容器 `/config` 目录映射到宿主机数据目录，以下内容持久化：
@@ -165,6 +211,19 @@ docker exec agent-workspace systemctl restart openclaw
 - Cargo 包（`/config/.cargo`）
 - pip/uv 缓存（`/config/.cache`）
 - 桌面配置和用户文件
+- 自定义 s6 服务（`/config/custom-services.d/<name>/run`，容器启动时自动注册到 `/run/service`）
+
+### 自定义 s6 服务
+
+镜像内置的 `custom-services` s6 服务会在基础 `init` 完成后扫描 `/config/custom-services.d`，并注册服务到 s6。
+
+创建服务：
+
+```text
+/config/custom-services.d/<service-name>/run
+```
+
+`run` 文件必须可执行。容器重建后，只要 `/config` 持久化挂载还在，服务会自动重新注册并启动。详见 [Persistent Custom s6 Services](docs/custom-s6-services.md)。
 
 ## 自定义构建
 

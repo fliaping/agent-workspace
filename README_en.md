@@ -131,9 +131,44 @@ docker compose up -d
 | Homebrew | Latest | Linux version, persisted to data dir |
 | docker-systemctl-replacement | Latest | systemd replacement for agent process management |
 
+## Application Capability Management
+
+The image focuses on stable system dependencies, desktop/runtime tooling, and
+base s6 services. Faster-moving application capabilities such as proxy routing,
+code-server extensions, and Agent installers are managed by
+`agent-workspace-manager` and installed under the persistent `/config` volume.
+
+Run it inside the container to open the TUI:
+
+```bash
+agent-workspace-manager
+```
+
+The TUI supports Up/Down selection and Enter to run actions. Download and
+installation output stays in the in-app log panel instead of writing back to the
+raw terminal. Agent installation is handled by the manager flow itself; it does
+not launch a nested TUI.
+
+Common commands:
+
+```bash
+# Update application source to /config/agent-workspace-manager/source
+agent-workspace-manager update
+
+# Install foundation capabilities: proxyctl, code-server extensions, custom s6 registration
+agent-workspace-manager install foundation
+
+# Show application capability status
+agent-workspace-manager status
+```
+
+Set `AGENT_WORKSPACE_SOURCE_DIR` to use an existing checkout while developing.
+By default, source is persisted at `/config/agent-workspace-manager/source`.
+See [Agent Workspace Manager](docs/agent-workspace-manager.md).
+
 ## Agent Software
 
-The install script supports one-click installation of these agents:
+`agent-workspace-manager install agents` uses the manager's own install flow for:
 
 | Agent | Default Port | Install Method |
 |-------|--------------|----------------|
@@ -154,6 +189,27 @@ docker exec agent-workspace journalctl -u openclaw
 docker exec agent-workspace systemctl restart openclaw
 ```
 
+## Optional Capability Modules
+
+The repository includes optional modules that can be installed into a running
+workspace when needed. Use `agent-workspace-manager` for normal installation;
+the module source remains available for development:
+
+| Module | Path | Description |
+|--------|------|-------------|
+| proxyctl + Caddy routing | `addons/proxyctl` | Lightweight Caddy reverse proxy, named routes, and code-server subdomain port proxy |
+| Service Manager extension | `extensions/service-manager` | View and manage s6 / systemd services from the code-server sidebar |
+| Caddy Proxy extension | `extensions/caddy-proxy-manager` | View and manage proxyctl routes from the code-server sidebar |
+| Custom s6 services | `scripts/register-config-services.sh` | Automatically register `/config/custom-services.d/<name>/run` with s6 |
+
+Install the code-server extensions:
+
+```bash
+agent-workspace-manager install code-server-extensions
+```
+
+See `addons/proxyctl/README.md` for proxyctl details and [code-server Extensions](docs/code-server-extensions.md) for extension usage.
+
 ## Data Persistence
 
 The container's `/config` directory is mapped to the host data directory. Persisted data includes:
@@ -164,6 +220,19 @@ The container's `/config` directory is mapped to the host data directory. Persis
 - Cargo packages (`/config/.cargo`)
 - pip/uv cache (`/config/.cache`)
 - Desktop settings and user files
+- Custom s6 services (`/config/custom-services.d/<name>/run`, automatically registered into `/run/service` at startup)
+
+### Custom s6 Services
+
+At startup, the built-in `custom-services` s6 service scans `/config/custom-services.d` after the base `init` service completes and registers services with s6.
+
+Create services as:
+
+```text
+/config/custom-services.d/<service-name>/run
+```
+
+The `run` file must be executable. After container recreation, services are automatically registered and started as long as `/config` is persisted. See [Persistent Custom s6 Services](docs/custom-s6-services.md).
 
 ## Custom Build
 

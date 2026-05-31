@@ -1,0 +1,498 @@
+#!/usr/bin/env python3
+import argparse
+import ipaddress
+import json
+import os
+import re
+import socket
+import sys
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+
+DEFAULT_STATE_DIR = "/config/proxyctl"
+DEFAULT_CADDY_ADMIN = "http://127.0.0.1:2019"
+DEFAULT_LISTEN = ":80"
+DEFAULT_CODE_SERVER_TARGET = "127.0.0.1:8443"
+
+HOST_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$")
+LABEL_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
+
+
+class ProxyctlError(Exception):
+    pass
+
+
+def env(name, default=None):
+    value = os.environ.get(name)
+    return value if value not in (None, "") else default
+
+
+def state_dir():
+    return Path(env("PROXYCTL_STATE_DIR", DEFAULT_STATE_DIR))
+
+
+def routes_file():
+    return state_dir() / "routes.json"
+
+
+def backups_dir():
+    return state_dir() / "backups"
+
+
+def audit_file():
+    return state_dir() / "audit.log"
+
+
+def root_domain():
+    domain = env("PROXY_ROOT_DOMAIN")
+    if not domain:
+        raise ProxyctlError("PROXY_ROOT_DOMAIN is required, for example: dev.example.com")
+    domain = normalize_host(domain)
+    if not valid_host(domain):
+        raise ProxyctlError(f"invalid PROXY_ROOT_DOMAIN: {domain}")
+    return domain
+
+
+def caddy_admin():
+    return env("CADDY_ADMIN", DEFAULT_CADDY_ADMIN).rstrip("/")
+
+
+def listen_addr():
+    return env("PROXY_LISTEN", DEFAULT_LISTEN)
+
+
+def access_log_file():
+    return env("PROXY_ACCESS_LOG", str(state_dir() / "access.log"))
+
+
+def host_prefix():
+    prefix = env("PROXY_HOST_PREFIX", "").strip().lower()
+    if prefix and not LABEL_RE.match(prefix):
+        raise ProxyctlError("PROXY_HOST_PREFIX must be a single DNS label fragment")
+    return prefix
+
+
+def public_host(label, root):
+    prefix = host_prefix()
+    if prefix:
+        return f"{prefix}-{label}.{root}"
+    return f"{label}.{root}"
+
+
+def code_server_host(root):
+    label = env("CODE_SERVER_SUBDOMAIN", "code").strip().lower()
+    if not LABEL_RE.match(label):
+        raise ProxyctlError("CODE_SERVER_SUBDOMAIN must be a single DNS label")
+    return public_host(label, root)
+
+
+def code_server_target():
+    return parse_target(env("CODE_SERVER_TARGET", DEFAULT_CODE_SERVER_TARGET))
+
+
+def normalize_host(host):
+    host = host.strip().lower().rstrip(".")
+    if "://" in host or "/" in host or ":" in host:
+        raise ProxyctlError("host must be a bare hostname, not a URL")
+    return host
+
+
+def valid_host(host):
+    return len(host) <= 253 and HOST_RE.match(host) is not None
+
+
+def normalize_managed_host(value, root):
+    value = normalize_host(value)
+    if "." not in value:
+        value = public_host(value, root)
+    if not valid_host(value):
+        raise ProxyctlError(f"invalid host: {value}")
+    if not (value == root or value.endswith(f".{root}")):
+        raise ProxyctlError(f"host must be inside {root}: {value}")
+    first_label = value[: -(len(root) + 1)] if value.endswith(f".{root}") else ""
+    prefix = host_prefix()
+    managed_label = first_label
+    if prefix:
+        expected = f"{prefix}-"
+        if not first_label.startswith(expected):
+            raise ProxyctlError(f"host must start with {expected}: {value}")
+        managed_label = first_label[len(expected):]
+    if managed_label.isdigit():
+        raise ProxyctlError("numeric subdomains are reserved for code-server port proxying")
+    if value == code_server_host(root):
+        raise ProxyctlError(f"{value} is reserved for code-server")
+    return value
+
+
+def parse_target(raw):
+    raw = raw.strip()
+    if raw.startswith("http://"):
+        raw = raw[len("http://") :]
+    elif raw.startswith("https://"):
+        raise ProxyctlError("HTTPS upstreams are intentionally disabled for this lightweight HTTP-only proxy")
+    if "/" in raw:
+        raise ProxyctlError("target must be host:port without a path")
+    if raw.count(":") != 1:
+        raise ProxyctlError("target must be host:port")
+    host, port_text = raw.rsplit(":", 1)
+    if not host:
+        raise ProxyctlError("target host is required")
+    try:
+        port = int(port_text)
+    except ValueError as exc:
+        raise ProxyctlError("target port must be an integer") from exc
+    if port < 1 or port > 65535:
+        raise ProxyctlError("target port must be between 1 and 65535")
+    validate_target_host(host)
+    return f"{host}:{port}"
+
+
+def validate_target_host(host):
+    allowed = [item.strip() for item in env("PROXY_ALLOWED_TARGETS", "127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16").split(",") if item.strip()]
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        if env("PROXY_ALLOW_TARGET_HOSTNAMES", "0") == "1":
+            if valid_host(host) or host == "localhost":
+                return
+        raise ProxyctlError("target host must be an allowed IP address unless PROXY_ALLOW_TARGET_HOSTNAMES=1")
+    for cidr in allowed:
+        if ip in ipaddress.ip_network(cidr, strict=False):
+            return
+    raise ProxyctlError(f"target host {host} is outside PROXY_ALLOWED_TARGETS")
+
+
+def ensure_state():
+    state_dir().mkdir(parents=True, exist_ok=True)
+    backups_dir().mkdir(parents=True, exist_ok=True)
+    if not routes_file().exists():
+        save_routes([])
+
+
+def load_routes():
+    ensure_state()
+    try:
+        data = json.loads(routes_file().read_text())
+    except json.JSONDecodeError as exc:
+        raise ProxyctlError(f"invalid routes state: {routes_file()}") from exc
+    if not isinstance(data, list):
+        raise ProxyctlError("routes state must be a JSON array")
+    return sorted(data, key=lambda item: item["host"])
+
+
+def save_routes(routes):
+    state_dir().mkdir(parents=True, exist_ok=True)
+    temp = routes_file().with_suffix(".json.tmp")
+    temp.write_text(json.dumps(sorted(routes, key=lambda item: item["host"]), indent=2) + "\n")
+    temp.replace(routes_file())
+
+
+def build_config(routes):
+    root = root_domain()
+    code_host = code_server_host(root)
+    code_target = code_server_target()
+    route_blocks = []
+
+    for route in sorted(routes, key=lambda item: item["host"]):
+        route_blocks.append(reverse_proxy_route([route["host"]], route["target"], route_id=f"proxyctl:{route['host']}"))
+
+    route_blocks.append(reverse_proxy_route([code_host], code_target, route_id=f"proxyctl:{code_host}"))
+    prefix = host_prefix()
+    if prefix:
+        route_blocks.append(header_regexp_reverse_proxy_route(
+            "Host",
+            "port",
+            rf"^{re.escape(prefix)}-([0-9]+)\.{re.escape(root)}(:[0-9]+)?$",
+            code_target,
+            route_id=f"proxyctl:ports:{prefix}-*.{root}",
+        ))
+    else:
+        route_blocks.append(reverse_proxy_route([f"*.{root}"], code_target, route_id=f"proxyctl:ports:{root}"))
+    route_blocks.append({
+        "@id": "proxyctl:not-found",
+        "handle": [{
+            "handler": "static_response",
+            "status_code": 404,
+            "body": "not found\n",
+        }],
+    })
+
+    return {
+        "admin": {"listen": caddy_admin().removeprefix("http://")},
+        "logging": {
+            "logs": {
+                "proxyctl-access": {
+                    "writer": {
+                        "output": "file",
+                        "filename": access_log_file(),
+                        "roll_size_mb": 10,
+                        "roll_keep": 5,
+                    },
+                    "encoder": {"format": "json"},
+                    "include": ["http.log.access.proxyctl-access"],
+                }
+            }
+        },
+        "apps": {
+            "http": {
+                "servers": {
+                    "proxyctl": {
+                        "listen": [listen_addr()],
+                        "automatic_https": {"disable": True},
+                        "logs": {"default_logger_name": "proxyctl-access"},
+                        "routes": route_blocks,
+                    }
+                }
+            }
+        },
+    }
+
+
+def reverse_proxy_route(hosts, target, route_id):
+    return {
+        "@id": route_id,
+        "match": [{"host": hosts}],
+        "handle": [{
+            "handler": "reverse_proxy",
+            "upstreams": [{"dial": target}],
+            "headers": {
+                "request": {
+                    "set": {
+                        "X-Forwarded-Proto": ["http"],
+                    }
+                }
+            },
+        }],
+    }
+
+
+def header_regexp_reverse_proxy_route(header, name, pattern, target, route_id):
+    return {
+        "@id": route_id,
+        "match": [{
+            "header_regexp": {
+                header: {
+                    "name": name,
+                    "pattern": pattern,
+                }
+            }
+        }],
+        "handle": [{
+            "handler": "reverse_proxy",
+            "upstreams": [{"dial": target}],
+            "headers": {
+                "request": {
+                    "set": {
+                        "X-Forwarded-Proto": ["http"],
+                    }
+                }
+            },
+        }],
+    }
+
+
+def http(method, path, data=None):
+    body = None
+    headers = {}
+    if data is not None:
+        body = json.dumps(data).encode()
+        headers["Content-Type"] = "application/json"
+    req = urllib.request.Request(f"{caddy_admin()}{path}", data=body, method=method, headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=5) as res:
+            payload = res.read()
+            if not payload:
+                return None
+            return json.loads(payload.decode())
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode(errors="replace")
+        raise ProxyctlError(f"Caddy API {method} {path} failed: HTTP {exc.code}: {detail}") from exc
+    except urllib.error.URLError as exc:
+        raise ProxyctlError(f"Caddy API is not reachable at {caddy_admin()}: {exc.reason}") from exc
+
+
+def backup_current_config():
+    try:
+        current = http("GET", "/config/")
+    except ProxyctlError:
+        return None
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    path = backups_dir() / f"caddy-{stamp}.json"
+    path.write_text(json.dumps(current, indent=2) + "\n")
+    return path
+
+
+def backup_routes(routes):
+    ensure_state()
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    path = backups_dir() / f"routes-{stamp}.json"
+    path.write_text(json.dumps(sorted(routes, key=lambda item: item["host"]), indent=2) + "\n")
+    return path
+
+
+def latest_route_backup():
+    ensure_state()
+    backups = sorted(backups_dir().glob("routes-*.json"))
+    if not backups:
+        raise ProxyctlError("no route backups found")
+    return backups[-1]
+
+
+def apply_config(routes, dry_run=False):
+    config = build_config(routes)
+    if dry_run:
+        print(json.dumps(config, indent=2))
+        return
+    ensure_state()
+    backup_current_config()
+    http("POST", "/load", config)
+
+
+def audit(action, message):
+    ensure_state()
+    audit_file().open("a").write(f"{time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())} {action} {message}\n")
+
+
+def cmd_init(args):
+    ensure_state()
+    routes = load_routes()
+    apply_config(routes, dry_run=args.dry_run)
+    if not args.dry_run:
+        audit("init", f"root={root_domain()} code={code_server_host(root_domain())} target={code_server_target()}")
+        print(f"initialized {listen_addr()} for *.{root_domain()} with code-server fallback to {code_server_target()}")
+
+
+def cmd_add(args):
+    root = root_domain()
+    host = normalize_managed_host(args.host, root)
+    target = parse_target(args.target)
+    existing_routes = load_routes()
+    routes = [item for item in existing_routes if item["host"] != host]
+    routes.append({"host": host, "target": target})
+    if not args.dry_run:
+        backup_routes(existing_routes)
+    apply_config(routes, dry_run=args.dry_run)
+    if not args.dry_run:
+        save_routes(routes)
+        audit("add", f"{host} -> {target}")
+        print(f"{host} -> {target}")
+
+
+def cmd_remove(args):
+    root = root_domain()
+    host = normalize_managed_host(args.host, root)
+    routes = load_routes()
+    next_routes = [item for item in routes if item["host"] != host]
+    if len(next_routes) == len(routes):
+        raise ProxyctlError(f"route does not exist: {host}")
+    if not args.dry_run:
+        backup_routes(routes)
+    apply_config(next_routes, dry_run=args.dry_run)
+    if not args.dry_run:
+        save_routes(next_routes)
+        audit("remove", host)
+        print(f"removed {host}")
+
+
+def cmd_list(_args):
+    root = root_domain()
+    print(f"root: {root}")
+    print(f"code-server: {code_server_host(root)} -> {code_server_target()}")
+    print(f"port wildcard: *.{root} -> {code_server_target()}")
+    routes = load_routes()
+    if routes:
+        print("routes:")
+        for item in routes:
+            print(f"  {item['host']} -> {item['target']}")
+    else:
+        print("routes: none")
+
+
+def cmd_check(_args):
+    routes = load_routes()
+    build_config(routes)
+    for route in routes:
+        parse_target(route["target"])
+        normalize_managed_host(route["host"], root_domain())
+    if env("PROXYCTL_SKIP_CONNECT_CHECK", "0") != "1":
+        for route in routes:
+            check_tcp(route["target"])
+        check_tcp(code_server_target())
+    print("ok")
+
+
+def cmd_rollback(args):
+    path = Path(args.file) if args.file else latest_route_backup()
+    try:
+        routes = json.loads(path.read_text())
+    except json.JSONDecodeError as exc:
+        raise ProxyctlError(f"invalid route backup: {path}") from exc
+    if not isinstance(routes, list):
+        raise ProxyctlError(f"route backup must be a JSON array: {path}")
+    for route in routes:
+        normalize_managed_host(route["host"], root_domain())
+        parse_target(route["target"])
+    apply_config(routes, dry_run=args.dry_run)
+    if not args.dry_run:
+        backup_routes(load_routes())
+        save_routes(routes)
+        audit("rollback", str(path))
+        print(f"rolled back routes from {path}")
+
+
+def check_tcp(target):
+    host, port_text = target.rsplit(":", 1)
+    with socket.create_connection((host, int(port_text)), timeout=2):
+        return
+
+
+def cmd_render(_args):
+    print(json.dumps(build_config(load_routes()), indent=2))
+
+
+def build_parser():
+    parser = argparse.ArgumentParser(description="Manage lightweight HTTP subdomain routes through Caddy Admin API.")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    init = sub.add_parser("init", help="initialize Caddy with code-server wildcard fallback")
+    init.add_argument("--dry-run", action="store_true")
+    init.set_defaults(func=cmd_init)
+
+    add = sub.add_parser("add", help="add or replace a named subdomain route")
+    add.add_argument("host", help="subdomain label or full hostname")
+    add.add_argument("target", help="upstream host:port, for example 127.0.0.1:3000")
+    add.add_argument("--dry-run", action="store_true")
+    add.set_defaults(func=cmd_add)
+
+    remove = sub.add_parser("remove", help="remove a named subdomain route")
+    remove.add_argument("host", help="subdomain label or full hostname")
+    remove.add_argument("--dry-run", action="store_true")
+    remove.set_defaults(func=cmd_remove)
+
+    sub.add_parser("list", help="list managed routes").set_defaults(func=cmd_list)
+    sub.add_parser("check", help="validate state and check upstream TCP connectivity").set_defaults(func=cmd_check)
+    sub.add_parser("render", help="print generated Caddy JSON config").set_defaults(func=cmd_render)
+
+    rollback = sub.add_parser("rollback", help="restore routes from the latest route backup or a specific file")
+    rollback.add_argument("file", nargs="?")
+    rollback.add_argument("--dry-run", action="store_true")
+    rollback.set_defaults(func=cmd_rollback)
+    return parser
+
+
+def main():
+    parser = build_parser()
+    args = parser.parse_args()
+    try:
+        args.func(args)
+    except (ProxyctlError, OSError) as exc:
+        print(f"proxyctl: {exc}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
