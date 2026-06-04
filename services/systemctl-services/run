@@ -11,6 +11,18 @@ if ! command -v systemctl > /dev/null 2>&1; then
     exec sleep infinity
 fi
 
+# Snapshot the container's boot-time environment for the user-systemctl wrapper.
+# Later interactive `systemctl --user restart ...` calls should use the same
+# service-manager environment, not only the caller's shell environment.
+USER_SYSTEMD_RUN_DIR="${HOME}/.local/run/user-systemd"
+USER_SYSTEMD_ENV_FILE="${USER_SYSTEMD_RUN_DIR}/environment"
+mkdir -p "$USER_SYSTEMD_RUN_DIR"
+(
+    umask 077
+    export -p > "$USER_SYSTEMD_ENV_FILE"
+)
+chown abc:abc "$USER_SYSTEMD_ENV_FILE" 2>/dev/null || true
+
 # Wait for Docker daemon (DinD mode only)
 if [ "$START_DOCKER" = "true" ] && command -v docker > /dev/null 2>&1; then
     echo "[systemctl-services] Waiting for Docker daemon (max 60s)..."

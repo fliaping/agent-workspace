@@ -31,6 +31,12 @@ USER_UNIT_DIR="${HOME}/.config/systemd/user"
 USER_WANTS_DIR="${USER_UNIT_DIR}/default.target.wants"
 USER_PID_DIR="${HOME}/.local/run/user-systemd"
 USER_LOG_DIR="${HOME}/.local/log/user-systemd"
+USER_ENV_FILE="${USER_SYSTEMD_ENV_FILE:-${USER_PID_DIR}/environment}"
+
+# Variables that should survive services which use `env -i` in ExecStart.
+# Unit-level assignments still win because injected variables are skipped when
+# the ExecStart already provides the same key.
+USER_ENV_IMPORT_KEYS="${USER_SYSTEMD_IMPORT_ENV:-TZ LANG LANGUAGE LC_ALL LC_CTYPE LC_MESSAGES LC_COLLATE LC_NUMERIC LC_TIME LC_MONETARY LC_PAPER LC_NAME LC_ADDRESS LC_TELEPHONE LC_MEASUREMENT LC_IDENTIFICATION HTTP_PROXY HTTPS_PROXY NO_PROXY http_proxy https_proxy no_proxy SSL_CERT_FILE SSL_CERT_DIR REQUESTS_CA_BUNDLE NODE_EXTRA_CA_CERTS}"
 
 # ── Parse --user flag ─────────────────────────────────────────
 has_user=false
@@ -85,6 +91,65 @@ parse_exec_start() {
 
 parse_env_vars() {
     grep '^Environment=' "$1" 2>/dev/null | sed 's/^Environment=//'
+}
+
+load_manager_environment() {
+    [ -r "$USER_ENV_FILE" ] || return 0
+    # The boot service writes this with `export -p`, which is valid bash input.
+    # shellcheck disable=SC1090
+    . "$USER_ENV_FILE"
+}
+
+load_unit_environment() {
+    local unit_file="$1" line
+    while IFS= read -r line; do
+        line="${line#Environment=}"
+        case "$line" in \"*\") line="${line:1:${#line}-2}" ;; esac
+        export "$line"
+    done < <(grep '^Environment=' "$unit_file" 2>/dev/null)
+}
+
+env_assignment_present() {
+    local cmd="$1" key="$2"
+    case " $cmd " in
+        *" ${key}="*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+safe_env_value() {
+    case "$1" in
+        *[!A-Za-z0-9_./:@%+=,-]*|'') return 1 ;;
+        *) return 0 ;;
+    esac
+}
+
+augment_env_i_exec() {
+    local cmd="$1" head="" rest="" key="" val="" extra=""
+    case "$cmd" in
+        "/usr/bin/env -i "*)
+            head="/usr/bin/env -i"
+            rest="${cmd#/usr/bin/env -i }"
+            ;;
+        "env -i "*)
+            head="env -i"
+            rest="${cmd#env -i }"
+            ;;
+        *)
+            echo "$cmd"
+            return 0
+            ;;
+    esac
+
+    for key in $USER_ENV_IMPORT_KEYS; do
+        [ -n "${!key+x}" ] || continue
+        env_assignment_present "$rest" "$key" && continue
+        val="${!key}"
+        safe_env_value "$val" || continue
+        extra="${extra} ${key}=${val}"
+    done
+
+    echo "${head}${extra} ${rest}"
 }
 
 get_description() {
@@ -168,11 +233,9 @@ do_start() {
 _start_process() {
     local name="$1" unit_file="$2" exec_cmd="$3" log_file="$4"
     (
-        while IFS= read -r line; do
-            line="${line#Environment=}"
-            case "$line" in \"*\") line="${line:1:${#line}-2}" ;; esac
-            export "$line"
-        done < <(grep '^Environment=' "$unit_file" 2>/dev/null)
+        load_manager_environment
+        load_unit_environment "$unit_file"
+        exec_cmd=$(augment_env_i_exec "$exec_cmd")
         exec $exec_cmd
     ) >> "$log_file" 2>&1 &
     local pid=$!
@@ -188,7 +251,7 @@ _start_supervised() {
     local stop_file="$USER_PID_DIR/${name}.stop"
 
     # Record supervisor PID
-    echo $$ > "$supervisor_pid_file"
+    echo "${BASHPID:-$$}" > "$supervisor_pid_file"
     # Remove any leftover stop signal
     rm -f "$stop_file"
 
@@ -201,11 +264,9 @@ _start_supervised() {
     while true; do
         # Launch the actual process
         (
-            while IFS= read -r line; do
-                line="${line#Environment=}"
-                case "$line" in \"*\") line="${line:1:${#line}-2}" ;; esac
-                export "$line"
-            done < <(grep '^Environment=' "$unit_file" 2>/dev/null)
+            load_manager_environment
+            load_unit_environment "$unit_file"
+            exec_cmd=$(augment_env_i_exec "$exec_cmd")
             exec $exec_cmd
         ) >> "$log_file" 2>&1 &
         local child_pid=$!
