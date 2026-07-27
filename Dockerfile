@@ -27,9 +27,6 @@ ARG USE_CHINA_MIRROR=false
 # 构建时传入的变量（运行时由 docker-compose 设置）
 ENV USE_CHINA_MIRROR=${USE_CHINA_MIRROR}
 
-# 强制 X11 模式（Wayland 模式下 Selkies 的 CJK 输入链路有问题）
-ENV PIXELFLUX_WAYLAND=false
-
 # 工具版本
 ENV GO_VERSION="go1.22.4"
 ENV NODE_VERSION="22"
@@ -69,7 +66,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl gnupg sudo \
     build-essential git wget jq unzip xz-utils \
     python3 python3-pip python3-venv python3-dev \
-    libssl-dev libffi-dev inotify-tools lsof \
+    libssl-dev libffi-dev lsof \
     openssh-server \
     locales fonts-wqy-zenhei fonts-wqy-microhei fonts-noto-cjk \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
@@ -103,23 +100,13 @@ RUN pip3 install --no-cache-dir textual --break-system-packages \
 COPY scripts/ /usr/local/bin/
 COPY services/ /etc/services.d/
 
-# LinuxServer custom-init: 在 DE 启动前执行的初始化脚本
+# LinuxServer custom-init
 RUN mkdir -p /custom-cont-init.d \
-    && ln -sf /usr/local/bin/set-dpi.sh /custom-cont-init.d/set-dpi.sh \
     && ln -sf /usr/local/bin/fix-locale.sh /custom-cont-init.d/fix-locale.sh \
     && ln -sf /usr/local/bin/fix-docker-tmpdir.sh /custom-cont-init.d/fix-docker-tmpdir.sh
 
 RUN chmod +x /usr/local/bin/*.sh /usr/local/bin/agent-workspace-manager \
     && find /etc/services.d -name "run" -exec chmod +x {} \;
-
-# xfconf-query wrapper: ensures Selkies connects to the desktop's DBUS session
-# (Selkies runs via s6-setuidgid without DBUS_SESSION_BUS_ADDRESS, causing
-# xfconf-query to spawn a separate xfconfd that doesn't affect the desktop)
-RUN if [ -f /usr/bin/xfconf-query ]; then \
-        mv /usr/bin/xfconf-query /usr/bin/xfconf-query.real \
-        && cp /usr/local/bin/xfconf-query-wrapper.sh /usr/bin/xfconf-query \
-        && chmod +x /usr/bin/xfconf-query; \
-    fi
 
 # systemctl wrapper: adds --user support on top of docker-systemctl-replacement
 # user-systemctl.sh delegates system calls to /usr/bin/systemctl.py and
@@ -129,9 +116,7 @@ RUN cp /usr/local/bin/user-systemctl.sh /usr/local/bin/systemctl \
 
 # 配置 s6 服务依赖（init 先执行，其他服务等待）
 RUN mkdir -p /etc/services.d/systemctl-services/dependencies \
-    && touch /etc/services.d/systemctl-services/dependencies/init \
-    && mkdir -p /etc/services.d/watch-dpi/dependencies \
-    && touch /etc/services.d/watch-dpi/dependencies/init
+    && touch /etc/services.d/systemctl-services/dependencies/init
 
 # ==========================================
 # 权限配置

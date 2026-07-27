@@ -722,13 +722,6 @@ function Main {
         "-e", "PGID=1000",
         "-e", "TZ=Asia/Shanghai",
         "-e", "LC_ALL=zh_CN.UTF-8",
-        "-e", "SELKIES_ENABLE_WAYLAND=true",
-        "-e", "PIXELFLUX_WAYLAND=false",
-        "-e", "SELKIES_USE_BROWSER_CURSORS=true",
-        "-e", "SELKIES_CONGESTION_CONTROL=true",
-        "-e", "SELKIES_H264_CRF=28",
-        "-e", "SELKIES_JPEG_QUALITY=30",
-        "-e", "SELKIES_H264_STREAMING_MODE=true",
         "-e", "NODE_OPTIONS=--max-old-space-size=2048",
         "-v", "$($script:DataDir):/config",
         "-p", "$($script:DesktopPort):3001"

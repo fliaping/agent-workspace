@@ -1178,13 +1178,6 @@ main() {
         "-e" "PGID=1000"
         "-e" "TZ=Asia/Shanghai"
         "-e" "LC_ALL=zh_CN.UTF-8"
-        "-e" "SELKIES_ENABLE_WAYLAND=true"
-        "-e" "PIXELFLUX_WAYLAND=false"
-        "-e" "SELKIES_USE_BROWSER_CURSORS=true"
-        "-e" "SELKIES_CONGESTION_CONTROL=true"
-        "-e" "SELKIES_H264_CRF=28"
-        "-e" "SELKIES_JPEG_QUALITY=30"
-        "-e" "SELKIES_H264_STREAMING_MODE=true"
         "-e" "NODE_OPTIONS=--max-old-space-size=2048"
         "-v" "${DATA_DIR}:/config"
     )
@@ -1220,7 +1213,10 @@ main() {
             DOCKER_ARGS+=("--device" "/dev/dri:/dev/dri")
         fi
         if [ -n "$DRINODE_PATH" ]; then
-            DOCKER_ARGS+=("-e" "DRINODE=${DRINODE_PATH}")
+            DOCKER_ARGS+=(
+                "-e" "DRINODE=${DRINODE_PATH}"
+                "-e" "DRI_NODE=${DRINODE_PATH}"
+            )
         fi
         print_success "$(get_text gpu_enabled) (NVIDIA)"
     elif [ "$GPU_TYPE" = "intel_amd" ]; then
@@ -1228,6 +1224,7 @@ main() {
         DOCKER_ARGS+=(
             "--device" "/dev/dri:/dev/dri"
             "-e" "DRINODE=${DRINODE_PATH:-/dev/dri/renderD128}"
+            "-e" "DRI_NODE=${DRINODE_PATH:-/dev/dri/renderD128}"
         )
         print_success "$(get_text gpu_enabled) (Intel/AMD)"
     fi

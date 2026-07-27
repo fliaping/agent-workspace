@@ -46,22 +46,15 @@ services:
       # --- Docker（默认不启用，按需选择模式）---
       - START_DOCKER=false
       #- START_DOCKER=true  # DinD 模式时启用
-      # --- Selkies 显示 ---
-      - SELKIES_ENABLE_WAYLAND=true
-      - PIXELFLUX_WAYLAND=false  # 强制 X11，Wayland 下 Selkies 无法输入中文
-      #- SELKIES_SCALING_DPI=192  # 高分屏(Retina)设为 192，默认不设置与官方一致
-      - XCURSOR_THEME=Adwaita
-      - XCURSOR_SIZE=32
-      # --- Selkies 低延迟优化 ---
-      - SELKIES_USE_BROWSER_CURSORS=true   # CSS 光标，鼠标零延迟
-      - SELKIES_CONGESTION_CONTROL=true    # 网络拥塞控制，自适应码率
-      - SELKIES_H264_CRF=28               # 画质略低，编码更快（默认 25）
-      - SELKIES_JPEG_QUALITY=30            # JPEG 回退模式低质量优先（默认 40）
-      - SELKIES_H264_STREAMING_MODE=true   # H264 流式模式，降低编码延迟
+      # --- Selkies ---
+      # 默认继承 LinuxServer Webtop 的显示、编码和 DPI 配置。
+      # 仅遇到 Wayland 兼容问题时才按需启用 X11 回退：
+      #- PIXELFLUX_WAYLAND=false
       # --- GPU 渲染/编码设备路径（按需启用）---
-      # Intel/AMD: 取消注释 DRINODE + devices 部分
+      # Intel/AMD: 取消注释两个节点变量 + devices 部分
       # NVIDIA: 还需取消注释 deploy 部分 + NVIDIA_* 变量
       #- DRINODE=/dev/dri/renderD128
+      #- DRI_NODE=/dev/dri/renderD128
       #- NVIDIA_VISIBLE_DEVICES=all
       #- NVIDIA_DRIVER_CAPABILITIES=all
       # --- 自定义（仅 init 服务使用）---
