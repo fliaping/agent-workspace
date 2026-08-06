@@ -6,7 +6,7 @@
 # 使用 LinuxServer 标准持久化方式：挂载 /config
 #
 # 构建选项:
-#   默认 lxqt 桌面:   docker compose build
+#   默认 XFCE 桌面:   docker compose build
 #   KDE 桌面:         DESKTOP=kde docker compose build
 #   国内源:            USE_CHINA_MIRROR=true docker compose build
 #   或在 .env 文件中设置: DESKTOP=kde
@@ -22,11 +22,11 @@ services:
       dockerfile: Dockerfile
       args:
         # 构建时参数（仅影响镜像构建，运行时无效）
-        # DESKTOP: kde(1.1G) | xfce(800M) | lxqt(300M)
-        - DESKTOP=${DESKTOP:-lxqt}
+        # DESKTOP: xfce(800M) | lxqt(300M) | kde(1.1G)
+        - DESKTOP=${DESKTOP:-xfce}
         - USE_CHINA_MIRROR=${USE_CHINA_MIRROR:-false}
 
-    image: xuping/agent-workspace:ubuntu-${DESKTOP:-lxqt}
+    image: xuping/agent-workspace:ubuntu-${DESKTOP:-xfce}
     container_name: agent-workspace
     hostname: agent-workspace
 

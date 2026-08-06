@@ -22,8 +22,8 @@ $Texts = @{
         lang_cn = "1) 中文 (Chinese)"
         lang_en = "2) English"
         step_desktop_title = "步骤 2/9: 选择桌面环境"
-        desktop_lxqt = "1) LXQt  — 轻量 (~300MB 内存)"
-        desktop_xfce = "2) XFCE  — 中等 (~800MB 内存)"
+        desktop_lxqt = "2) LXQt  — 轻量 (~300MB 内存)"
+        desktop_xfce = "1) XFCE  — 推荐 (~800MB 内存)"
         desktop_kde  = "3) KDE   — 完整 (~1.1GB 内存)"
         selected_desktop = "已选择桌面"
         step_docker_title = "步骤 3/9: Docker 配置"
@@ -110,8 +110,8 @@ $Texts = @{
         lang_cn = "1) Chinese"
         lang_en = "2) English"
         step_desktop_title = "Step 2/9: Select Desktop"
-        desktop_lxqt = "1) LXQt  — Lightweight (~300MB RAM)"
-        desktop_xfce = "2) XFCE  — Medium (~800MB RAM)"
+        desktop_lxqt = "2) LXQt  — Lightweight (~300MB RAM)"
+        desktop_xfce = "1) XFCE  — Recommended (~800MB RAM)"
         desktop_kde  = "3) KDE   — Full (~1.1GB RAM)"
         selected_desktop = "Selected desktop"
         step_docker_title = "Step 3/9: Docker Configuration"
@@ -198,7 +198,7 @@ $Texts = @{
 # Global state
 # ============================================================================
 $script:Lang = "cn"
-$script:SelectedDesktop = "lxqt"
+$script:SelectedDesktop = "xfce"
 $script:DockerMode = "none"
 $script:Registry = ""
 $script:SelectedImage = ""
@@ -296,16 +296,16 @@ function Select-Language {
 function Select-Desktop {
     Write-Host ""
     Write-Info (T 'step_desktop_title')
-    Write-Host "  $(T 'desktop_lxqt')"
     Write-Host "  $(T 'desktop_xfce')"
+    Write-Host "  $(T 'desktop_lxqt')"
     Write-Host "  $(T 'desktop_kde')"
     Write-Host ""
     $choice = Read-Host "$(T 'enter_choice') [1-3, default 1]"
     if (-not $choice) { $choice = "1" }
     switch ($choice) {
-        "2" { $script:SelectedDesktop = "xfce" }
+        "2" { $script:SelectedDesktop = "lxqt" }
         "3" { $script:SelectedDesktop = "kde" }
-        default { $script:SelectedDesktop = "lxqt" }
+        default { $script:SelectedDesktop = "xfce" }
     }
     Write-Host ""
     Write-Info "$(T 'selected_desktop'): $($script:SelectedDesktop)"

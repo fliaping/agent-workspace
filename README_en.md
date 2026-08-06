@@ -16,7 +16,7 @@ A containerized cloud desktop based on [LinuxServer Webtop](https://docs.linuxse
 ## Features
 
 - **Selkies WebRTC Desktop** — Full Linux desktop via browser (HTTPS), inheriting LinuxServer Webtop's upstream display, encoding, and DPI defaults
-- **3 Desktop Environments** — LXQt (lightweight ~300MB) / XFCE (medium ~800MB) / KDE (full ~1.1GB)
+- **3 Desktop Environments** — XFCE (default, recommended ~800MB) / LXQt (lightweight ~300MB) / KDE (full ~1.1GB)
 - **Complete Dev Toolchain** — Node.js 22, Go 1.22, Rust, Python 3, Homebrew, uv
 - **Multiple Docker Modes** — Disabled / DinD (standalone Docker inside container) / Host Docker socket mount
 - **GPU Acceleration** — Auto-detect NVIDIA / Intel / AMD GPU for hardware rendering and encoding
@@ -57,12 +57,12 @@ docker run -d --name agent-workspace \
   -e TZ=Etc/UTC \
   -p 3001:3001 \
   -v ~/agent-workspace-data:/config \
-  xuping/agent-workspace:ubuntu-lxqt
+  xuping/agent-workspace:ubuntu-xfce
 ```
 
 Access the desktop at **https://localhost:3001**.
 
-> China mirror: `registry.cn-hangzhou.aliyuncs.com/fliaping/agent-workspace:ubuntu-lxqt`
+> China mirror: `registry.cn-hangzhou.aliyuncs.com/fliaping/agent-workspace:ubuntu-xfce`
 
 ### Docker Compose
 
@@ -77,8 +77,8 @@ docker compose up -d
 
 | Tag | Description |
 |-----|-------------|
-| `ubuntu-lxqt` | LXQt desktop (default, lightest) |
-| `ubuntu-xfce` | XFCE desktop |
+| `ubuntu-xfce` | XFCE desktop (default, recommended) |
+| `ubuntu-lxqt` | LXQt desktop (lightest) |
 | `ubuntu-kde` | KDE desktop |
 
 ## Environment Variables
@@ -92,6 +92,7 @@ docker compose up -d
 | `USE_CHINA_MIRROR` | `false` | Switch to China mirrors at runtime |
 | `SSH_PASSWORD` | unset | Set to enable SSH service (port 22), value is abc user password |
 | `NODE_OPTIONS` | - | Node.js options (e.g., `--max-old-space-size=2048`) |
+| `XFCE_PANEL_SCALING` | `true` | Keep XFCE panel rows and icons in step with Wayland scaling; set to `false` to disable |
 
 ## Docker Modes
 
@@ -232,7 +233,7 @@ The `run` file must be executable. After container recreation, services are auto
 git clone https://github.com/fliaping/agent-workspace.git
 cd agent-workspace
 
-# Default build (LXQt + international mirrors)
+# Default build (XFCE + international mirrors)
 docker compose build
 
 # KDE desktop

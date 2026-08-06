@@ -16,7 +16,7 @@
 ## 核心特性
 
 - **Selkies WebRTC 桌面** — 通过浏览器访问完整 Linux 桌面（HTTPS），显示、编码和 DPI 默认沿用 LinuxServer Webtop 上游配置
-- **三种桌面环境** — LXQt（轻量 ~300MB）/ XFCE（中等 ~800MB）/ KDE（完整 ~1.1GB）
+- **三种桌面环境** — XFCE（默认，推荐 ~800MB）/ LXQt（轻量 ~300MB）/ KDE（完整 ~1.1GB）
 - **完整开发工具链** — Node.js 22、Go 1.22、Rust、Python 3、Homebrew、uv
 - **多种 Docker 模式** — 不启用 / DinD（容器内独立 Docker）/ 挂载宿主机 Docker
 - **GPU 加速** — 自动检测 NVIDIA / Intel / AMD GPU，支持硬件渲染与编码
@@ -62,12 +62,12 @@ docker run -d --name agent-workspace \
   -e SELKIES_ENABLE_RESIZE=true \
   -p 3001:3001 \
   -v ~/agent-workspace-data:/config \
-  xuping/agent-workspace:ubuntu-lxqt
+  xuping/agent-workspace:ubuntu-xfce
 ```
 
 启动后访问 **https://localhost:3001** 打开桌面。
 
-> 国内用户镜像：`registry.cn-hangzhou.aliyuncs.com/fliaping/agent-workspace:ubuntu-lxqt`
+> 国内用户镜像：`registry.cn-hangzhou.aliyuncs.com/fliaping/agent-workspace:ubuntu-xfce`
 
 ### Docker Compose 启动
 
@@ -82,8 +82,8 @@ docker compose up -d
 
 | 标签 | 说明 |
 |------|------|
-| `ubuntu-lxqt` | LXQt 桌面（默认，最轻量） |
-| `ubuntu-xfce` | XFCE 桌面 |
+| `ubuntu-xfce` | XFCE 桌面（默认，推荐） |
+| `ubuntu-lxqt` | LXQt 桌面（最轻量） |
 | `ubuntu-kde` | KDE 桌面 |
 
 ## 环境变量
@@ -101,6 +101,7 @@ docker compose up -d
 | `SELKIES_RATE_CONTROL_MODE` | `crf,cbr` | 可选码率模式，首项 CRF 为默认值 |
 | `SELKIES_CONGESTION_CONTROL` | `false` | 关闭会压低动态画质的 GCC 自适应码率 |
 | `SELKIES_ENABLE_RESIZE` | `true` | 浏览器窗口变化时同步调整桌面分辨率 |
+| `XFCE_PANEL_SCALING` | `true` | Wayland 缩放变化时同步调整 XFCE 面板与图标；设为 `false` 可关闭 |
 
 ## Docker 模式
 
@@ -231,7 +232,7 @@ proxyctl 详细说明见 `addons/proxyctl/README.md`，code-server 插件说明�
 git clone https://github.com/fliaping/agent-workspace.git
 cd agent-workspace
 
-# 默认构建（LXQt + 国际源）
+# 默认构建（XFCE + 国际源）
 docker compose build
 
 # KDE 桌面

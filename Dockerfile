@@ -1,15 +1,15 @@
 # LinuxServer Webtop + DinD + GPU 加速 + 完整开发环境
 #
 # 构建参数:
-#   DESKTOP=lxqt (默认) | xfce | kde    — 桌面环境 (内存: lxqt 300M / xfce 800M / kde 1.1G)
+#   DESKTOP=xfce (默认) | lxqt | kde    — 桌面环境 (内存: xfce 800M / lxqt 300M / kde 1.1G)
 #   USE_CHINA_MIRROR=false (默认，国际源) | true (国内源)
 #
 # 示例:
-#   docker compose build                                          # lxqt + 国际源
+#   docker compose build                                          # XFCE + 国际源
 #   docker compose build --build-arg DESKTOP=kde                 # KDE 桌面
 #   docker compose build --build-arg USE_CHINA_MIRROR=true       # 国内源
 
-ARG DESKTOP=lxqt
+ARG DESKTOP=xfce
 FROM linuxserver/webtop:ubuntu-${DESKTOP}
 
 USER root
@@ -32,7 +32,8 @@ ENV USE_CHINA_MIRROR=${USE_CHINA_MIRROR}
 ENV SELKIES_ENABLE_RATE_CONTROL=true \
     SELKIES_RATE_CONTROL_MODE=crf,cbr \
     SELKIES_CONGESTION_CONTROL=false \
-    SELKIES_ENABLE_RESIZE=true
+    SELKIES_ENABLE_RESIZE=true \
+    XFCE_PANEL_SCALING=true
 
 # 工具版本
 ENV GO_VERSION="go1.22.4"

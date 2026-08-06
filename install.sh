@@ -40,8 +40,8 @@ TEXT_cn_step1_title="步骤 1/9: 选择语言"
 TEXT_cn_lang_cn="1) 中文 (Chinese)"
 TEXT_cn_lang_en="2) English (英文)"
 TEXT_cn_step_desktop_title="步骤 2/9: 选择桌面环境"
-TEXT_cn_desktop_lxqt="1) LXQt  — 轻量 (~300MB 内存)"
-TEXT_cn_desktop_xfce="2) XFCE  — 中等 (~800MB 内存)"
+TEXT_cn_desktop_lxqt="2) LXQt  — 轻量 (~300MB 内存)"
+TEXT_cn_desktop_xfce="1) XFCE  — 推荐 (~800MB 内存)"
 TEXT_cn_desktop_kde="3) KDE   — 完整 (~1.1GB 内存)"
 TEXT_cn_selected_desktop="已选择桌面"
 TEXT_cn_step_registry_title="步骤 4/9: 选择镜像源"
@@ -153,8 +153,8 @@ TEXT_en_step1_title="Step 1/9: Select Language"
 TEXT_en_lang_cn="1) 中文 (Chinese)"
 TEXT_en_lang_en="2) English"
 TEXT_en_step_desktop_title="Step 2/9: Select Desktop"
-TEXT_en_desktop_lxqt="1) LXQt  — Lightweight (~300MB RAM)"
-TEXT_en_desktop_xfce="2) XFCE  — Medium (~800MB RAM)"
+TEXT_en_desktop_lxqt="2) LXQt  — Lightweight (~300MB RAM)"
+TEXT_en_desktop_xfce="1) XFCE  — Recommended (~800MB RAM)"
 TEXT_en_desktop_kde="3) KDE   — Full (~1.1GB RAM)"
 TEXT_en_selected_desktop="Selected desktop"
 TEXT_en_enter_choice="Enter your choice"
@@ -320,8 +320,8 @@ DEFAULT_VERSION="latest"
 CONTAINER_NAME="agent-workspace"
 DESKTOP_PORT="3001"
 
-# 桌面环境（默认 lxqt）
-SELECTED_DESKTOP="lxqt"
+# 桌面环境（默认 XFCE）
+SELECTED_DESKTOP="xfce"
 
 # Agent 软件默认端口配置（容器内端口，不可修改）
 AGENT_PORT_openclaw="18789"
@@ -414,8 +414,8 @@ select_language() {
 select_desktop() {
     echo ""
     print_info "$(get_text step_desktop_title)"
-    echo "  $(get_text desktop_lxqt)"
     echo "  $(get_text desktop_xfce)"
+    echo "  $(get_text desktop_lxqt)"
     echo "  $(get_text desktop_kde)"
     echo ""
 
@@ -423,10 +423,10 @@ select_desktop() {
     desktop_choice=${desktop_choice:-1}
 
     case $desktop_choice in
-        1) SELECTED_DESKTOP="lxqt" ;;
-        2) SELECTED_DESKTOP="xfce" ;;
+        1) SELECTED_DESKTOP="xfce" ;;
+        2) SELECTED_DESKTOP="lxqt" ;;
         3) SELECTED_DESKTOP="kde" ;;
-        *) SELECTED_DESKTOP="lxqt" ;;
+        *) SELECTED_DESKTOP="xfce" ;;
     esac
 
     echo ""
