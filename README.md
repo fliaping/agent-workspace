@@ -56,6 +56,10 @@ docker run -d --name agent-workspace \
   -e PUID=1000 -e PGID=1000 \
   -e TZ=Asia/Shanghai \
   -e LC_ALL=zh_CN.UTF-8 \
+  -e SELKIES_ENABLE_RATE_CONTROL=true \
+  -e SELKIES_RATE_CONTROL_MODE=crf,cbr \
+  -e SELKIES_CONGESTION_CONTROL=false \
+  -e SELKIES_ENABLE_RESIZE=true \
   -p 3001:3001 \
   -v ~/agent-workspace-data:/config \
   xuping/agent-workspace:ubuntu-lxqt
@@ -93,6 +97,10 @@ docker compose up -d
 | `USE_CHINA_MIRROR` | `false` | 运行时切换国内镜像源 |
 | `SSH_PASSWORD` | 不设置 | 设置后启用 SSH 服务（端口 22），值为 abc 用户密码 |
 | `NODE_OPTIONS` | - | Node.js 选项（如 `--max-old-space-size=2048`） |
+| `SELKIES_ENABLE_RATE_CONTROL` | `true` | 启用 CRF/CBR 码率控制切换 |
+| `SELKIES_RATE_CONTROL_MODE` | `crf,cbr` | 可选码率模式，首项 CRF 为默认值 |
+| `SELKIES_CONGESTION_CONTROL` | `false` | 关闭会压低动态画质的 GCC 自适应码率 |
+| `SELKIES_ENABLE_RESIZE` | `true` | 浏览器窗口变化时同步调整桌面分辨率 |
 
 ## Docker 模式
 
@@ -111,7 +119,7 @@ docker compose up -d
 
 > 安装脚本会自动检测 GPU 并配置。
 >
-> Selkies 参数默认继承上游。只有遇到明确的 Wayland 兼容问题时，才建议添加 `-e PIXELFLUX_WAYLAND=false` 回退到 X11；X11 无法使用上游的 Wayland 零拷贝编码优化。
+> 视频默认采用恒定质量 CRF，侧栏仍可切换为 CBR；桌面分辨率会跟随浏览器窗口变化。只有遇到明确的 Wayland 兼容问题时，才建议添加 `-e PIXELFLUX_WAYLAND=false` 回退到 X11；X11 无法使用上游的 Wayland 零拷贝编码优化。
 
 ## 内置工具链
 

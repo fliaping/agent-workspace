@@ -27,6 +27,13 @@ ARG USE_CHINA_MIRROR=false
 # 构建时传入的变量（运行时由 docker-compose 设置）
 ENV USE_CHINA_MIRROR=${USE_CHINA_MIRROR}
 
+# Selkies 桌面流：默认使用恒定质量 CRF，并允许按浏览器窗口动态调整分辨率。
+# 保留 CBR 作为弱网场景下的可选项；GCC 会强制自适应码率并降低动态画质，因此默认关闭。
+ENV SELKIES_ENABLE_RATE_CONTROL=true \
+    SELKIES_RATE_CONTROL_MODE=crf,cbr \
+    SELKIES_CONGESTION_CONTROL=false \
+    SELKIES_ENABLE_RESIZE=true
+
 # 工具版本
 ENV GO_VERSION="go1.22.4"
 ENV NODE_VERSION="22"

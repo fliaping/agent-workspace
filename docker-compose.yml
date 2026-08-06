@@ -47,7 +47,13 @@ services:
       - START_DOCKER=false
       #- START_DOCKER=true  # DinD 模式时启用
       # --- Selkies ---
-      # 默认继承 LinuxServer Webtop 的显示、编码和 DPI 配置。
+      # 默认使用恒定质量 CRF；CBR 仍可在侧栏中按需选择。
+      - SELKIES_ENABLE_RATE_CONTROL=true
+      - SELKIES_RATE_CONTROL_MODE=crf,cbr
+      # GCC 会启用自适应码率，动态画面容易明显降质。
+      - SELKIES_CONGESTION_CONTROL=false
+      # 浏览器窗口变化时同步调整虚拟桌面分辨率。
+      - SELKIES_ENABLE_RESIZE=true
       # 仅遇到 Wayland 兼容问题时才按需启用 X11 回退：
       #- PIXELFLUX_WAYLAND=false
       # --- GPU 渲染/编码设备路径（按需启用）---

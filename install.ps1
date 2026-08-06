@@ -723,6 +723,10 @@ function Main {
         "-e", "TZ=Asia/Shanghai",
         "-e", "LC_ALL=zh_CN.UTF-8",
         "-e", "NODE_OPTIONS=--max-old-space-size=2048",
+        "-e", "SELKIES_ENABLE_RATE_CONTROL=true",
+        "-e", "SELKIES_RATE_CONTROL_MODE=crf,cbr",
+        "-e", "SELKIES_CONGESTION_CONTROL=false",
+        "-e", "SELKIES_ENABLE_RESIZE=true",
         "-v", "$($script:DataDir):/config",
         "-p", "$($script:DesktopPort):3001"
     )
