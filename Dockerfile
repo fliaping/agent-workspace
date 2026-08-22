@@ -59,15 +59,17 @@ ENV HOMEBREW_NO_AUTO_UPDATE=1
 # 安装系统依赖
 # ==========================================
 
-# 国内模式切换 APT 源（USTC 镜像，加速 apt-get）
-# LinuxServer 镜像使用旧式 /etc/apt/sources.list，ARM64 源为 ports.ubuntu.com
+# 国内模式切换 APT 源（USTC 镜像，加速 apt-get）。
+# 同时兼容旧式 sources.list 和新版 Ubuntu 的 deb822 *.sources 文件。
 RUN if [ "$USE_CHINA_MIRROR" = "true" ]; then \
-        sed -i 's@http://ports.ubuntu.com/ubuntu-ports@https://mirrors.ustc.edu.cn/ubuntu-ports@g' \
-            /etc/apt/sources.list 2>/dev/null || true; \
-        sed -i 's@http://archive.ubuntu.com/ubuntu@https://mirrors.ustc.edu.cn/ubuntu@g' \
-            /etc/apt/sources.list 2>/dev/null || true; \
-        sed -i 's@http://security.ubuntu.com/ubuntu@https://mirrors.ustc.edu.cn/ubuntu@g' \
-            /etc/apt/sources.list 2>/dev/null || true; \
+        for apt_source_file in /etc/apt/sources.list /etc/apt/sources.list.d/*.sources; do \
+            [ -f "$apt_source_file" ] || continue; \
+            sed -i \
+                -e 's@http://ports.ubuntu.com/ubuntu-ports@https://mirrors.ustc.edu.cn/ubuntu-ports@g' \
+                -e 's@http://archive.ubuntu.com/ubuntu@https://mirrors.ustc.edu.cn/ubuntu@g' \
+                -e 's@http://security.ubuntu.com/ubuntu@https://mirrors.ustc.edu.cn/ubuntu@g' \
+                "$apt_source_file"; \
+        done; \
     fi
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
