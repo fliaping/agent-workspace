@@ -21,7 +21,8 @@ mkdir -p "$USER_SYSTEMD_RUN_DIR"
     umask 077
     export -p > "$USER_SYSTEMD_ENV_FILE"
 )
-chown abc:abc "$USER_SYSTEMD_ENV_FILE" 2>/dev/null || true
+chown -R abc:abc "$USER_SYSTEMD_RUN_DIR" 2>/dev/null || true
+chmod 700 "$USER_SYSTEMD_RUN_DIR" 2>/dev/null || true
 
 # Wait for Docker daemon (DinD mode only)
 if [ "$START_DOCKER" = "true" ] && command -v docker > /dev/null 2>&1; then

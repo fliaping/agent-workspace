@@ -13,33 +13,44 @@ echo "[setup-mirror] Configuring China mirrors..."
 # ==========================================
 # APT 源（USTC）
 # ==========================================
-CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
-cat > /etc/apt/sources.list << EOF
+apt_sources_found=false
+for apt_source_file in /etc/apt/sources.list /etc/apt/sources.list.d/*.sources; do
+    [ -f "$apt_source_file" ] || continue
+    apt_sources_found=true
+    sed -i \
+        -e 's@http://ports.ubuntu.com/ubuntu-ports@https://mirrors.ustc.edu.cn/ubuntu-ports@g' \
+        -e 's@http://archive.ubuntu.com/ubuntu@https://mirrors.ustc.edu.cn/ubuntu@g' \
+        -e 's@http://security.ubuntu.com/ubuntu@https://mirrors.ustc.edu.cn/ubuntu@g' \
+        "$apt_source_file"
+done
+if [ "$apt_sources_found" = "false" ]; then
+    CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
+    cat > /etc/apt/sources.list << EOF
 deb https://mirrors.ustc.edu.cn/ubuntu/ ${CODENAME} main restricted universe multiverse
 deb https://mirrors.ustc.edu.cn/ubuntu/ ${CODENAME}-updates main restricted universe multiverse
 deb https://mirrors.ustc.edu.cn/ubuntu/ ${CODENAME}-backports main restricted universe multiverse
 deb https://mirrors.ustc.edu.cn/ubuntu/ ${CODENAME}-security main restricted universe multiverse
 EOF
+fi
 echo "[setup-mirror] APT → USTC"
 
 # ==========================================
 # npm + pnpm（npmmirror）
-# Note: init runs as root, --global writes to root's prefix which abc
-# user may not read. Write to /config/.npmrc (abc user-level config).
+# Init runs as root, so write the abc user's config directly and keep npm's
+# mutable cache owned by abc.
 # ==========================================
 if command -v npm > /dev/null 2>&1; then
-    npm config set registry https://registry.npmmirror.com --global
-    # Also set user-level config for abc (HOME=/config)
     grep -q 'registry=' /config/.npmrc 2>/dev/null \
         && sed -i 's|^registry=.*|registry=https://registry.npmmirror.com|' /config/.npmrc \
         || echo "registry=https://registry.npmmirror.com" >> /config/.npmrc
-    chown abc:abc /config/.npmrc 2>/dev/null || true
+    mkdir -p /config/.npm
+    chown -R abc:abc /config/.npm /config/.npmrc 2>/dev/null || true
     echo "[setup-mirror] npm → npmmirror"
 fi
 if command -v pnpm > /dev/null 2>&1; then
-    pnpm config set registry https://registry.npmmirror.com
-    # Also set for abc user (pnpm reads ~/.npmrc or its own config)
-    su -s /bin/bash abc -c "pnpm config set registry https://registry.npmmirror.com" 2>/dev/null || true
+    su -s /bin/bash abc -c \
+        "HOME=/config pnpm config set registry https://registry.npmmirror.com" \
+        2>/dev/null || true
     echo "[setup-mirror] pnpm → npmmirror"
 fi
 
@@ -70,8 +81,8 @@ export HOMEBREW_BOTTLE_DOMAIN="https://mirrors.ustc.edu.cn/homebrew-bottles"
 export HOMEBREW_API_DOMAIN="https://mirrors.ustc.edu.cn/homebrew-bottles/api"
 export HOMEBREW_CURL_RETRIES=3
 # Rust
-export RUSTUP_DIST_SERVER="https://mirrors.ustc.edu.cn/rustup"
-export RUSTUP_UPDATE_ROOT="https://mirrors.ustc.edu.cn/rustup/rustup"
+export RUSTUP_DIST_SERVER="https://mirrors.ustc.edu.cn/rust-static"
+export RUSTUP_UPDATE_ROOT="https://mirrors.ustc.edu.cn/rust-static/rustup"
 EOF
 chmod +x /etc/profile.d/mirrors.sh
 echo "[setup-mirror] Go/uv/Homebrew/Rust → USTC/tsinghua/goproxy"
@@ -88,6 +99,7 @@ replace-with = "ustc"
 [source.ustc]
 registry = "sparse+https://mirrors.ustc.edu.cn/crates.io-index/"
 EOF
+chown -R abc:abc "$CARGO_CONFIG_DIR" 2>/dev/null || true
 echo "[setup-mirror] cargo registry → USTC"
 
 echo "[setup-mirror] All China mirrors configured"
