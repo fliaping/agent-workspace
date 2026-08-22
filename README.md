@@ -46,6 +46,15 @@ https://localhost:3001  # Webtop 桌面
 https://localhost:8443  # code-server
 ```
 
+这里的 `localhost` 指运行 Docker 的服务器。如果从其他电脑访问，可使用服务器
+主机名/IP；若防火墙、WSL 或 NAT 没有开放这两个端口，可在客户端建立 SSH 隧道：
+
+```bash
+ssh -N -L 3001:127.0.0.1:3001 -L 8443:127.0.0.1:8443 user@server
+```
+
+建立后仍在客户端浏览器打开上述 `localhost` 地址。
+
 默认使用自签名证书，第一次访问时浏览器会提示确认。公网部署仍建议放在具备
 TLS 和强认证的反向代理、VPN 或零信任网关后面。
 

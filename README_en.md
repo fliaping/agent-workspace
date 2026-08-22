@@ -47,6 +47,16 @@ https://localhost:3001  # Webtop desktop
 https://localhost:8443  # code-server
 ```
 
+Here, `localhost` means the Docker host. From another machine, use the server
+hostname/IP when the ports are reachable. If a firewall, WSL, or NAT keeps them
+private, create an SSH tunnel from the client:
+
+```bash
+ssh -N -L 3001:127.0.0.1:3001 -L 8443:127.0.0.1:8443 user@server
+```
+
+Then open the same `localhost` URLs in the client browser.
+
 The defaults use self-signed certificates. For Internet exposure, put the
 workspace behind a reverse proxy, VPN, or zero-trust gateway with strong TLS and
 authentication.

@@ -20,6 +20,21 @@ available. Both Webtop and code-server use the generated password. Their default
 certificates are self-signed, so this profile is best reached through a private
 network or VPN.
 
+The printed `localhost` URLs refer to the Docker host. From another machine,
+use the server hostname or IP when ports `3001` and `8443` are reachable. If the
+host firewall, WSL networking, or NAT does not publish them, keep the ports
+private and create an SSH tunnel instead:
+
+```bash
+ssh -N \
+  -L 3001:127.0.0.1:3001 \
+  -L 8443:127.0.0.1:8443 \
+  user@server
+```
+
+Then open the same `https://localhost:3001` and
+`https://localhost:8443` addresses on the client.
+
 The first boot sets `AGENT_WORKSPACE_BOOTSTRAP=remote`. The s6 bootstrap service
 updates the application source and installs:
 
