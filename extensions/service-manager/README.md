@@ -10,6 +10,8 @@ It discovers:
 
 Supported actions:
 
+- Browse native sidebar views for Favorites, Running, and All services
+- Add and remove persistent favorites
 - Start
 - Stop
 - Restart

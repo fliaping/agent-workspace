@@ -3,6 +3,25 @@ set -euo pipefail
 
 PACKAGE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 EXTENSIONS_DIR="${CODE_SERVER_EXTENSIONS_DIR:-/config/.local/share/code-server/extensions}"
+CODE_SERVER_BIN="${CODE_SERVER_BIN:-/config/opt/code-server/bin/code-server}"
+NPX_BIN="${NPX_BIN:-$(command -v npx || true)}"
+VSCE_PACKAGE="${VSCE_PACKAGE:-@vscode/vsce@3.9.2}"
+PACKAGE_TMP="$(mktemp -d "${TMPDIR:-/tmp}/agent-workspace-extensions.XXXXXX")"
+
+cleanup() {
+    rm -rf -- "${PACKAGE_TMP}"
+}
+trap cleanup EXIT
+
+if [[ ! -x "${CODE_SERVER_BIN}" ]]; then
+    echo "[extensions] code-server CLI not found: ${CODE_SERVER_BIN}" >&2
+    exit 1
+fi
+
+if [[ -z "${NPX_BIN}" || ! -x "${NPX_BIN}" ]]; then
+    echo "[extensions] npx not found: ${NPX_BIN}" >&2
+    exit 1
+fi
 
 install_extension() {
     local name="$1"
@@ -10,7 +29,7 @@ install_extension() {
     local package_name
     local publisher
     local version
-    local target
+    local vsix
 
     if [[ ! -f "${source}/package.json" ]]; then
         echo "[extensions] missing package.json: ${source}" >&2
@@ -20,13 +39,36 @@ install_extension() {
     package_name="$(node -e "process.stdout.write(require('${source}/package.json').name)")"
     publisher="$(node -e "process.stdout.write(require('${source}/package.json').publisher || 'agent-workspace')")"
     version="$(node -e "process.stdout.write(require('${source}/package.json').version)")"
-    target="${EXTENSIONS_DIR}/${publisher}.${package_name}-${version}"
+    vsix="${PACKAGE_TMP}/${publisher}.${package_name}-${version}.vsix"
 
     mkdir -p "${EXTENSIONS_DIR}"
-    rm -rf "${target}"
-    ln -s "${source}" "${target}"
-    echo "[extensions] installed ${name} -> ${target}"
+
+    (
+        cd "${source}"
+        "${NPX_BIN}" --yes "${VSCE_PACKAGE}" package \
+            --no-dependencies \
+            --allow-missing-repository \
+            --skip-license \
+            --out "${vsix}"
+    )
+
+    # Remove the legacy local publisher through the CLI so extensions.json and
+    # the filesystem stay consistent.
+    env -u VSCODE_IPC_HOOK_CLI -u CODE_SERVER_PARENT_PID -u NODE_EXEC_PATH \
+        "${CODE_SERVER_BIN}" \
+        --uninstall-extension "self-conf.${package_name}" \
+        --extensions-dir "${EXTENSIONS_DIR}" >/dev/null 2>&1 || true
+
+    # Official VSIX installation invalidates the extension manifest cache and
+    # makes a subsequent Developer: Reload Window sufficient.
+    env -u VSCODE_IPC_HOOK_CLI -u CODE_SERVER_PARENT_PID -u NODE_EXEC_PATH \
+        "${CODE_SERVER_BIN}" \
+        --install-extension "${vsix}" \
+        --force \
+        --extensions-dir "${EXTENSIONS_DIR}"
+    echo "[extensions] installed ${publisher}.${package_name}@${version}"
 }
 
 install_extension "service-manager"
 install_extension "caddy-proxy-manager"
+install_extension "selkies-desktop"

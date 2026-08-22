@@ -4,6 +4,12 @@ const path = require('path');
 const { execFile } = require('child_process');
 
 const OUTPUT = vscode.window.createOutputChannel('Unified Service Manager');
+const FAVORITES_KEY = 'unifiedServiceManager.favoriteServiceIds';
+const VIEW_IDS = {
+  favorites: 'unifiedServiceManager.favorites',
+  running: 'unifiedServiceManager.running',
+  all: 'unifiedServiceManager.services'
+};
 
 function run(command, args, options = {}) {
   return new Promise((resolve) => {
@@ -37,6 +43,10 @@ function statusIcon(status) {
   if (status === 'stopped') return new vscode.ThemeIcon('circle-outline', new vscode.ThemeColor('testing.iconUnset'));
   if (status === 'failed') return new vscode.ThemeIcon('error', new vscode.ThemeColor('testing.iconFailed'));
   return new vscode.ThemeIcon('question', new vscode.ThemeColor('testing.iconQueued'));
+}
+
+function serviceKey(service) {
+  return `${service.kind}:${service.scope || ''}:${service.id}`;
 }
 
 function parseKeyValues(text) {
@@ -178,12 +188,12 @@ async function processTreeForPid(pid) {
 }
 
 class ServiceItem extends vscode.TreeItem {
-  constructor(service) {
+  constructor(service, favorite) {
     super(service.name, vscode.TreeItemCollapsibleState.None);
     this.service = service;
-    this.description = `${service.kind} ${service.scope || ''}`.trim();
-    this.tooltip = `${service.kind}:${service.id}\n${service.rawStatus || service.status}`;
-    this.contextValue = `${service.kind}-service`;
+    this.description = `${favorite ? '★ ' : ''}${service.kind} ${service.scope || ''}`.trim();
+    this.tooltip = `${favorite ? 'Favorite\n' : ''}${service.kind}:${service.id}\n${service.rawStatus || service.status}`;
+    this.contextValue = `${service.kind}-service-${favorite ? 'favorite' : 'unstarred'}`;
     this.iconPath = statusIcon(service.status);
     this.command = {
       command: 'unifiedServiceManager.showDetails',
@@ -203,11 +213,49 @@ class GroupItem extends vscode.TreeItem {
   }
 }
 
+class FavoriteStore {
+  constructor(globalState) {
+    this.globalState = globalState;
+    this.ids = new Set(globalState.get(FAVORITES_KEY, []));
+  }
+
+  has(service) {
+    return this.ids.has(serviceKey(service));
+  }
+
+  async add(service) {
+    this.ids.add(serviceKey(service));
+    await this.persist();
+  }
+
+  async remove(service) {
+    this.ids.delete(serviceKey(service));
+    await this.persist();
+  }
+
+  async persist() {
+    await this.globalState.update(FAVORITES_KEY, [...this.ids].sort());
+  }
+}
+
+class ServiceRepository {
+  invalidate() {
+    this.servicesPromise = undefined;
+  }
+
+  getServices() {
+    if (!this.servicesPromise) this.servicesPromise = discoverServices();
+    return this.servicesPromise;
+  }
+}
+
 class ServiceProvider {
-  constructor() {
+  constructor(repository, favorites, filter) {
+    this.repository = repository;
+    this.favorites = favorites;
+    this.filter = filter;
     this._onDidChangeTreeData = new vscode.EventEmitter();
     this.onDidChangeTreeData = this._onDidChangeTreeData.event;
-    this.groups = [];
   }
 
   refresh() {
@@ -216,10 +264,11 @@ class ServiceProvider {
 
   async getChildren(element) {
     if (element instanceof GroupItem) return element.children;
-    const services = await discoverServices();
-    const s6 = services.filter((s) => s.kind === 's6').map((s) => new ServiceItem(s));
-    const systemdUser = services.filter((s) => s.kind === 'systemd' && s.scope === 'user').map((s) => new ServiceItem(s));
-    const systemdSystem = services.filter((s) => s.kind === 'systemd' && s.scope === 'system').map((s) => new ServiceItem(s));
+    const services = (await this.repository.getServices()).filter(this.filter);
+    const makeItem = (service) => new ServiceItem(service, this.favorites.has(service));
+    const s6 = services.filter((s) => s.kind === 's6').map(makeItem);
+    const systemdUser = services.filter((s) => s.kind === 'systemd' && s.scope === 'user').map(makeItem);
+    const systemdSystem = services.filter((s) => s.kind === 'systemd' && s.scope === 'system').map(makeItem);
     return [
       new GroupItem('s6', s6),
       new GroupItem('systemd user', systemdUser),
@@ -435,15 +484,44 @@ async function systemdLogs(service, baseArgs) {
 }
 
 function activate(context) {
-  const provider = new ServiceProvider();
-  vscode.window.registerTreeDataProvider('unifiedServiceManager.services', provider);
+  const repository = new ServiceRepository();
+  const favorites = new FavoriteStore(context.globalState);
+  const providers = [
+    new ServiceProvider(repository, favorites, (service) => favorites.has(service)),
+    new ServiceProvider(repository, favorites, (service) => service.status === 'running'),
+    new ServiceProvider(repository, favorites, () => true)
+  ];
+  const providerRegistrations = [
+    vscode.window.registerTreeDataProvider(VIEW_IDS.favorites, providers[0]),
+    vscode.window.registerTreeDataProvider(VIEW_IDS.running, providers[1]),
+    vscode.window.registerTreeDataProvider(VIEW_IDS.all, providers[2])
+  ];
+  const refreshAll = () => {
+    repository.invalidate();
+    for (const provider of providers) provider.refresh();
+  };
+  const manageAndRefresh = async (item, action) => {
+    await manage(item, action);
+    refreshAll();
+  };
 
   context.subscriptions.push(
     OUTPUT,
-    vscode.commands.registerCommand('unifiedServiceManager.refresh', () => provider.refresh()),
-    vscode.commands.registerCommand('unifiedServiceManager.start', async (item) => { await manage(item, 'start'); provider.refresh(); }),
-    vscode.commands.registerCommand('unifiedServiceManager.stop', async (item) => { await manage(item, 'stop'); provider.refresh(); }),
-    vscode.commands.registerCommand('unifiedServiceManager.restart', async (item) => { await manage(item, 'restart'); provider.refresh(); }),
+    ...providerRegistrations,
+    vscode.commands.registerCommand('unifiedServiceManager.refresh', refreshAll),
+    vscode.commands.registerCommand('unifiedServiceManager.start', (item) => manageAndRefresh(item, 'start')),
+    vscode.commands.registerCommand('unifiedServiceManager.stop', (item) => manageAndRefresh(item, 'stop')),
+    vscode.commands.registerCommand('unifiedServiceManager.restart', (item) => manageAndRefresh(item, 'restart')),
+    vscode.commands.registerCommand('unifiedServiceManager.addFavorite', async (item) => {
+      if (!item || !item.service) return;
+      await favorites.add(item.service);
+      refreshAll();
+    }),
+    vscode.commands.registerCommand('unifiedServiceManager.removeFavorite', async (item) => {
+      if (!item || !item.service) return;
+      await favorites.remove(item.service);
+      refreshAll();
+    }),
     vscode.commands.registerCommand('unifiedServiceManager.showDetails', showDetails)
   );
 }

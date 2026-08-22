@@ -42,6 +42,9 @@ services:
       - PGID=1000
       - TZ=Asia/Shanghai
       - LC_ALL=zh_CN.UTF-8
+      # Webtop 默认无认证。远程暴露时务必取消注释并设置强密码。
+      #- CUSTOM_USER=agent
+      #- PASSWORD=replace-with-a-long-random-password
       - TITLE=Webtop
       # --- Docker（默认不启用，按需选择模式）---
       - START_DOCKER=false

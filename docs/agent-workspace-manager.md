@@ -19,10 +19,10 @@ agent-workspace-manager
 The TUI can:
 
 - update the manager source under `/config/agent-workspace-manager/source`
-- install proxyctl and Caddy routing
-- install code-server extensions
+- install the secure remote foundation (code-server and workspace extensions)
+- optionally install proxyctl and Caddy routing for an existing wildcard gateway
 - register persistent custom s6 services
-- install OpenClaw, Openfang, or Zeroclaw as first-class manager actions
+- install Codex, Claude Code, Hermes, OpenClaw, Openfang, or Zeroclaw as first-class manager actions
 - show capability status and run environment checks
 
 Keyboard controls:
@@ -39,9 +39,10 @@ captured and appended to the log panel instead of writing directly to the
 terminal.
 
 Agent installation is not a nested TUI. The manager reuses the shared Agent
-definitions from `scripts/agent-wizard.py`, then runs the install command,
-creates the user service, enables and starts it, and prints the next onboarding
-command in the same log panel.
+definitions from `scripts/agent-wizard.py`, then runs the install command and
+prints the next onboarding command in the same log panel. Interactive CLIs
+(Codex, Claude Code, and Hermes) stop there; daemon-style Agents additionally
+receive an enabled user service.
 
 ## CLI
 
@@ -50,13 +51,23 @@ The same operations are available for automation:
 ```bash
 agent-workspace-manager update
 agent-workspace-manager install foundation
+agent-workspace-manager install code-server
 agent-workspace-manager install proxyctl
 agent-workspace-manager install code-server-extensions
 agent-workspace-manager install custom-services
 agent-workspace-manager install agents
+agent-workspace-manager install agents claude-code hermes
 agent-workspace-manager status
 agent-workspace-manager doctor
 ```
+
+`install all` installs the secure foundation plus all selected Agent runtimes.
+The wildcard gateway remains an explicit `install proxyctl` step because it
+requires deployment-specific DNS, TLS, and authentication decisions.
+
+With no names, `install agents` installs Codex as the ready-to-use default.
+Inside the workspace, `workspacectl` is the stable control surface Agents can
+use to inspect or operate container capabilities.
 
 ## Source Location
 
@@ -78,6 +89,8 @@ Application state is kept under `/config`:
 
 ```text
 /config/agent-workspace-manager
+/config/opt/code-server
+/config/.config/code-server
 /config/proxyctl
 /config/.local/share/code-server/extensions
 /config/custom-services.d

@@ -212,6 +212,8 @@ do_start() {
     if [ "$restart_policy" = "always" ] || [ "$restart_policy" = "on-failure" ]; then
         # Start a supervisor that monitors and restarts the process
         _start_supervised "$name" "$unit_file" "$exec_cmd" "$log_file" "$restart_sec" "$restart_policy" &
+        local supervisor_pid=$!
+        echo "$supervisor_pid" > "$supervisor_pid_file"
         disown
         # Wait for supervisor to write PID file (up to 3s)
         local waited=0
@@ -250,8 +252,6 @@ _start_supervised() {
     local supervisor_pid_file="$USER_PID_DIR/${name}.supervisor.pid"
     local stop_file="$USER_PID_DIR/${name}.stop"
 
-    # Record supervisor PID
-    echo "${BASHPID:-$$}" > "$supervisor_pid_file"
     # Remove any leftover stop signal
     rm -f "$stop_file"
 

@@ -69,10 +69,13 @@ TEXT_cn_port_in_use="端口已被占用"
 TEXT_cn_port_available="端口可用"
 TEXT_cn_step5_title="步骤 8/9: 选择 Agent 软件"
 TEXT_cn_agent_install_title="选择要安装的 Agent 软件（可多选，空格分隔）"
-TEXT_cn_agent_openclaw="1) OpenClaw - 个人自主开源 AI 助手，支持 WhatsApp/Telegram/Discord 等多平台通信"
-TEXT_cn_agent_openfang="2) Openfang - Rust 构建的 Agent OS，零依赖单二进制，180ms 冷启动"
-TEXT_cn_agent_zeroclaw="3) Zeroclaw - 超轻量 Agent 运行时，<5MB 内存，<10ms 启动"
-TEXT_cn_agent_skip="4) 跳过，不安装任何软件"
+TEXT_cn_agent_codex="1) Codex - OpenAI 编程 Agent（推荐，安装后运行 codex 登录）"
+TEXT_cn_agent_claude_code="2) Claude Code - Anthropic 编程 Agent（安装后运行 claude 登录）"
+TEXT_cn_agent_hermes="3) Hermes Agent - 通用自主 Agent（安装后运行 hermes setup --portal）"
+TEXT_cn_agent_openclaw="4) OpenClaw - 个人自主开源 AI 助手，支持多平台通信"
+TEXT_cn_agent_openfang="5) Openfang - Rust 构建的 Agent OS"
+TEXT_cn_agent_zeroclaw="6) Zeroclaw - 超轻量 Agent 运行时"
+TEXT_cn_agent_skip="7) 跳过，不安装任何软件"
 TEXT_cn_enter_agents="请输入选项（如：1 2 3）"
 TEXT_cn_step6_title="步骤 9/9: 配置 Agent 软件端口"
 TEXT_cn_agent_port_config="配置 Agent 软件端口"
@@ -182,10 +185,13 @@ TEXT_en_port_available="Port is available"
 TEXT_en_enter_data_dir="Enter data directory path"
 TEXT_en_step5_title="Step 8/9: Select Agent Software"
 TEXT_en_agent_install_title="Select Agent software to install (multiple choices allowed, space separated)"
-TEXT_en_agent_openclaw="1) OpenClaw - Personal autonomous AI assistant, multi-platform"
-TEXT_en_agent_openfang="2) Openfang - Rust Agent OS, zero-dep single binary, 180ms cold start"
-TEXT_en_agent_zeroclaw="3) Zeroclaw - Ultra-light Agent runtime, <5MB mem, <10ms start"
-TEXT_en_agent_skip="4) Skip, don't install any software"
+TEXT_en_agent_codex="1) Codex - OpenAI coding agent (recommended; run codex to sign in)"
+TEXT_en_agent_claude_code="2) Claude Code - Anthropic coding agent (run claude to sign in)"
+TEXT_en_agent_hermes="3) Hermes Agent - General autonomous agent (run hermes setup --portal)"
+TEXT_en_agent_openclaw="4) OpenClaw - Personal autonomous AI assistant"
+TEXT_en_agent_openfang="5) Openfang - Rust Agent OS"
+TEXT_en_agent_zeroclaw="6) Zeroclaw - Ultra-light Agent runtime"
+TEXT_en_agent_skip="7) Skip, don't install any software"
 TEXT_en_enter_agents="Enter options (e.g., 1 2 3)"
 TEXT_en_step6_title="Step 9/9: Configure Agent Software Ports"
 TEXT_en_agent_port_config="Configure Agent Software Ports"
@@ -358,6 +364,8 @@ DOCKER_MODE="none"
 # SSH 配置
 SSH_PASSWORD=""
 SSH_PORT="2222"
+DESKTOP_USER="agent"
+DESKTOP_PASSWORD=""
 # ============================================================================
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -665,6 +673,14 @@ configure_agent_ports() {
         return
     fi
 
+    local has_service=false
+    for agent in "${INSTALL_AGENTS[@]}"; do
+        case "$agent" in openclaw|openfang|zeroclaw) has_service=true ;; esac
+    done
+    if [ "$has_service" = false ]; then
+        return
+    fi
+
     echo ""
     print_info "$(get_text step6_title)"
     echo ""
@@ -672,6 +688,7 @@ configure_agent_ports() {
     echo ""
 
     for agent in "${INSTALL_AGENTS[@]}"; do
+        case "$agent" in openclaw|openfang|zeroclaw) ;; *) continue ;; esac
         local default_port="$(eval echo \$AGENT_PORT_${agent})"
         local port_name=""
 
@@ -730,6 +747,7 @@ configure_agent_ports() {
     echo ""
     print_info "Agent 软件端口配置:"
     for agent in "${INSTALL_AGENTS[@]}"; do
+        case "$agent" in openclaw|openfang|zeroclaw) ;; *) continue ;; esac
         echo "  $agent: $(eval echo \$CUSTOM_PORT_${agent})"
     done
 }
@@ -742,22 +760,28 @@ select_agents() {
     print_info "$(get_text step5_title)"
     echo ""
     print_info "$(get_text agent_install_title)"
+    echo "  $(get_text agent_codex)"
+    echo "  $(get_text agent_claude_code)"
+    echo "  $(get_text agent_hermes)"
     echo "  $(get_text agent_openclaw)"
     echo "  $(get_text agent_openfang)"
     echo "  $(get_text agent_zeroclaw)"
     echo "  $(get_text agent_skip)"
     echo ""
 
-    prompt_read agent_choices "$(get_text enter_agents) [1-4, default 4]: "
-    agent_choices=${agent_choices:-4}
+    prompt_read agent_choices "$(get_text enter_agents) [1-7, default 1]: "
+    agent_choices=${agent_choices:-1}
 
     # 解析用户选择
     for choice in $agent_choices; do
         case $choice in
-            1) INSTALL_AGENTS+=("openclaw") ;;
-            2) INSTALL_AGENTS+=("openfang") ;;
-            3) INSTALL_AGENTS+=("zeroclaw") ;;
-            4)
+            1) INSTALL_AGENTS+=("codex") ;;
+            2) INSTALL_AGENTS+=("claude-code") ;;
+            3) INSTALL_AGENTS+=("hermes") ;;
+            4) INSTALL_AGENTS+=("openclaw") ;;
+            5) INSTALL_AGENTS+=("openfang") ;;
+            6) INSTALL_AGENTS+=("zeroclaw") ;;
+            7)
                 INSTALL_AGENTS=()
                 print_info "跳过 Agent 软件安装"
                 return
@@ -1169,6 +1193,7 @@ main() {
     print_success "$(get_text pull_success)"
 
     # 构建 docker run 命令
+    DESKTOP_PASSWORD="$(head -c 24 /dev/urandom | base64 | tr -d '\n')"
     DOCKER_ARGS=(
         "-d"
         "--name" "$CONTAINER_NAME"
@@ -1178,6 +1203,8 @@ main() {
         "-e" "PGID=1000"
         "-e" "TZ=Asia/Shanghai"
         "-e" "LC_ALL=zh_CN.UTF-8"
+        "-e" "CUSTOM_USER=${DESKTOP_USER}"
+        "-e" "PASSWORD=${DESKTOP_PASSWORD}"
         "-e" "NODE_OPTIONS=--max-old-space-size=2048"
         "-e" "SELKIES_ENABLE_RATE_CONTROL=true"
         "-e" "SELKIES_RATE_CONTROL_MODE=crf,cbr"
@@ -1259,6 +1286,7 @@ main() {
     # 添加 Agent 软件端口映射
     if [ ${#INSTALL_AGENTS[@]} -gt 0 ] && [ "$USE_HOST_NETWORK" = false ]; then
         for agent in "${INSTALL_AGENTS[@]}"; do
+            case "$agent" in openclaw|openfang|zeroclaw) ;; *) continue ;; esac
             local custom_port="$(eval echo \$CUSTOM_PORT_${agent})"
             local internal_port="$(eval echo \$AGENT_PORT_${agent})"
             DOCKER_ARGS+=("-p" "${custom_port}:${internal_port}")
@@ -1323,6 +1351,11 @@ print_access_info() {
         print_info "🖥️  $(get_text desktop_url) (HTTPS): https://${IP}:${DESKTOP_PORT}/"
     fi
 
+    if [ -n "$DESKTOP_PASSWORD" ]; then
+        print_info "👤 Webtop: ${DESKTOP_USER}"
+        print_info "🔐 Password: ${DESKTOP_PASSWORD}"
+    fi
+
     print_info "💾 $(get_text data_dir): ${DATA_DIR}"
 
     # 显示 SSH 连接信息
@@ -1345,19 +1378,23 @@ print_access_info() {
         echo ""
         print_info "📦 已安装 Agent 软件:"
         for agent in "${INSTALL_AGENTS[@]}"; do
-            local custom_port="$(eval echo \$CUSTOM_PORT_${agent})"
-            local internal_port="$(eval echo \$AGENT_PORT_${agent})"
-            if [ "$USE_HOST_NETWORK" = true ]; then
-                echo "    ✓ $agent (端口: $internal_port)"
-            else
-                echo "    ✓ $agent (宿主机:$custom_port → 容器:$internal_port)"
-            fi
+            case "$agent" in
+                codex) echo "    ✓ codex — 运行 codex 登录" ;;
+                claude-code) echo "    ✓ claude-code — 运行 claude 登录" ;;
+                hermes) echo "    ✓ hermes — 运行 hermes setup --portal 配置" ;;
+                *)
+                    local custom_port="$(eval echo \$CUSTOM_PORT_${agent})"
+                    local internal_port="$(eval echo \$AGENT_PORT_${agent})"
+                    if [ "$USE_HOST_NETWORK" = true ]; then
+                        echo "    ✓ $agent (端口: $internal_port)"
+                    else
+                        echo "    ✓ $agent (宿主机:$custom_port → 容器:$internal_port)"
+                    fi
+                    ;;
+            esac
         done
         echo ""
-        print_info "🔧 systemctl 管理命令:"
-        echo "    查看状态: docker exec $CONTAINER_NAME systemctl status <name>"
-        echo "    查看日志: docker exec $CONTAINER_NAME journalctl -u <name>"
-        echo "    重启服务: docker exec $CONTAINER_NAME systemctl restart <name>"
+        print_info "🔧 容器管理入口: docker exec $CONTAINER_NAME workspacectl info"
     fi
 
     echo ""

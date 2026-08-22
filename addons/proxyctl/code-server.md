@@ -1,31 +1,21 @@
 # code-server Integration
 
-Start code-server with a proxy domain that matches the wildcard domain routed to this machine.
+code-server is installed independently through `addons/code-server`. This
+keeps IDE upgrades and rollback separate from Caddy.
 
-Example:
-
-```bash
-code-server --proxy-domain dev.example.com
-```
-
-For the LinuxServer.io `code-server` image, set:
+For a public wildcard domain, configure the matching proxy domain while
+installing code-server:
 
 ```bash
-PROXY_DOMAIN=dev.example.com
+CODE_SERVER_PROXY_DOMAIN='{{port}}.dev.example.com' \
+CODE_SERVER_CERT=false \
+agent-workspace-manager install code-server
 ```
 
-Then:
-
-```text
-code.dev.example.com -> code-server itself
-3000.dev.example.com -> code-server proxies to 127.0.0.1:3000
-5173.dev.example.com -> code-server proxies to 127.0.0.1:5173
-```
-
-Named long-lived services should be registered with `proxyctl`:
+The default `PROXY_PORT_ROUTING=code-server` sends numeric subdomains through
+code-server, preserving its password authentication. `direct` routing is only
+appropriate when an upstream gateway authenticates every matching hostname:
 
 ```bash
-proxyctl add app 127.0.0.1:3000
+PROXY_PORT_ROUTING=direct
 ```
-
-Named routes are placed before the wildcard route, so `app.dev.example.com` is handled by Caddy directly while numeric port subdomains continue to fall through to code-server.

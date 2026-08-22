@@ -50,7 +50,7 @@ ENV PIP_CACHE_DIR=/config/.cache/pip
 ENV UV_CACHE_DIR=/config/.cache/uv
 
 # PATH（运行时路径，与镜像源无关）
-ENV PATH=$GOPATH/bin:$CARGO_HOME/bin:/usr/local/cargo/bin:$GOROOT/bin:$NPM_CONFIG_PREFIX/bin:/config/.linuxbrew/bin:/config/.linuxbrew/sbin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:$PATH
+ENV PATH=/config/bin:/config/.local/bin:/config/node/bin:$GOPATH/bin:$CARGO_HOME/bin:/usr/local/cargo/bin:$GOROOT/bin:$NPM_CONFIG_PREFIX/bin:/config/.linuxbrew/bin:/config/.linuxbrew/sbin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:$PATH
 
 # Homebrew 基础配置（镜像源地址由 install-tools.sh 写入 /etc/profile.d/mirrors.sh）
 ENV HOMEBREW_NO_AUTO_UPDATE=1
@@ -107,6 +107,7 @@ RUN pip3 install --no-cache-dir textual --break-system-packages \
 
 COPY scripts/ /usr/local/bin/
 COPY services/ /etc/services.d/
+COPY agent-context/ /usr/local/share/agent-workspace/context/
 
 # LinuxServer custom-init
 RUN mkdir -p /custom-cont-init.d \
@@ -114,6 +115,7 @@ RUN mkdir -p /custom-cont-init.d \
     && ln -sf /usr/local/bin/fix-docker-tmpdir.sh /custom-cont-init.d/fix-docker-tmpdir.sh
 
 RUN chmod +x /usr/local/bin/*.sh /usr/local/bin/agent-workspace-manager \
+        /usr/local/bin/workspacectl \
     && find /etc/services.d -name "run" -exec chmod +x {} \;
 
 # systemctl wrapper: adds --user support on top of docker-systemctl-replacement
@@ -124,7 +126,9 @@ RUN cp /usr/local/bin/user-systemctl.sh /usr/local/bin/systemctl \
 
 # 配置 s6 服务依赖（init 先执行，其他服务等待）
 RUN mkdir -p /etc/services.d/systemctl-services/dependencies \
-    && touch /etc/services.d/systemctl-services/dependencies/init
+    && touch /etc/services.d/systemctl-services/dependencies/init \
+    && mkdir -p /etc/services.d/workspace-bootstrap/dependencies \
+    && touch /etc/services.d/workspace-bootstrap/dependencies/init
 
 # ==========================================
 # 权限配置

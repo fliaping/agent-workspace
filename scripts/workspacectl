@@ -1,0 +1,237 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+workspace_root="${AGENT_WORKSPACE_ROOT:-/config/Workspace}"
+log_root="/config/.local/log/user-systemd"
+
+usage() {
+  cat <<'EOF'
+Usage: workspacectl <command> [arguments]
+
+Inspect:
+  info                         Show persistence, privilege, and Docker boundaries
+  agents                       Show installed interactive Agent CLIs
+  services                     List persistent user services and s6 services
+  ports                        List listening TCP ports
+  routes                       List proxyctl routes when proxyctl is installed
+  doctor                       Run workspace environment checks
+
+Operate:
+  service <action> <name>      status/start/stop/restart/enable/disable a user service
+  s6 <action> <name>           status/start/stop/restart an s6 service
+  logs <name> [lines]          Tail a persistent user-service log
+  install agent <name>         Install codex/claude-code/hermes or another known Agent
+  install <capability>         Install a manager capability such as foundation/proxyctl
+  proxy <arguments...>         Pass arguments to proxyctl
+
+All durable files belong under /config. Run without arguments for this help.
+EOF
+}
+
+command_path() {
+  command -v "$1" 2>/dev/null || true
+}
+
+require_name() {
+  local value="${1:-}"
+  if [[ -z "$value" || ! "$value" =~ ^[A-Za-z0-9_.@-]+$ ]]; then
+    echo "Invalid or missing service name: $value" >&2
+    exit 2
+  fi
+}
+
+show_info() {
+  echo "Agent Workspace"
+  echo "  user:       $(id -un) ($(id -u):$(id -g))"
+  echo "  home:       ${HOME:-unknown}"
+  echo "  workspace:  $workspace_root"
+  echo "  persistent: /config"
+  if sudo -n true >/dev/null 2>&1; then
+    echo "  sudo:       passwordless container administration enabled"
+  else
+    echo "  sudo:       unavailable or requires authentication"
+  fi
+
+  if [[ -S /var/run/docker.sock ]]; then
+    echo "  docker:     host/nested socket mounted at /var/run/docker.sock"
+    echo "  warning:    Docker socket access may grant control beyond this container"
+  elif command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+    echo "  docker:     reachable daemon (likely isolated DinD)"
+  elif command -v docker >/dev/null 2>&1; then
+    echo "  docker:     CLI installed, daemon unavailable"
+  else
+    echo "  docker:     disabled"
+  fi
+}
+
+show_agents() {
+  local label binary install_name path version
+  while IFS='|' read -r label binary install_name; do
+    path="$(command_path "$binary")"
+    if [[ -z "$path" ]]; then
+      printf '%-14s %-10s %s\n' "$label" "missing" "install: workspacectl install agent $install_name"
+      continue
+    fi
+    version="$(timeout 5 "$path" --version 2>/dev/null | head -n 1 || true)"
+    printf '%-14s %-10s %s%s\n' "$label" "ready" "$path" "${version:+ ($version)}"
+  done <<'EOF'
+Codex|codex|codex
+Claude Code|claude|claude-code
+Hermes Agent|hermes|hermes
+EOF
+}
+
+show_services() {
+  echo "Persistent user services:"
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl --user list-unit-files || true
+  else
+    echo "  systemctl wrapper unavailable"
+  fi
+  echo
+  echo "s6 services:"
+  if [[ -d /run/service ]]; then
+    find /run/service -mindepth 1 -maxdepth 1 -printf '  %f\n' 2>/dev/null | sort
+  else
+    echo "  /run/service unavailable"
+  fi
+}
+
+show_ports() {
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -nP -iTCP -sTCP:LISTEN
+  else
+    echo "lsof is unavailable; inspect /proc/net/tcp and /proc/net/tcp6" >&2
+    return 1
+  fi
+}
+
+manager() {
+  if ! command -v agent-workspace-manager >/dev/null 2>&1; then
+    echo "agent-workspace-manager is unavailable" >&2
+    exit 1
+  fi
+  agent-workspace-manager "$@"
+}
+
+run_proxyctl() {
+  if ! command -v proxyctl >/dev/null 2>&1; then
+    echo "proxyctl is not installed; run: workspacectl install proxyctl" >&2
+    exit 1
+  fi
+  if [[ -f /config/proxyctl/env ]]; then
+    set -a
+    # proxyctl/env is the supported deployment configuration and is shell-compatible.
+    # shellcheck disable=SC1091
+    source /config/proxyctl/env
+    set +a
+  fi
+  proxyctl "$@"
+}
+
+case "${1:-help}" in
+  help|-h|--help)
+    usage
+    ;;
+  info)
+    show_info
+    ;;
+  agents)
+    show_agents
+    ;;
+  services)
+    show_services
+    ;;
+  ports)
+    show_ports
+    ;;
+  routes)
+    run_proxyctl list
+    ;;
+  doctor)
+    show_info
+    echo
+    show_agents
+    echo
+    manager doctor
+    ;;
+  service)
+    action="${2:-}"
+    name="${3:-}"
+    require_name "$name"
+    case "$action" in
+      status|start|stop|restart|enable|disable)
+        systemctl --user "$action" "$name"
+        ;;
+      *)
+        echo "Unsupported service action: $action" >&2
+        exit 2
+        ;;
+    esac
+    ;;
+  s6)
+    action="${2:-}"
+    name="${3:-}"
+    require_name "$name"
+    service_dir="/run/service/$name"
+    if [[ ! -d "$service_dir" ]]; then
+      echo "Unknown s6 service: $name" >&2
+      exit 1
+    fi
+    s6_prefix=()
+    if sudo -n true >/dev/null 2>&1; then
+      s6_prefix=(sudo -n)
+    fi
+    case "$action" in
+      status)
+        "${s6_prefix[@]}" s6-svstat "$service_dir"
+        ;;
+      start|stop|restart)
+        case "$action" in
+          start) flag=-u ;;
+          stop) flag=-d ;;
+          restart) flag=-r ;;
+        esac
+        "${s6_prefix[@]}" s6-svc "$flag" "$service_dir"
+        ;;
+      *)
+        echo "Unsupported s6 action: $action" >&2
+        exit 2
+        ;;
+    esac
+    ;;
+  logs)
+    name="${2:-}"
+    lines="${3:-100}"
+    require_name "$name"
+    if [[ ! "$lines" =~ ^[0-9]+$ ]]; then
+      echo "Log line count must be a non-negative integer" >&2
+      exit 2
+    fi
+    name="${name%.service}"
+    log_file="$log_root/$name.log"
+    if [[ ! -f "$log_file" ]]; then
+      echo "No persistent log found at $log_file" >&2
+      exit 1
+    fi
+    tail -n "$lines" "$log_file"
+    ;;
+  install)
+    if [[ "${2:-}" == "agent" ]]; then
+      [[ -n "${3:-}" ]] || { echo "Missing Agent name" >&2; exit 2; }
+      manager install agents "$3"
+    else
+      [[ -n "${2:-}" ]] || { echo "Missing capability" >&2; exit 2; }
+      manager install "$2"
+    fi
+    ;;
+  proxy)
+    shift
+    run_proxyctl "$@"
+    ;;
+  *)
+    echo "Unknown command: $1" >&2
+    usage >&2
+    exit 2
+    ;;
+esac

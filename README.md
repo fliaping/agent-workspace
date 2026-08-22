@@ -9,7 +9,7 @@
 
 ---
 
-基于 [LinuxServer Webtop](https://docs.linuxserver.io/images/docker-webtop/)（Selkies WebRTC）的容器化云桌面，为 AI 智能体（OpenClaw、Openfang 等）提供安全隔离的开发与运行环境。
+基于 [LinuxServer Webtop](https://docs.linuxserver.io/images/docker-webtop/)（Selkies WebRTC）的容器化云桌面，为 Codex、Claude Code、Hermes 等 AI Agent 提供安全隔离的开发与运行环境。
 
 ![web-desktop-example](./images/web-desktop-example.png)
 
@@ -22,11 +22,36 @@
 - **GPU 加速** — 自动检测 NVIDIA / Intel / AMD GPU，支持硬件渲染与编码
 - **国内镜像加速** — 运行时通过 `USE_CHINA_MIRROR=true` 一键切换全套国内源（APT、npm、pip、Go、Rust、Homebrew）
 - **数据持久化** — 基于 LinuxServer `/config` 标准挂载，所有工具配置、包缓存、用户数据持久化
-- **systemctl 进程管理** — 通过 docker-systemctl-replacement 管理 Agent 进程
+- **Agent 开箱即用** — 首次启动可选择 Codex、Claude Code 或 Hermes，安装后只需完成各自登录
+- **统一环境控制** — Agent 可通过 `workspacectl` 检查和管理服务、日志、端口、路由及可选能力
+- **systemctl 进程管理** — 通过 docker-systemctl-replacement 管理常驻 Agent 服务
+- **安全远程工作区** — Webtop 与 code-server 使用随机密码和 HTTPS，首次启动自动安装远程基础能力
 
 ## 快速开始
 
-### 一键安装（推荐）
+### 安全远程启动（推荐）
+
+```bash
+git clone https://github.com/fliaping/agent-workspace.git
+cd agent-workspace
+./scripts/remote-up.sh
+```
+
+脚本只要求选择一个首选 Agent（默认 Codex），然后生成仅当前用户可读的
+`.env.remote` 并启动 Webtop。首次启动自动安装所选 Agent、code-server 和工作区插件。
+终端会显示随机用户名、密码、访问地址和最后一步登录命令：
+
+```text
+https://localhost:3001  # Webtop 桌面
+https://localhost:8443  # code-server
+```
+
+默认使用自签名证书，第一次访问时浏览器会提示确认。公网部署仍建议放在具备
+TLS 和强认证的反向代理、VPN 或零信任网关后面。
+
+直连模式与认证网关模式的完整拓扑见 [Remote Workspace Profiles](docs/remote-workspace.md)。
+
+### 交互式安装
 
 交互式脚本自动引导完成 9 步配置（语言、桌面、Docker、镜像源、版本、数据目录、端口、Agent 软件、Agent 端口）：
 
@@ -56,6 +81,8 @@ docker run -d --name agent-workspace \
   -e PUID=1000 -e PGID=1000 \
   -e TZ=Asia/Shanghai \
   -e LC_ALL=zh_CN.UTF-8 \
+  -e CUSTOM_USER=agent \
+  -e PASSWORD='replace-with-a-long-random-password' \
   -e SELKIES_ENABLE_RATE_CONTROL=true \
   -e SELKIES_RATE_CONTROL_MODE=crf,cbr \
   -e SELKIES_CONGESTION_CONTROL=false \
@@ -93,8 +120,10 @@ docker compose up -d
 | `PUID` / `PGID` | `1000` | 容器内用户/组 ID |
 | `TZ` | `Etc/UTC` | 时区 |
 | `LC_ALL` | - | 语言环境（如 `zh_CN.UTF-8`） |
+| `CUSTOM_USER` / `PASSWORD` | 不设置 | Webtop HTTP Basic 认证；远程访问时必须设置 |
 | `START_DOCKER` | `false` | 启用容器内 Docker（需 `--privileged`） |
 | `USE_CHINA_MIRROR` | `false` | 运行时切换国内镜像源 |
+| `AGENT_WORKSPACE_AGENT` | `codex` | 首次启动安装 `codex`、`claude-code`、`hermes` 或 `none` |
 | `SSH_PASSWORD` | 不设置 | 设置后启用 SSH 服务（端口 22），值为 abc 用户密码 |
 | `NODE_OPTIONS` | - | Node.js 选项（如 `--max-old-space-size=2048`） |
 | `SELKIES_ENABLE_RATE_CONTROL` | `true` | 启用 CRF/CBR 码率控制切换 |
@@ -151,37 +180,56 @@ TUI 支持方向键选择、Enter 执行，下载和安装日志会留在界面�
 # 更新应用层源码到 /config/agent-workspace-manager/source
 agent-workspace-manager update
 
-# 安装基础应用能力：proxyctl、code-server 插件、自定义 s6 服务注册
+# 安装安全远程基础能力：code-server、插件、自定义 s6 服务注册
 agent-workspace-manager install foundation
+
+# 可选：为已有泛域名和上游网关安装 Caddy/proxyctl
+PROXY_ROOT_DOMAIN=dev.example.com agent-workspace-manager install proxyctl
 
 # 查看应用能力状态
 agent-workspace-manager status
 ```
 
-`AGENT_WORKSPACE_SOURCE_DIR` 可以指向已有源码目录，便于测试本地 checkout；默认源码会持久化在 `/config/agent-workspace-manager/source`。详见 [Agent Workspace Manager](docs/agent-workspace-manager.md)。
+`AGENT_WORKSPACE_SOURCE_DIR` 可以指向已有源码目录，便于测试本地 checkout；默认源码会持久化在 `/config/agent-workspace-manager/source`。详见 [Agent Workspace Manager](docs/agent-workspace-manager.md)。通用软件和用法见 [Common Software](docs/common-software.md)。
 
 ## Agent 软件管理
 
-`agent-workspace-manager install agents` 使用 manager 自己的安装流程，支持一键安装以下 Agent 软件：
-
-| Agent | 默认端口 | 安装方式 |
-|-------|----------|----------|
-| OpenClaw | 18789 | npm |
-| Openfang | 4200 | cargo build |
-| ZeroClaw | 42617 | brew |
-
-Agent 进程通过 **systemctl** 管理：
+`agent-workspace-manager install agents` 默认安装 Codex；也可以明确指定一个或多个 Agent：
 
 ```bash
-# 查看状态
-docker exec agent-workspace systemctl status openclaw
-
-# 查看日志
-docker exec agent-workspace journalctl -u openclaw
-
-# 重启服务
-docker exec agent-workspace systemctl restart openclaw
+agent-workspace-manager install agents codex
+agent-workspace-manager install agents claude-code hermes
 ```
+
+| Agent | 类型 | 安装来源 | 安装后配置 |
+|-------|------|----------|------------|
+| Codex | 交互式 CLI | [OpenAI 官方安装器](https://learn.chatgpt.com/docs/codex/cli) | `codex` |
+| Claude Code | 交互式 CLI | [Anthropic 官方安装器](https://code.claude.com/docs/en/quickstart) | `claude` |
+| Hermes Agent | 交互式 CLI | [Nous Research 官方安装器](https://hermes-agent.nousresearch.com/docs/) | `hermes setup --portal` |
+| OpenClaw | 常驻服务，默认端口 18789 | npm | `openclaw onboard` |
+| Openfang | 常驻服务，默认端口 4200 | 官方 shell 安装器 | `openfang init` |
+| ZeroClaw | 常驻服务，默认端口 42617 | brew | `zeroclaw onboard` |
+
+Codex、Claude Code 和 Hermes 直接在项目终端运行，不应注册成后台服务。常驻型
+Agent 才通过用户级 `systemctl` 管理。三种交互式 Agent 都会读取工作区说明，且可用
+统一入口操作当前容器：
+
+```bash
+workspacectl info
+workspacectl services
+workspacectl service restart openclaw
+workspacectl s6 status svc-selkies
+workspacectl logs openclaw
+workspacectl ports
+
+# 已有任一 Agent 后，让它按需安装另一个 Agent
+workspacectl install agent claude-code
+```
+
+`/config` 是唯一持久化边界。默认的 `/config/Workspace/AGENTS.md` 和
+`CLAUDE.md` 会把这一约束告知 Agent，但不会覆盖用户已有文件。挂载宿主机
+Docker socket 会让 Agent 获得容器外的高权限；`workspacectl info` 会明确提示这个边界。
+Agent 的登录信息和配置写入 `HOME=/config`，因此随唯一的 `/config` 数据卷持久化。
 
 ## 可选能力模块
 
@@ -189,9 +237,11 @@ docker exec agent-workspace systemctl restart openclaw
 
 | 模块 | 路径 | 说明 |
 |------|------|------|
-| proxyctl + Caddy 路由 | `addons/proxyctl` | 轻量 Caddy 反向代理、命名路由管理、code-server 子域端口代理 |
+| code-server | `addons/code-server` | 官方 standalone 运行时、密码认证和持久化用户服务 |
+| proxyctl + Caddy 路由 | `addons/proxyctl` | 可选的泛域名路由，适合已有 DNS、TLS 和认证网关的部署 |
 | 服务管理插件 | `extensions/service-manager` | 在 code-server 侧栏查看和管理 s6 / systemd 服务 |
 | Caddy 代理插件 | `extensions/caddy-proxy-manager` | 在 code-server 侧栏查看和管理 proxyctl 路由 |
+| Selkies 桌面插件 | `extensions/selkies-desktop` | 在 code-server 内一键打开并初始化 Selkies 桌面 |
 | 自定义 s6 服务 | `scripts/register-config-services.sh` | 自动注册 `/config/custom-services.d/<name>/run` 到 s6 |
 
 安装 code-server 插件：
@@ -212,6 +262,7 @@ proxyctl 详细说明见 `addons/proxyctl/README.md`，code-server 插件说明�
 - Cargo 包（`/config/.cargo`）
 - pip/uv 缓存（`/config/.cache`）
 - 桌面配置和用户文件
+- code-server 运行时与配置（`/config/opt/code-server`、`/config/.config/code-server`）
 - 自定义 s6 服务（`/config/custom-services.d/<name>/run`，容器启动时自动注册到 `/run/service`）
 
 ### 自定义 s6 服务

@@ -4,12 +4,14 @@ import ipaddress
 import json
 import os
 import re
+import shlex
 import socket
 import sys
 import time
 import urllib.error
 import urllib.request
 from pathlib import Path
+from functools import lru_cache
 
 
 DEFAULT_STATE_DIR = "/config/proxyctl"
@@ -25,9 +27,30 @@ class ProxyctlError(Exception):
     pass
 
 
+@lru_cache(maxsize=1)
+def config_env():
+    root = Path(os.environ.get("PROXYCTL_STATE_DIR", DEFAULT_STATE_DIR))
+    path = root / "env"
+    values = {}
+    if not path.is_file():
+        return values
+    for raw_line in path.read_text().splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, raw_value = line.split("=", 1)
+        try:
+            parsed = shlex.split(raw_value, comments=True, posix=True)
+        except ValueError as exc:
+            raise ProxyctlError(f"invalid environment line in {path}: {raw_line}") from exc
+        values[key.strip()] = parsed[0] if parsed else ""
+    return values
+
+
 def env(name, default=None):
-    value = os.environ.get(name)
-    return value if value not in (None, "") else default
+    if name in os.environ:
+        return os.environ[name]
+    return config_env().get(name, default)
 
 
 def state_dir():
@@ -68,11 +91,34 @@ def access_log_file():
     return env("PROXY_ACCESS_LOG", str(state_dir() / "access.log"))
 
 
+def port_routing_mode():
+    mode = env("PROXY_PORT_ROUTING", "code-server").strip().lower()
+    if mode not in {"code-server", "direct"}:
+        raise ProxyctlError("PROXY_PORT_ROUTING must be code-server or direct")
+    return mode
+
+
+def host_prefixes():
+    raw = env("PROXY_HOST_PREFIXES")
+    if raw is None:
+        legacy = [env("PROXY_HOST_PREFIX", ""), env("PROXY_API_HOST_PREFIX", "")]
+        prefixes = [item.strip().lower() for item in legacy if item.strip()]
+    else:
+        prefixes = [item.strip().lower() for item in raw.split(",") if item.strip()]
+    seen = set()
+    result = []
+    for prefix in prefixes:
+        if not LABEL_RE.match(prefix):
+            raise ProxyctlError("PROXY_HOST_PREFIXES entries must be DNS label fragments")
+        if prefix not in seen:
+            result.append(prefix)
+            seen.add(prefix)
+    return result
+
+
 def host_prefix():
-    prefix = env("PROXY_HOST_PREFIX", "").strip().lower()
-    if prefix and not LABEL_RE.match(prefix):
-        raise ProxyctlError("PROXY_HOST_PREFIX must be a single DNS label fragment")
-    return prefix
+    prefixes = host_prefixes()
+    return prefixes[0] if prefixes else ""
 
 
 def public_host(label, root):
@@ -113,13 +159,17 @@ def normalize_managed_host(value, root):
     if not (value == root or value.endswith(f".{root}")):
         raise ProxyctlError(f"host must be inside {root}: {value}")
     first_label = value[: -(len(root) + 1)] if value.endswith(f".{root}") else ""
-    prefix = host_prefix()
+    prefixes = host_prefixes()
     managed_label = first_label
-    if prefix:
-        expected = f"{prefix}-"
-        if not first_label.startswith(expected):
-            raise ProxyctlError(f"host must start with {expected}: {value}")
-        managed_label = first_label[len(expected):]
+    if prefixes:
+        for prefix in prefixes:
+            expected = f"{prefix}-"
+            if first_label.startswith(expected):
+                managed_label = first_label[len(expected):]
+                break
+        else:
+            allowed = ", ".join(f"{prefix}-*" for prefix in prefixes)
+            raise ProxyctlError(f"host must match one of: {allowed}")
     if managed_label.isdigit():
         raise ProxyctlError("numeric subdomains are reserved for code-server port proxying")
     if value == code_server_host(root):
@@ -148,6 +198,48 @@ def parse_target(raw):
         raise ProxyctlError("target port must be between 1 and 65535")
     validate_target_host(host)
     return f"{host}:{port}"
+
+
+def normalize_upstream_host(raw):
+    raw = raw.strip()
+    if not raw or any(ord(char) < 32 or char.isspace() for char in raw):
+        raise ProxyctlError("upstream Host must be a non-empty hostname with no whitespace")
+    if "://" in raw or "/" in raw:
+        raise ProxyctlError("upstream Host must be a hostname, not a URL")
+    host = raw
+    port_text = None
+    if raw.startswith("["):
+        close = raw.find("]")
+        if close < 0:
+            raise ProxyctlError("invalid bracketed upstream Host")
+        host = raw[1:close]
+        suffix = raw[close + 1 :]
+        if suffix:
+            if not suffix.startswith(":"):
+                raise ProxyctlError("invalid upstream Host suffix")
+            port_text = suffix[1:]
+        try:
+            ipaddress.ip_address(host)
+        except ValueError as exc:
+            raise ProxyctlError("invalid upstream Host IP address") from exc
+    elif raw.count(":") <= 1:
+        if ":" in raw:
+            host, port_text = raw.rsplit(":", 1)
+        try:
+            ipaddress.ip_address(host)
+        except ValueError:
+            if host != "localhost" and not valid_host(host):
+                raise ProxyctlError("invalid upstream Host hostname")
+    else:
+        raise ProxyctlError("IPv6 upstream Host values must use bracket notation")
+    if port_text is not None:
+        try:
+            port = int(port_text)
+        except ValueError as exc:
+            raise ProxyctlError("upstream Host port must be an integer") from exc
+        if port < 1 or port > 65535:
+            raise ProxyctlError("upstream Host port must be between 1 and 65535")
+    return raw
 
 
 def validate_target_host(host):
@@ -197,20 +289,36 @@ def build_config(routes):
     route_blocks = []
 
     for route in sorted(routes, key=lambda item: item["host"]):
-        route_blocks.append(reverse_proxy_route([route["host"]], route["target"], route_id=f"proxyctl:{route['host']}"))
+        upstream_host = route.get("upstream_host")
+        if upstream_host:
+            upstream_host = normalize_upstream_host(upstream_host)
+        route_blocks.append(reverse_proxy_route(
+            [route["host"]],
+            route["target"],
+            route_id=f"proxyctl:{route['host']}",
+            upstream_host=upstream_host,
+        ))
 
     route_blocks.append(reverse_proxy_route([code_host], code_target, route_id=f"proxyctl:{code_host}"))
-    prefix = host_prefix()
-    if prefix:
+    prefixes = host_prefixes()
+    port_target = code_target if port_routing_mode() == "code-server" else None
+    if prefixes:
+        for index, prefix in enumerate(prefixes):
+            route_blocks.append(header_regexp_reverse_proxy_route(
+                "Host",
+                f"port_{index}",
+                rf"^{re.escape(prefix)}-([0-9]+)\.{re.escape(root)}(:[0-9]+)?$",
+                port_target or f"127.0.0.1:{{http.regexp.port_{index}.1}}",
+                route_id=f"proxyctl:ports:{prefix}-*.{root}",
+            ))
+    else:
         route_blocks.append(header_regexp_reverse_proxy_route(
             "Host",
             "port",
-            rf"^{re.escape(prefix)}-([0-9]+)\.{re.escape(root)}(:[0-9]+)?$",
-            code_target,
-            route_id=f"proxyctl:ports:{prefix}-*.{root}",
+            rf"^([0-9]+)\.{re.escape(root)}(:[0-9]+)?$",
+            port_target or "127.0.0.1:{http.regexp.port.1}",
+            route_id=f"proxyctl:ports:*.{root}",
         ))
-    else:
-        route_blocks.append(reverse_proxy_route([f"*.{root}"], code_target, route_id=f"proxyctl:ports:{root}"))
     route_blocks.append({
         "@id": "proxyctl:not-found",
         "handle": [{
@@ -251,7 +359,10 @@ def build_config(routes):
     }
 
 
-def reverse_proxy_route(hosts, target, route_id):
+def reverse_proxy_route(hosts, target, route_id, upstream_host=None):
+    request_headers = {"X-Forwarded-Proto": ["http"]}
+    if upstream_host:
+        request_headers["Host"] = [upstream_host]
     return {
         "@id": route_id,
         "match": [{"host": hosts}],
@@ -260,9 +371,7 @@ def reverse_proxy_route(hosts, target, route_id):
             "upstreams": [{"dial": target}],
             "headers": {
                 "request": {
-                    "set": {
-                        "X-Forwarded-Proto": ["http"],
-                    }
+                    "set": request_headers
                 }
             },
         }],
@@ -362,7 +471,8 @@ def cmd_init(args):
     apply_config(routes, dry_run=args.dry_run)
     if not args.dry_run:
         audit("init", f"root={root_domain()} code={code_server_host(root_domain())} target={code_server_target()}")
-        print(f"initialized {listen_addr()} for *.{root_domain()} with code-server fallback to {code_server_target()}")
+        prefixes = ", ".join(host_prefixes()) if host_prefixes() else "<none>"
+        print(f"initialized {listen_addr()} for {root_domain()} prefixes: {prefixes}")
 
 
 def cmd_add(args):
@@ -371,7 +481,10 @@ def cmd_add(args):
     target = parse_target(args.target)
     existing_routes = load_routes()
     routes = [item for item in existing_routes if item["host"] != host]
-    routes.append({"host": host, "target": target})
+    route = {"host": host, "target": target}
+    if args.upstream_host:
+        route["upstream_host"] = normalize_upstream_host(args.upstream_host)
+    routes.append(route)
     if not args.dry_run:
         backup_routes(existing_routes)
     apply_config(routes, dry_run=args.dry_run)
@@ -400,13 +513,23 @@ def cmd_remove(args):
 def cmd_list(_args):
     root = root_domain()
     print(f"root: {root}")
+    prefixes = host_prefixes()
+    print(f"prefixes: {', '.join(prefixes) if prefixes else '<none>'}")
     print(f"code-server: {code_server_host(root)} -> {code_server_target()}")
-    print(f"port wildcard: *.{root} -> {code_server_target()}")
+    print(f"port routing: {port_routing_mode()}")
+    if prefixes:
+        for prefix in prefixes:
+            target = "code-server" if port_routing_mode() == "code-server" else "127.0.0.1:<port>"
+            print(f"port wildcard: {prefix}-<port>.{root} -> {target}")
+    else:
+        target = "code-server" if port_routing_mode() == "code-server" else "127.0.0.1:<port>"
+        print(f"port wildcard: <port>.{root} -> {target}")
     routes = load_routes()
     if routes:
         print("routes:")
         for item in routes:
-            print(f"  {item['host']} -> {item['target']}")
+            suffix = f" (Host: {item['upstream_host']})" if item.get("upstream_host") else ""
+            print(f"  {item['host']} -> {item['target']}{suffix}")
     else:
         print("routes: none")
 
@@ -417,6 +540,8 @@ def cmd_check(_args):
     for route in routes:
         parse_target(route["target"])
         normalize_managed_host(route["host"], root_domain())
+        if route.get("upstream_host"):
+            normalize_upstream_host(route["upstream_host"])
     if env("PROXYCTL_SKIP_CONNECT_CHECK", "0") != "1":
         for route in routes:
             check_tcp(route["target"])
@@ -435,6 +560,8 @@ def cmd_rollback(args):
     for route in routes:
         normalize_managed_host(route["host"], root_domain())
         parse_target(route["target"])
+        if route.get("upstream_host"):
+            normalize_upstream_host(route["upstream_host"])
     apply_config(routes, dry_run=args.dry_run)
     if not args.dry_run:
         backup_routes(load_routes())
@@ -457,13 +584,14 @@ def build_parser():
     parser = argparse.ArgumentParser(description="Manage lightweight HTTP subdomain routes through Caddy Admin API.")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    init = sub.add_parser("init", help="initialize Caddy with code-server wildcard fallback")
+    init = sub.add_parser("init", help="initialize Caddy routes")
     init.add_argument("--dry-run", action="store_true")
     init.set_defaults(func=cmd_init)
 
     add = sub.add_parser("add", help="add or replace a named subdomain route")
     add.add_argument("host", help="subdomain label or full hostname")
     add.add_argument("target", help="upstream host:port, for example 127.0.0.1:3000")
+    add.add_argument("--upstream-host", help="rewrite the upstream HTTP Host header")
     add.add_argument("--dry-run", action="store_true")
     add.set_defaults(func=cmd_add)
 

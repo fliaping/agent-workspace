@@ -1,61 +1,28 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DOMAIN="${PROXY_ROOT_DOMAIN:-ping-dev.h1.fliaping.com}"
+ROOT_DOMAIN="${PROXY_ROOT_DOMAIN:-}"
 INSTALL_ROOT="${INSTALL_ROOT:-/config/proxyctl}"
 PACKAGE_DIR="${PACKAGE_DIR:-$INSTALL_ROOT/package}"
 CADDY_VERSION="${CADDY_VERSION:-v2.11.3}"
-CODE_SERVER_VERSION="${CODE_SERVER_VERSION:-v4.122.0}"
 BIN_DIR="$INSTALL_ROOT/bin"
 
-require_root() {
-  if [[ "$(id -u)" != "0" ]]; then
-    exec sudo -E bash "$0" "$@"
-  fi
-}
-
-github_latest() {
-  local repo="$1"
-  curl -fsSL -A proxyctl-installer "https://api.github.com/repos/$repo/releases/latest" | jq -r '.tag_name'
-}
-
-asset_url() {
-  local repo="$1"
-  local pattern="$2"
-  curl -fsSL -A proxyctl-installer "https://api.github.com/repos/$repo/releases/latest" \
-    | jq -r --arg pattern "$pattern" '.assets[] | select(.name | test($pattern)) | .browser_download_url' \
-    | head -n 1
-}
-
 install_caddy() {
-  local tag version url tmp
+  local tag version arch url tmp
   tag="$CADDY_VERSION"
   version="${tag#v}"
-  url="https://github.com/caddyserver/caddy/releases/download/$tag/caddy_${version}_linux_amd64.tar.gz"
+  case "$(uname -m)" in
+    x86_64|amd64) arch=amd64 ;;
+    aarch64|arm64) arch=arm64 ;;
+    *) echo "unsupported Caddy architecture: $(uname -m)" >&2; exit 1 ;;
+  esac
+  url="https://github.com/caddyserver/caddy/releases/download/$tag/caddy_${version}_linux_${arch}.tar.gz"
   tmp="$(mktemp -d)"
   curl -fL -A proxyctl-installer "$url" -o "$tmp/caddy.tar.gz"
   tar -xzf "$tmp/caddy.tar.gz" -C "$tmp" caddy
   mkdir -p "$BIN_DIR"
   install -m 0755 "$tmp/caddy" "$BIN_DIR/caddy"
-  ln -sfn "$BIN_DIR/caddy" /usr/local/bin/caddy
-  rm -rf "$tmp"
-}
-
-install_code_server() {
-  local tag version url tmp target
-  tag="$CODE_SERVER_VERSION"
-  version="${tag#v}"
-  url="https://github.com/coder/code-server/releases/download/$tag/code-server-${version}-linux-amd64.tar.gz"
-  tmp="$(mktemp -d)"
-  curl -fL -A proxyctl-installer "$url" -o "$tmp/code-server.tar.gz"
-  tar -xzf "$tmp/code-server.tar.gz" -C "$tmp"
-  target="$INSTALL_ROOT/code-server-$version"
-  rm -rf "$target"
-  mv "$tmp/code-server-$version-linux-amd64" "$target"
-  mkdir -p "$BIN_DIR"
-  ln -sfn "$target/bin/code-server" "$BIN_DIR/code-server"
-  ln -sfn "$BIN_DIR/code-server" /usr/local/bin/code-server
-  rm -rf "$tmp"
+  rm -rf -- "$tmp"
 }
 
 install_package() {
@@ -71,9 +38,8 @@ install_package() {
   chmod +x "$PACKAGE_DIR/bin/proxyctl" "$PACKAGE_DIR/install.sh"
   mkdir -p "$BIN_DIR"
   cp "$PACKAGE_DIR/bin/proxyctl" "$BIN_DIR/proxyctl"
-  cp "$PACKAGE_DIR/bin/run-code-server" "$BIN_DIR/run-code-server"
   cp "$PACKAGE_DIR/bin/run-caddy" "$BIN_DIR/run-caddy"
-  chmod +x "$BIN_DIR/proxyctl" "$BIN_DIR/run-code-server" "$BIN_DIR/run-caddy"
+  chmod +x "$BIN_DIR/proxyctl" "$BIN_DIR/run-caddy"
 }
 
 install_services() {
@@ -81,34 +47,45 @@ install_services() {
   cp "$PACKAGE_DIR/caddy/bootstrap.json" "$INSTALL_ROOT/bootstrap.json"
   mkdir -p /config/.config/systemd/user/default.target.wants
   cp "$PACKAGE_DIR/systemd/user/proxy-caddy.service" /config/.config/systemd/user/proxy-caddy.service
-  cp "$PACKAGE_DIR/systemd/user/code-server.service" /config/.config/systemd/user/code-server.service
   ln -sfn /config/.config/systemd/user/proxy-caddy.service /config/.config/systemd/user/default.target.wants/proxy-caddy.service
-  ln -sfn /config/.config/systemd/user/code-server.service /config/.config/systemd/user/default.target.wants/code-server.service
-  chown -R abc:abc /config/.config/systemd "$INSTALL_ROOT"
-  ln -sfn "$BIN_DIR/proxyctl" /usr/local/bin/proxyctl
+  mkdir -p /config/bin
+  ln -sfn "$BIN_DIR/proxyctl" /config/bin/proxyctl
 }
 
 write_env() {
-  cat >/etc/profile.d/proxyctl.sh <<EOF
-export PROXY_ROOT_DOMAIN="$ROOT_DOMAIN"
-export CODE_SERVER_TARGET="127.0.0.1:8443"
-export CODE_SERVER_SUBDOMAIN="code"
-export CADDY_ADMIN="http://127.0.0.1:2019"
-export PROXY_LISTEN=":80"
-EOF
+  if [[ -f "$INSTALL_ROOT/env" && "${PROXY_RECONFIGURE:-false}" != "true" ]]; then
+    echo "[proxyctl] preserving existing config: $INSTALL_ROOT/env"
+    return
+  fi
   cat >"$INSTALL_ROOT/env" <<EOF
 PROXY_ROOT_DOMAIN="$ROOT_DOMAIN"
+PROXY_HOST_PREFIXES="${PROXY_HOST_PREFIXES:-}"
+PROXY_PORT_ROUTING="${PROXY_PORT_ROUTING:-code-server}"
 CODE_SERVER_TARGET="127.0.0.1:8443"
 CODE_SERVER_SUBDOMAIN="code"
+CODE_SERVER_PROXY_DOMAIN="${CODE_SERVER_PROXY_DOMAIN:-}"
 CADDY_ADMIN="http://127.0.0.1:2019"
 PROXY_LISTEN=":80"
 EOF
 }
 
+fix_ownership() {
+  if [[ "$(id -u)" == "0" ]] && id abc >/dev/null 2>&1; then
+    chown -R abc:abc "$INSTALL_ROOT"
+    chown abc:abc /config/.config/systemd/user/proxy-caddy.service
+    chown -h abc:abc /config/.config/systemd/user/default.target.wants/proxy-caddy.service
+    chown -h abc:abc /config/bin/proxyctl
+  fi
+}
+
 start_services() {
-  s6-setuidgid abc systemctl --user daemon-reload || true
-  s6-setuidgid abc systemctl --user restart proxy-caddy.service
-  s6-setuidgid abc systemctl --user restart code-server.service
+  if [[ "$(id -u)" == "0" ]] && command -v s6-setuidgid >/dev/null 2>&1; then
+    s6-setuidgid abc systemctl --user daemon-reload || true
+    s6-setuidgid abc systemctl --user restart proxy-caddy.service
+  else
+    systemctl --user daemon-reload || true
+    systemctl --user restart proxy-caddy.service
+  fi
 }
 
 initialize_proxy() {
@@ -127,19 +104,26 @@ initialize_proxy() {
 }
 
 main() {
-  require_root "$@"
+  if [[ -z "$ROOT_DOMAIN" ]]; then
+    echo "PROXY_ROOT_DOMAIN is required (for example: dev.example.com)" >&2
+    exit 1
+  fi
   command -v curl >/dev/null
   command -v jq >/dev/null
   command -v tar >/dev/null
+  if grep -Eq '^[[:space:]]*cert:[[:space:]]*true' /config/.config/code-server/config.yaml 2>/dev/null; then
+    echo "code-server uses TLS, but proxyctl expects a loopback HTTP upstream" >&2
+    echo "reinstall it with CODE_SERVER_CERT=false CODE_SERVER_RECONFIGURE=true" >&2
+    exit 1
+  fi
   install_package
   install_caddy
-  install_code_server
   install_services
   write_env
+  fix_ownership
   start_services
   initialize_proxy
   echo "installed proxyctl for *.$ROOT_DOMAIN"
-  echo "code-server password: $(cat "$INSTALL_ROOT/code-server-password")"
 }
 
 main "$@"

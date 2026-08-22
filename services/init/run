@@ -30,6 +30,20 @@ fi
 chown -R abc:abc /config/.linuxbrew 2>/dev/null || true
 chown -h abc:abc /home/linuxbrew/.linuxbrew 2>/dev/null || true
 
+# Seed concise container instructions for Codex, Claude Code, and Hermes.
+# Never overwrite user-maintained project instructions.
+context_source="/usr/local/share/agent-workspace/context"
+workspace_root="/config/Workspace"
+mkdir -p "$workspace_root"
+if [ -f "$context_source/AGENTS.md" ] && [ ! -e "$workspace_root/AGENTS.md" ]; then
+    cp "$context_source/AGENTS.md" "$workspace_root/AGENTS.md"
+fi
+if [ -f "$context_source/CLAUDE.md" ] && [ ! -e "$workspace_root/CLAUDE.md" ]; then
+    cp "$context_source/CLAUDE.md" "$workspace_root/CLAUDE.md"
+fi
+chown abc:abc "$workspace_root" "$workspace_root/AGENTS.md" \
+    "$workspace_root/CLAUDE.md" 2>/dev/null || true
+
 # ============================================================
 # China mirror configuration
 # ============================================================

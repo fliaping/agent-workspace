@@ -1,0 +1,63 @@
+#!/usr/bin/with-contenv bash
+set -u
+
+target="${AGENT_WORKSPACE_BOOTSTRAP:-}"
+agent="${AGENT_WORKSPACE_AGENT:-none}"
+state_dir="/config/.local/state/agent-workspace"
+marker="${state_dir}/bootstrap-${target}.complete"
+agent_marker="${state_dir}/agent-${agent}.complete"
+
+if [[ -z "$target" || "$target" == "none" ]]; then
+  exec sleep infinity
+fi
+
+case "$target" in
+  remote|foundation|base) ;;
+  *)
+    echo "[workspace-bootstrap] unsupported automatic target: $target" >&2
+    exec sleep infinity
+    ;;
+esac
+
+mkdir -p "$state_dir"
+chown abc:abc "$state_dir" 2>/dev/null || true
+
+run_manager() {
+  s6-setuidgid abc env HOME=/config agent-workspace-manager "$@"
+}
+
+if [[ ! -f "$marker" ]]; then
+  until run_manager update; do
+    echo "[workspace-bootstrap] source update failed; retrying in 30 seconds"
+    sleep 30
+  done
+
+  until run_manager install "$target"; do
+    echo "[workspace-bootstrap] ${target} install failed; retrying in 30 seconds"
+    sleep 30
+  done
+
+  touch "$marker"
+  chown abc:abc "$marker" 2>/dev/null || true
+  echo "[workspace-bootstrap] ${target} is ready"
+else
+  echo "[workspace-bootstrap] ${target} already installed"
+fi
+
+case "$agent" in
+  none) ;;
+  codex|claude-code|hermes)
+    if [[ ! -f "$agent_marker" ]]; then
+      until run_manager install agents "$agent"; do
+        echo "[workspace-bootstrap] ${agent} install failed; retrying in 30 seconds"
+        sleep 30
+      done
+      touch "$agent_marker"
+      chown abc:abc "$agent_marker" 2>/dev/null || true
+      echo "[workspace-bootstrap] ${agent} is installed; open a terminal to sign in"
+    fi
+    ;;
+  *) echo "[workspace-bootstrap] unsupported Agent: $agent" >&2 ;;
+esac
+
+exec sleep infinity

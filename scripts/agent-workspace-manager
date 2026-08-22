@@ -195,6 +195,52 @@ class WorkspaceManager:
 
         log(f"manager source is ready: {source}")
         log(f"persistent command: {target}")
+        self.install_workspace_controls()
+
+    def install_workspace_controls(self) -> None:
+        """Install the stable Agent-facing command and seed workspace context."""
+        root = self.source_root()
+        assert root is not None
+
+        bin_dir = self.settings.config_root / "bin"
+        bin_dir.mkdir(parents=True, exist_ok=True)
+        local_bin_dir = self.settings.config_root / ".local/bin"
+        local_bin_dir.mkdir(parents=True, exist_ok=True)
+
+        # Native Agent installers already put ~/.local/bin on PATH. Install
+        # both commands there as compatibility links for older images whose
+        # PATH predates /config/bin.
+        for command in ["agent-workspace-manager", "workspacectl"]:
+            source_command = root / "scripts" / command
+            if not source_command.exists():
+                raise ManagerError(f"missing workspace control command: {source_command}")
+            if not os.access(source_command, os.X_OK):
+                raise ManagerError(
+                    f"workspace control command is not executable: {source_command}"
+                )
+
+            target = bin_dir / command
+            if target.exists() or target.is_symlink():
+                target.unlink()
+            target.symlink_to(source_command)
+
+            local_target = local_bin_dir / command
+            if local_target.exists() or local_target.is_symlink():
+                local_target.unlink()
+            local_target.symlink_to(target)
+
+        workspace_root = self.settings.config_root / "Workspace"
+        workspace_root.mkdir(parents=True, exist_ok=True)
+        context_root = root / "agent-context"
+        for filename in ["AGENTS.md", "CLAUDE.md"]:
+            source_context = context_root / filename
+            target_context = workspace_root / filename
+            if source_context.exists() and not target_context.exists():
+                shutil.copyfile(source_context, target_context)
+                target_context.chmod(0o644)
+
+        log(f"workspace control commands: {bin_dir}")
+        log(f"workspace Agent context: {workspace_root}")
 
     def install_proxyctl(self) -> None:
         root = self.source_root()
@@ -203,6 +249,15 @@ class WorkspaceManager:
         if not installer.exists():
             raise ManagerError(f"missing proxyctl installer: {installer}")
         log(f"installing proxyctl from {installer.parent}")
+        run(["bash", str(installer)], cwd=installer.parent)
+
+    def install_code_server(self) -> None:
+        root = self.source_root()
+        assert root is not None
+        installer = root / "addons" / "code-server" / "install.sh"
+        if not installer.exists():
+            raise ManagerError(f"missing code-server installer: {installer}")
+        log("installing code-server")
         run(["bash", str(installer)], cwd=installer.parent)
 
     def install_code_server_extensions(self) -> None:
@@ -255,12 +310,18 @@ class WorkspaceManager:
 
         install_cmd = wizard.build_install_command(agent)
         run(install_cmd)
+        binary = wizard.find_binary(info.get("binary", agent))
+        if not Path(binary).is_file() and not shutil.which(binary):
+            raise ManagerError(f"{info['label']} installer completed but its binary was not found")
         log(f"{info['label']} binary installed")
 
-        log(f"creating user service for {info['label']}")
-        wizard.create_systemd_service(agent)
-        run(["systemctl", "--user", "enable", "--now", agent])
-        log(f"{agent}.service enabled and started")
+        if info.get("mode") == "service":
+            log(f"creating user service for {info['label']}")
+            wizard.create_systemd_service(agent)
+            run(["systemctl", "--user", "enable", "--now", agent])
+            log(f"{agent}.service enabled and started")
+        else:
+            log(f"{info['label']} is an interactive CLI and is ready to launch")
 
         onboard = info.get("onboard")
         if onboard:
@@ -268,26 +329,31 @@ class WorkspaceManager:
 
     def install_agent_capabilities(self, agents: list[str]) -> None:
         if not agents:
-            agents = ["openclaw", "openfang", "zeroclaw"]
+            agents = ["codex"]
         agents = [agent for agent in agents if agent != "--non-interactive"]
         for agent in agents:
             self.install_agent_capability(agent)
 
     def install(self, target: str, extra_args: list[str]) -> None:
-        if target in {"foundation", "base"}:
-            self.install_proxyctl()
+        if target in {"foundation", "base", "remote"}:
+            self.install_workspace_controls()
+            self.install_code_server()
             self.install_code_server_extensions()
             self.install_custom_services()
+        elif target in {"code-server", "code", "ide"}:
+            self.install_code_server()
         elif target in {"proxyctl", "proxy", "caddy"}:
             self.install_proxyctl()
         elif target in {"code-server-extensions", "extensions", "vscode"}:
             self.install_code_server_extensions()
         elif target in {"custom-services", "s6"}:
             self.install_custom_services()
+        elif target in {"workspace-controls", "controls", "control"}:
+            self.install_workspace_controls()
         elif target in {"agents", "agent"}:
             self.install_agent_capabilities(extra_args)
         elif target == "all":
-            self.install_proxyctl()
+            self.install_code_server()
             self.install_code_server_extensions()
             self.install_custom_services()
             self.install_agent_capabilities(extra_args)
@@ -311,6 +377,11 @@ class WorkspaceManager:
                 str(root) if root else "run agent-workspace-manager update",
             ),
             (
+                "code-server",
+                "ok" if (self.settings.config_root / "opt/code-server/bin/code-server").exists() else "missing",
+                str(self.settings.config_root / "opt/code-server"),
+            ),
+            (
                 "proxyctl",
                 "ok" if (self.settings.config_root / "proxyctl/bin/proxyctl").exists() else "missing",
                 str(self.settings.config_root / "proxyctl"),
@@ -328,6 +399,7 @@ class WorkspaceManager:
                     list(ext_dir.glob("agent-workspace.caddy-proxy-manager-*"))
                     or list(ext_dir.glob("self-conf.caddy-proxy-manager-*"))
                 )
+                and list(ext_dir.glob("agent-workspace.selkies-desktop-*"))
                 else "missing",
                 str(ext_dir),
             ),
@@ -335,6 +407,11 @@ class WorkspaceManager:
                 "custom s6 services",
                 "ok" if (self.settings.config_root / "custom-services.d").is_dir() else "missing",
                 str(self.settings.config_root / "custom-services.d"),
+            ),
+            (
+                "workspace controls",
+                "ok" if (self.settings.config_root / "bin/workspacectl").exists() else "missing",
+                str(self.settings.config_root / "bin/workspacectl"),
             ),
         ]
         return rows
@@ -381,6 +458,10 @@ def build_parser() -> argparse.ArgumentParser:
         choices=[
             "foundation",
             "base",
+            "remote",
+            "code-server",
+            "code",
+            "ide",
             "proxyctl",
             "proxy",
             "caddy",
@@ -389,6 +470,9 @@ def build_parser() -> argparse.ArgumentParser:
             "vscode",
             "custom-services",
             "s6",
+            "workspace-controls",
+            "controls",
+            "control",
             "agents",
             "agent",
             "all",
@@ -486,10 +570,15 @@ def run_tui(manager: WorkspaceManager) -> int:
         ACTIONS = {
             "update": ("Updating application source", "Update application source"),
             "foundation": ("Installing foundation", "Install foundation"),
+            "code_server": ("Installing code-server", "Install code-server"),
             "proxyctl": ("Installing proxyctl", "Install proxyctl / Caddy"),
             "extensions": ("Installing code-server extensions", "Install code-server extensions"),
             "custom_services": ("Registering custom services", "Register custom s6 services"),
+            "workspace_controls": ("Installing workspace controls", "Install workspace controls"),
             "agents_all": ("Installing Agents", "Install Agents: all"),
+            "codex": ("Installing Codex", "Install Agent: Codex"),
+            "claude_code": ("Installing Claude Code", "Install Agent: Claude Code"),
+            "hermes": ("Installing Hermes Agent", "Install Agent: Hermes"),
             "openclaw": ("Installing OpenClaw", "Install Agent: OpenClaw"),
             "openfang": ("Installing Openfang", "Install Agent: Openfang"),
             "zeroclaw": ("Installing Zeroclaw", "Install Agent: Zeroclaw"),
@@ -542,10 +631,15 @@ def run_tui(manager: WorkspaceManager) -> int:
             actions = {
                 "update": manager.update_source,
                 "foundation": lambda: manager.install("foundation", []),
+                "code_server": manager.install_code_server,
                 "proxyctl": manager.install_proxyctl,
                 "extensions": manager.install_code_server_extensions,
                 "custom_services": manager.install_custom_services,
-                "agents_all": lambda: manager.install_agent_capabilities(["openclaw", "openfang", "zeroclaw"]),
+                "workspace_controls": manager.install_workspace_controls,
+                "agents_all": lambda: manager.install_agent_capabilities(list(manager.load_agent_wizard().AGENTS)),
+                "codex": lambda: manager.install_agent_capability("codex"),
+                "claude_code": lambda: manager.install_agent_capability("claude-code"),
+                "hermes": lambda: manager.install_agent_capability("hermes"),
                 "openclaw": lambda: manager.install_agent_capability("openclaw"),
                 "openfang": lambda: manager.install_agent_capability("openfang"),
                 "zeroclaw": lambda: manager.install_agent_capability("zeroclaw"),

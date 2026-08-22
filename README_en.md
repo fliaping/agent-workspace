@@ -9,7 +9,7 @@
 
 ---
 
-A containerized cloud desktop based on [LinuxServer Webtop](https://docs.linuxserver.io/images/docker-webtop/) (Selkies WebRTC), providing an isolated development and runtime environment for AI agents (OpenClaw, Openfang, etc.).
+A containerized cloud desktop based on [LinuxServer Webtop](https://docs.linuxserver.io/images/docker-webtop/) (Selkies WebRTC), providing an isolated development and runtime environment for Codex, Claude Code, Hermes, and other AI agents.
 
 ![web-desktop-example](./images/web-desktop-example.png)
 
@@ -22,11 +22,39 @@ A containerized cloud desktop based on [LinuxServer Webtop](https://docs.linuxse
 - **GPU Acceleration** — Auto-detect NVIDIA / Intel / AMD GPU for hardware rendering and encoding
 - **China Mirror Support** — Switch to China mirrors at runtime with `USE_CHINA_MIRROR=true` (APT, npm, pip, Go, Rust, Homebrew)
 - **Data Persistence** — LinuxServer `/config` standard mount for all tools, caches, and user data
-- **systemctl Process Management** — Manage agent processes via docker-systemctl-replacement
+- **Ready-to-run Agent** — Choose Codex, Claude Code, or Hermes on first boot, then complete its normal sign-in
+- **Unified Workspace Control** — Agents use `workspacectl` for services, logs, ports, routes, and optional capabilities
+- **systemctl Process Management** — Manage daemon-style agent processes via docker-systemctl-replacement
+- **Secure Remote Workspace** — Webtop and code-server use a generated password and HTTPS, with first-boot foundation setup
 
 ## Quick Start
 
-### One-Click Install (Recommended)
+### Secure Remote Start (Recommended)
+
+```bash
+git clone https://github.com/fliaping/agent-workspace.git
+cd agent-workspace
+./scripts/remote-up.sh
+```
+
+The script asks for one preferred Agent (Codex by default), creates a user-only
+`.env.remote`, and starts Webtop. First boot installs that Agent, code-server,
+and the workspace extensions. It prints credentials, endpoints, and the final
+sign-in command:
+
+```text
+https://localhost:3001  # Webtop desktop
+https://localhost:8443  # code-server
+```
+
+The defaults use self-signed certificates. For Internet exposure, put the
+workspace behind a reverse proxy, VPN, or zero-trust gateway with strong TLS and
+authentication.
+
+See [Remote Workspace Profiles](docs/remote-workspace.md) for the direct and
+authenticated-gateway architectures.
+
+### Interactive Install
 
 Interactive script with 9-step guided setup (language, desktop, Docker mode, registry, version, data dir, port, agents, agent ports):
 
@@ -55,6 +83,8 @@ docker run -d --name agent-workspace \
   --restart unless-stopped --shm-size 2gb \
   -e PUID=1000 -e PGID=1000 \
   -e TZ=Etc/UTC \
+  -e CUSTOM_USER=agent \
+  -e PASSWORD='replace-with-a-long-random-password' \
   -p 3001:3001 \
   -v ~/agent-workspace-data:/config \
   xuping/agent-workspace:ubuntu-xfce
@@ -86,10 +116,12 @@ docker compose up -d
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PUID` / `PGID` | `1000` | Container user/group ID |
+| `CUSTOM_USER` / `PASSWORD` | unset | Webtop HTTP Basic authentication; required for remote access |
 | `TZ` | `Etc/UTC` | Timezone |
 | `LC_ALL` | - | Locale (e.g., `zh_CN.UTF-8`) |
 | `START_DOCKER` | `false` | Enable Docker inside container (requires `--privileged`) |
 | `USE_CHINA_MIRROR` | `false` | Switch to China mirrors at runtime |
+| `AGENT_WORKSPACE_AGENT` | `codex` | First-boot Agent: `codex`, `claude-code`, `hermes`, or `none` |
 | `SSH_PASSWORD` | unset | Set to enable SSH service (port 22), value is abc user password |
 | `NODE_OPTIONS` | - | Node.js options (e.g., `--max-old-space-size=2048`) |
 | `XFCE_PANEL_SCALING` | `true` | Keep XFCE panel rows and icons in step with Wayland scaling; set to `false` to disable |
@@ -148,8 +180,11 @@ Common commands:
 # Update application source to /config/agent-workspace-manager/source
 agent-workspace-manager update
 
-# Install foundation capabilities: proxyctl, code-server extensions, custom s6 registration
+# Install the secure remote foundation: code-server, extensions, custom s6 registration
 agent-workspace-manager install foundation
+
+# Optional: Caddy/proxyctl for an existing wildcard domain and upstream gateway
+PROXY_ROOT_DOMAIN=dev.example.com agent-workspace-manager install proxyctl
 
 # Show application capability status
 agent-workspace-manager status
@@ -161,26 +196,46 @@ See [Agent Workspace Manager](docs/agent-workspace-manager.md).
 
 ## Agent Software
 
-`agent-workspace-manager install agents` uses the manager's own install flow for:
-
-| Agent | Default Port | Install Method |
-|-------|--------------|----------------|
-| OpenClaw | 18789 | npm |
-| Openfang | 4200 | cargo build |
-| ZeroClaw | 42617 | brew |
-
-Manage agent processes with **systemctl**:
+`agent-workspace-manager install agents` installs Codex by default, or accepts
+one or more explicit Agent names:
 
 ```bash
-# Check status
-docker exec agent-workspace systemctl status openclaw
-
-# View logs
-docker exec agent-workspace journalctl -u openclaw
-
-# Restart
-docker exec agent-workspace systemctl restart openclaw
+agent-workspace-manager install agents codex
+agent-workspace-manager install agents claude-code hermes
 ```
+
+| Agent | Type | Installer | Post-install setup |
+|-------|------|-----------|--------------------|
+| Codex | Interactive CLI | [Official OpenAI installer](https://learn.chatgpt.com/docs/codex/cli) | `codex` |
+| Claude Code | Interactive CLI | [Official Anthropic installer](https://code.claude.com/docs/en/quickstart) | `claude` |
+| Hermes Agent | Interactive CLI | [Official Nous Research installer](https://hermes-agent.nousresearch.com/docs/) | `hermes setup --portal` |
+| OpenClaw | Daemon, port 18789 | npm | `openclaw onboard` |
+| Openfang | Daemon, port 4200 | Official shell installer | `openfang init` |
+| ZeroClaw | Daemon, port 42617 | brew | `zeroclaw onboard` |
+
+Codex, Claude Code, and Hermes run directly in a project terminal and are not
+registered as background services. Daemon-style Agents use the user service
+manager. All three interactive Agents receive workspace instructions and can
+operate the current container through one stable command surface:
+
+```bash
+workspacectl info
+workspacectl services
+workspacectl service restart openclaw
+workspacectl s6 status svc-selkies
+workspacectl logs openclaw
+workspacectl ports
+
+# Once one Agent works, ask it to install another as needed
+workspacectl install agent claude-code
+```
+
+`/config` is the only persistence boundary. Seeded `/config/Workspace/AGENTS.md`
+and `CLAUDE.md` files explain it to Agents without overwriting existing user
+files. Mounting the host Docker socket gives an Agent high privilege outside the
+container; `workspacectl info` makes that boundary explicit.
+Agent sign-in state and configuration are written beneath `HOME=/config`, so
+they persist with the single `/config` data volume.
 
 ## Optional Capability Modules
 
@@ -190,9 +245,11 @@ the module source remains available for development:
 
 | Module | Path | Description |
 |--------|------|-------------|
-| proxyctl + Caddy routing | `addons/proxyctl` | Lightweight Caddy reverse proxy, named routes, and code-server subdomain port proxy |
+| code-server | `addons/code-server` | Official standalone runtime, password authentication, and persistent user service |
+| proxyctl + Caddy routing | `addons/proxyctl` | Optional wildcard routing for deployments with existing DNS, TLS, and gateway authentication |
 | Service Manager extension | `extensions/service-manager` | View and manage s6 / systemd services from the code-server sidebar |
 | Caddy Proxy extension | `extensions/caddy-proxy-manager` | View and manage proxyctl routes from the code-server sidebar |
+| Selkies Desktop extension | `extensions/selkies-desktop` | Open and initialize the Selkies desktop inside code-server |
 | Custom s6 services | `scripts/register-config-services.sh` | Automatically register `/config/custom-services.d/<name>/run` with s6 |
 
 Install the code-server extensions:
@@ -213,6 +270,7 @@ The container's `/config` directory is mapped to the host data directory. Persis
 - Cargo packages (`/config/.cargo`)
 - pip/uv cache (`/config/.cache`)
 - Desktop settings and user files
+- code-server runtime and configuration (`/config/opt/code-server`, `/config/.config/code-server`)
 - Custom s6 services (`/config/custom-services.d/<name>/run`, automatically registered into `/run/service` at startup)
 
 ### Custom s6 Services

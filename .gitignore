@@ -1,0 +1,3 @@
+.env.remote
+__pycache__/
+*.pyc

@@ -57,10 +57,13 @@ $Texts = @{
         auto_change_port = "自动更换端口为"
         step_agent_title = "步骤 8/9: 选择 Agent 软件"
         agent_install_title = "选择要安装的 Agent 软件（可多选，空格分隔）"
-        agent_openclaw = "1) OpenClaw - 个人自主开源 AI 助手"
-        agent_openfang = "2) Openfang - Rust Agent OS"
-        agent_zeroclaw = "3) Zeroclaw - 超轻量 Agent 运行时"
-        agent_skip = "4) 跳过，不安装"
+        agent_codex = "1) Codex - OpenAI 编程 Agent（推荐，安装后运行 codex 登录）"
+        agent_claude_code = "2) Claude Code - Anthropic 编程 Agent（安装后运行 claude 登录）"
+        agent_hermes = "3) Hermes Agent - 通用自主 Agent（运行 hermes setup --portal）"
+        agent_openclaw = "4) OpenClaw - 个人自主开源 AI 助手"
+        agent_openfang = "5) Openfang - Rust Agent OS"
+        agent_zeroclaw = "6) Zeroclaw - 超轻量 Agent 运行时"
+        agent_skip = "7) 跳过，不安装"
         enter_agents = "请输入选项（如：1 2 3）"
         step_agent_port_title = "步骤 9/9: 配置 Agent 软件端口"
         agent_port_default = "使用默认端口"
@@ -145,10 +148,13 @@ $Texts = @{
         auto_change_port = "Auto changing port to"
         step_agent_title = "Step 8/9: Select Agent Software"
         agent_install_title = "Select Agent software (space separated)"
-        agent_openclaw = "1) OpenClaw - AI assistant"
-        agent_openfang = "2) Openfang - Rust Agent OS"
-        agent_zeroclaw = "3) Zeroclaw - Ultra-light Agent"
-        agent_skip = "4) Skip"
+        agent_codex = "1) Codex - OpenAI coding agent (recommended; run codex to sign in)"
+        agent_claude_code = "2) Claude Code - Anthropic coding agent (run claude to sign in)"
+        agent_hermes = "3) Hermes Agent - General autonomous agent (run hermes setup --portal)"
+        agent_openclaw = "4) OpenClaw - AI assistant"
+        agent_openfang = "5) Openfang - Rust Agent OS"
+        agent_zeroclaw = "6) Zeroclaw - Ultra-light Agent"
+        agent_skip = "7) Skip"
         enter_agents = "Enter options (e.g., 1 2 3)"
         step_agent_port_title = "Step 9/9: Configure Agent Ports"
         agent_port_default = "Use default port"
@@ -213,6 +219,8 @@ $script:RegistryCN = "registry.cn-hangzhou.aliyuncs.com/fliaping/agent-workspace
 $script:RegistryEN = "xuping/agent-workspace"
 $script:SshPassword = ""
 $script:SshPort = 2222
+$script:DesktopUser = "agent"
+$script:DesktopPassword = ""
 
 # ============================================================================
 # Helpers
@@ -500,21 +508,27 @@ function Select-Agents {
     Write-Info (T 'step_agent_title')
     Write-Host ""
     Write-Info (T 'agent_install_title')
+    Write-Host "  $(T 'agent_codex')"
+    Write-Host "  $(T 'agent_claude_code')"
+    Write-Host "  $(T 'agent_hermes')"
     Write-Host "  $(T 'agent_openclaw')"
     Write-Host "  $(T 'agent_openfang')"
     Write-Host "  $(T 'agent_zeroclaw')"
     Write-Host "  $(T 'agent_skip')"
     Write-Host ""
-    $choices = Read-Host "$(T 'enter_agents') [1-4, default 4]"
-    if (-not $choices) { $choices = "4" }
+    $choices = Read-Host "$(T 'enter_agents') [1-7, default 1]"
+    if (-not $choices) { $choices = "1" }
 
     $script:InstallAgents = @()
     foreach ($c in $choices.Split(" ", [StringSplitOptions]::RemoveEmptyEntries)) {
         switch ($c) {
-            "1" { $script:InstallAgents += "openclaw" }
-            "2" { $script:InstallAgents += "openfang" }
-            "3" { $script:InstallAgents += "zeroclaw" }
-            "4" { $script:InstallAgents = @(); return }
+            "1" { $script:InstallAgents += "codex" }
+            "2" { $script:InstallAgents += "claude-code" }
+            "3" { $script:InstallAgents += "hermes" }
+            "4" { $script:InstallAgents += "openclaw" }
+            "5" { $script:InstallAgents += "openfang" }
+            "6" { $script:InstallAgents += "zeroclaw" }
+            "7" { $script:InstallAgents = @(); return }
         }
     }
 
@@ -529,10 +543,12 @@ function Select-Agents {
 # ============================================================================
 function Configure-AgentPorts {
     if ($script:InstallAgents.Count -eq 0) { return }
+    $serviceAgents = @($script:InstallAgents | Where-Object { $script:AgentPorts.ContainsKey($_) })
+    if ($serviceAgents.Count -eq 0) { return }
     Write-Host ""
     Write-Info (T 'step_agent_port_title')
 
-    foreach ($agent in $script:InstallAgents) {
+    foreach ($agent in $serviceAgents) {
         $defaultPort = $script:AgentPorts[$agent]
         $portName = T "agent_port_$agent"
         Write-Host ""
@@ -609,6 +625,10 @@ function Print-AccessInfo {
     Write-Host ""
 
     Write-Info "$(T 'desktop_url') (HTTPS): https://localhost:$($script:DesktopPort)/"
+    if ($script:DesktopPassword) {
+        Write-Info "Webtop user: $($script:DesktopUser)"
+        Write-Info "Webtop password: $($script:DesktopPassword)"
+    }
     Write-Info "$(T 'data_dir'): $($script:DataDir)"
 
     # SSH info
@@ -627,15 +647,19 @@ function Print-AccessInfo {
         Write-Host ""
         Write-Info "Agent software:"
         foreach ($agent in $script:InstallAgents) {
-            $cp = $script:CustomAgentPorts[$agent]
-            $ip = $script:AgentPorts[$agent]
-            Write-Host "    $agent (host:$cp -> container:$ip)"
+            switch ($agent) {
+                "codex" { Write-Host "    codex - run codex to sign in" }
+                "claude-code" { Write-Host "    claude-code - run claude to sign in" }
+                "hermes" { Write-Host "    hermes - run hermes setup --portal" }
+                default {
+                    $cp = $script:CustomAgentPorts[$agent]
+                    $ip = $script:AgentPorts[$agent]
+                    Write-Host "    $agent (host:$cp -> container:$ip)"
+                }
+            }
         }
         Write-Host ""
-        Write-Info "systemctl commands:"
-        Write-Host "    Status:  docker exec $($script:ContainerName) systemctl status <name>"
-        Write-Host "    Logs:    docker exec $($script:ContainerName) journalctl -u <name>"
-        Write-Host "    Restart: docker exec $($script:ContainerName) systemctl restart <name>"
+        Write-Info "Workspace control: docker exec $($script:ContainerName) workspacectl info"
     }
 
     Write-Host ""
@@ -713,6 +737,11 @@ function Main {
     Write-Success (T 'pull_success')
 
     # Build docker run args
+    $passwordBytes = New-Object byte[] 24
+    $passwordRng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    $passwordRng.GetBytes($passwordBytes)
+    $passwordRng.Dispose()
+    $script:DesktopPassword = [Convert]::ToBase64String($passwordBytes)
     $dockerArgs = @(
         "run", "-d",
         "--name", $script:ContainerName,
@@ -722,6 +751,8 @@ function Main {
         "-e", "PGID=1000",
         "-e", "TZ=Asia/Shanghai",
         "-e", "LC_ALL=zh_CN.UTF-8",
+        "-e", "CUSTOM_USER=$($script:DesktopUser)",
+        "-e", "PASSWORD=$($script:DesktopPassword)",
         "-e", "NODE_OPTIONS=--max-old-space-size=2048",
         "-e", "SELKIES_ENABLE_RATE_CONTROL=true",
         "-e", "SELKIES_RATE_CONTROL_MODE=crf,cbr",
@@ -752,6 +783,7 @@ function Main {
 
     # Agent port mappings
     foreach ($agent in $script:InstallAgents) {
+        if (-not $script:AgentPorts.ContainsKey($agent)) { continue }
         $cp = $script:CustomAgentPorts[$agent]
         $ip = $script:AgentPorts[$agent]
         $dockerArgs += @("-p", "${cp}:${ip}")

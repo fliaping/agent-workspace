@@ -8,7 +8,7 @@ Supports Chinese/English based on LC_ALL environment variable.
 
 Usage:
     python3 agent-wizard.py                         # Interactive TUI
-    python3 agent-wizard.py --non-interactive openclaw openfang  # Non-interactive
+    python3 agent-wizard.py --non-interactive codex              # Non-interactive
     python3 agent-wizard.py --china-mirror           # Use China mirrors
 """
 
@@ -37,10 +37,10 @@ _TEXTS: dict[str, dict[str, str]] = {
         # Screen 1
         "select_title":        "Agent Workspace - Setup Wizard",
         "select_hint":         "Select agents to install:",
-        "select_keys":         "(1-3=toggle  a=all  ↑↓=move)",
+        "select_keys":         "(1-6=toggle  a=all  ↑↓=move)",
         "key_next":            "Next",
         "key_cancel":          "Cancel",
-        "key_toggle":          "1-3 Toggle",
+        "key_toggle":          "1-6 Toggle",
         "key_select_all":      "All",
         "key_move":            "↑↓ Move",
         "no_agent_selected":   "Please select at least one agent",
@@ -79,9 +79,13 @@ _TEXTS: dict[str, dict[str, str]] = {
         "ni_install_fail":     "Failed to install {name}",
         "ni_bin_ok":           "{name} binary installed",
         "ni_svc_ok":           "{name} service started",
+        "ni_cli_ok":           "{name} is ready to launch",
         "ni_all_ok":           "All agents installed successfully",
         "ni_run_hint":         "Note: Run the following to configure agents interactively:",
         # agent descriptions
+        "desc_codex":          "OpenAI coding agent (native CLI)",
+        "desc_claude_code":    "Anthropic coding agent (native CLI)",
+        "desc_hermes":         "General autonomous agent (native CLI)",
         "desc_openclaw":       "AI assistant gateway (npm)",
         "desc_openfang":       "Rust Agent OS (cargo)",
         "desc_zeroclaw":       "Ultra-light runtime (brew)",
@@ -91,10 +95,10 @@ _TEXTS: dict[str, dict[str, str]] = {
         "app_subtitle":        "安装向导",
         "select_title":        "Agent 工作区 - 安装向导",
         "select_hint":         "选择要安装的 Agent：",
-        "select_keys":         "(1-3=切换  a=全选  ↑↓=移动)",
+        "select_keys":         "(1-6=切换  a=全选  ↑↓=移动)",
         "key_next":            "下一步",
         "key_cancel":          "取消",
-        "key_toggle":          "1-3 切换",
+        "key_toggle":          "1-6 切换",
         "key_select_all":      "全选",
         "key_move":            "↑↓ 移动",
         "no_agent_selected":   "请至少选择一个 Agent",
@@ -129,8 +133,12 @@ _TEXTS: dict[str, dict[str, str]] = {
         "ni_install_fail":     "安装 {name} 失败",
         "ni_bin_ok":           "{name} 安装完成",
         "ni_svc_ok":           "{name} 服务已启动",
+        "ni_cli_ok":           "{name} 已可启动",
         "ni_all_ok":           "所有 Agent 安装成功",
         "ni_run_hint":         "提示：请运行以下命令进行交互式配置：",
+        "desc_codex":          "OpenAI 编程 Agent（原生 CLI）",
+        "desc_claude_code":    "Anthropic 编程 Agent（原生 CLI）",
+        "desc_hermes":         "通用自主 Agent（原生 CLI）",
         "desc_openclaw":       "AI 助手网关 (npm)",
         "desc_openfang":       "Rust Agent 操作系统 (cargo)",
         "desc_zeroclaw":       "超轻量 Agent 运行时 (brew)",
@@ -153,11 +161,37 @@ def t(key: str, **kwargs) -> str:
 # ---------------------------------------------------------------------------
 
 AGENTS = {
+    "codex": {
+        "label": "Codex",
+        "desc_key": "desc_codex",
+        "mode": "cli",
+        "binary": "codex",
+        "install_type": "codex-native",
+        "onboard": "codex",
+    },
+    "claude-code": {
+        "label": "Claude Code",
+        "desc_key": "desc_claude_code",
+        "mode": "cli",
+        "binary": "claude",
+        "install_type": "claude-native",
+        "onboard": "claude",
+    },
+    "hermes": {
+        "label": "Hermes Agent",
+        "desc_key": "desc_hermes",
+        "mode": "cli",
+        "binary": "hermes",
+        "install_type": "hermes-native",
+        "onboard": "hermes setup --portal",
+    },
     "openclaw": {
         "label": "OpenClaw",
         "desc_key": "desc_openclaw",
         "port": 18789,
         "install_type": "npm",
+        "mode": "service",
+        "binary": "openclaw",
         "onboard": "openclaw onboard",
         "service_cmd": "gateway run",
         "service_extra_env": "Environment=NODE_OPTIONS=--max-old-space-size=2048",
@@ -167,6 +201,8 @@ AGENTS = {
         "desc_key": "desc_openfang",
         "port": 4200,
         "install_type": "cargo",
+        "mode": "service",
+        "binary": "openfang",
         "onboard": "openfang init",
         "service_cmd": "daemon start",
         "service_extra_env": "",
@@ -176,6 +212,8 @@ AGENTS = {
         "desc_key": "desc_zeroclaw",
         "port": 42617,
         "install_type": "brew",
+        "mode": "service",
+        "binary": "zeroclaw",
         "onboard": "zeroclaw onboard",
         "service_cmd": "gateway",
         "service_extra_env": "",
@@ -185,7 +223,8 @@ AGENTS = {
 AGENT_KEYS = list(AGENTS.keys())
 
 FULL_PATH = (
-    "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+    "/config/bin:/config/.local/bin:/config/node/bin"
+    ":/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
     ":/config/.npm-global/bin:/config/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/bin"
     ":/usr/local/cargo/bin"
 )
@@ -223,6 +262,10 @@ def find_binary(name: str) -> str:
     if path:
         return path
     for d in [
+        "/config/bin",
+        "/config/.local/bin",
+        "/config/node/bin",
+        "/config/.npm-global/bin",
         "/usr/local/bin",
         "/usr/local/cargo/bin",
         "/config/.linuxbrew/bin",
@@ -247,7 +290,19 @@ def find_binary(name: str) -> str:
 def build_install_command(agent: str) -> list[str]:
     """Return the shell command list to install an agent binary."""
     info = AGENTS[agent]
-    if info["install_type"] == "npm":
+    if info["install_type"] == "codex-native":
+        url = os.environ.get("CODEX_INSTALL_URL", "https://chatgpt.com/codex/install.sh")
+        return ["bash", "-c", 'curl -fsSL "$1" | sh', "codex-installer", url]
+    elif info["install_type"] == "claude-native":
+        url = os.environ.get("CLAUDE_CODE_INSTALL_URL", "https://claude.ai/install.sh")
+        return ["bash", "-c", 'curl -fsSL "$1" | bash', "claude-installer", url]
+    elif info["install_type"] == "hermes-native":
+        url = os.environ.get(
+            "HERMES_INSTALL_URL",
+            "https://hermes-agent.nousresearch.com/install.sh",
+        )
+        return ["bash", "-c", 'curl -fsSL "$1" | bash', "hermes-installer", url]
+    elif info["install_type"] == "npm":
         cmd = f"npm install -g {agent}@latest {get_npm_registry()}"
         return ["bash", "-c", cmd]
     elif info["install_type"] == "cargo":
@@ -265,12 +320,15 @@ def create_systemd_service(agent: str) -> None:
     If the agent's onboard wizard already created a user-level service,
     skip generating a new one.
     """
+    info = AGENTS[agent]
+    if info.get("mode") != "service":
+        raise ValueError(f"{agent} is an interactive CLI and does not need a service")
+
     user_dir = Path.home() / ".config" / "systemd" / "user"
     if user_dir.is_dir() and list(user_dir.glob(f"{agent}*.service")):
         return
 
-    info = AGENTS[agent]
-    binary = find_binary(agent)
+    binary = find_binary(info.get("binary", agent))
     extra_env = info.get("service_extra_env", "")
     if extra_env:
         extra_env = f"\n{extra_env}"
@@ -342,6 +400,8 @@ def run_non_interactive(agents: list[str], china_mirror: bool) -> None:
         print(f"[ERROR] {t('ni_no_agents')}")
         sys.exit(1)
 
+    failures = []
+    installed = []
     for name in agents:
         if name not in AGENTS:
             print(f"[ERROR] {t('ni_unknown')}: {name}")
@@ -355,21 +415,35 @@ def run_non_interactive(agents: list[str], china_mirror: bool) -> None:
         result = subprocess.run(cmd, text=True)
         if result.returncode != 0:
             print(f"[ERROR] {t('ni_install_fail', name=info['label'])}")
+            failures.append(name)
             continue
 
         print(f"[OK]    {t('ni_bin_ok', name=info['label'])}")
+        installed.append(name)
 
-        create_systemd_service(name)
-        subprocess.run(["systemctl", "--user", "enable", "--now", name])
-        print(f"[OK]    {t('ni_svc_ok', name=info['label'])}")
+        if info.get("mode") == "service":
+            create_systemd_service(name)
+            service = subprocess.run(
+                ["systemctl", "--user", "enable", "--now", name],
+                text=True,
+            )
+            if service.returncode != 0:
+                failures.append(name)
+                continue
+            print(f"[OK]    {t('ni_svc_ok', name=info['label'])}")
+        else:
+            print(f"[OK]    {t('ni_cli_ok', name=info['label'])}")
 
     print()
-    print(f"[OK]    {t('ni_all_ok')}")
+    if not failures:
+        print(f"[OK]    {t('ni_all_ok')}")
     print()
     print(t("ni_run_hint"))
-    for name in agents:
+    for name in installed:
         info = AGENTS[name]
         print(f"  - {info['label']}: {info['onboard']}")
+    if failures:
+        raise SystemExit(1)
 
 
 # ---------------------------------------------------------------------------
@@ -415,9 +489,12 @@ def run_tui(agents_preselect: list[str], china_mirror: bool) -> None:
         BINDINGS = [
             Binding("enter", "next", t("key_next"), show=True),
             Binding("escape", "cancel", t("key_cancel"), show=True),
-            Binding("1", "toggle('openclaw')", t("key_toggle"), show=True),
-            Binding("2", "toggle('openfang')", show=False),
-            Binding("3", "toggle('zeroclaw')", show=False),
+            Binding("1", "toggle('codex')", t("key_toggle"), show=True),
+            Binding("2", "toggle('claude-code')", show=False),
+            Binding("3", "toggle('hermes')", show=False),
+            Binding("4", "toggle('openclaw')", show=False),
+            Binding("5", "toggle('openfang')", show=False),
+            Binding("6", "toggle('zeroclaw')", show=False),
             Binding("a", "toggle_all", t("key_select_all"), show=True),
             Binding("up", "focus_prev", t("key_move"), show=True),
             Binding("down", "focus_next", show=False),
@@ -598,7 +675,9 @@ def run_tui(agents_preselect: list[str], china_mirror: bool) -> None:
                     yield Rule()
 
                 onboard_agents = [
-                    a for a in selected if a in ("openclaw", "zeroclaw")
+                    a
+                    for a in selected
+                    if a != "openfang" and AGENTS[a].get("onboard")
                 ]
                 if onboard_agents:
                     for a in onboard_agents:
@@ -768,34 +847,39 @@ def run_tui(agents_preselect: list[str], china_mirror: bool) -> None:
                             f"[yellow]  ⚠ {t('config_error')}: {e}[/]"
                         )
 
-                elif agent_name in ("openclaw", "zeroclaw"):
+                elif info.get("onboard"):
                     log.write(
                         f"[dim]  ℹ {t('onboard_hint', name=info['label'], cmd=info['onboard'])}[/]"
                     )
 
-                # Step 3: Create systemd service
-                log.write(f"[blue]  ⟳ {t('creating_service')}[/]")
-                try:
-                    create_systemd_service(agent_name)
-                    proc = await asyncio.create_subprocess_exec(
-                        "systemctl",
-                        "--user",
-                        "enable",
-                        "--now",
-                        agent_name,
-                        stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE,
-                    )
-                    await proc.wait()
-                    log.write(
-                        f"[green]  ✓ {t('service_ok', name=agent_name)}[/]"
-                    )
-                    results[agent_name] = "running"
-                except Exception as e:
-                    log.write(
-                        f"[yellow]  ⚠ {t('service_error')}: {e}[/]"
-                    )
-                    results[agent_name] = "installed"
+                # Step 3: Create a service only for daemon-style agents.
+                if info.get("mode") == "service":
+                    log.write(f"[blue]  ⟳ {t('creating_service')}[/]")
+                    try:
+                        create_systemd_service(agent_name)
+                        proc = await asyncio.create_subprocess_exec(
+                            "systemctl",
+                            "--user",
+                            "enable",
+                            "--now",
+                            agent_name,
+                            stdout=asyncio.subprocess.PIPE,
+                            stderr=asyncio.subprocess.PIPE,
+                        )
+                        await proc.wait()
+                        if proc.returncode != 0:
+                            raise RuntimeError(f"systemctl exited with {proc.returncode}")
+                        log.write(
+                            f"[green]  ✓ {t('service_ok', name=agent_name)}[/]"
+                        )
+                        results[agent_name] = "running"
+                    except Exception as e:
+                        log.write(
+                            f"[yellow]  ⚠ {t('service_error')}: {e}[/]"
+                        )
+                        results[agent_name] = "installed"
+                else:
+                    results[agent_name] = "ready"
 
                 log.write("")
 
@@ -892,38 +976,34 @@ def run_tui(agents_preselect: list[str], china_mirror: bool) -> None:
 
                 for agent_name, status in results.items():
                     info = AGENTS[agent_name]
-                    if status == "running":
+                    if status in {"running", "ready"}:
                         icon = "[green]✓[/green]"
                     elif status == "installed":
                         icon = "[yellow]✓[/yellow]"
                     else:
                         icon = "[red]✗[/red]"
+                    detail = f"port {info['port']} — {status}" if info.get("port") else status
                     yield Static(
-                        f"{icon} {info['label']}  — "
-                        f"port {info['port']} — {status}",
+                        f"{icon} {info['label']}  — {detail}",
                         classes="summary-agent",
                     )
 
-                yield Rule()
-                yield Label(t("management"))
-                yield Static(
-                    "[dim]  systemctl status <agent>[/dim]",
-                    classes="summary-mgmt",
-                )
-                yield Static(
-                    "[dim]  journalctl -u <agent>[/dim]",
-                    classes="summary-mgmt",
-                )
-                yield Static(
-                    "[dim]  systemctl restart <agent>[/dim]",
-                    classes="summary-mgmt",
-                )
+                if any(AGENTS[a].get("mode") == "service" for a in results):
+                    yield Rule()
+                    yield Label(t("management"))
+                    yield Static(
+                        "[dim]  workspacectl services[/dim]",
+                        classes="summary-mgmt",
+                    )
+                    yield Static(
+                        "[dim]  workspacectl service restart <agent>[/dim]",
+                        classes="summary-mgmt",
+                    )
 
                 onboard_agents = [
                     a
                     for a in results
-                    if a in ("openclaw", "zeroclaw")
-                    and results[a] != "failed"
+                    if AGENTS[a].get("onboard") and results[a] != "failed"
                 ]
                 if onboard_agents:
                     yield Rule()
@@ -1001,9 +1081,12 @@ def main() -> None:
     parser.add_argument(
         "agents",
         nargs="*",
-        choices=list(AGENTS.keys()) + [[]],
+        choices=list(AGENTS.keys()),
         default=[],
-        help="Agents to install (openclaw, openfang, zeroclaw)",
+        help=(
+            "Agents to install (codex, claude-code, hermes, openclaw, "
+            "openfang, zeroclaw)"
+        ),
     )
 
     args = parser.parse_args()
