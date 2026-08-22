@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import functools
 import json
 import os
 import pathlib
@@ -82,6 +83,11 @@ def run(
 
 def command_path(name: str) -> str:
     return shutil.which(name) or ""
+
+
+@functools.lru_cache(maxsize=1)
+def passwordless_sudo() -> bool:
+    return bool(command_path("sudo")) and run(["sudo", "-n", "true"], timeout=2).returncode == 0
 
 
 def command_version(path: str) -> str:
@@ -239,7 +245,10 @@ def s6_services() -> list[dict[str, Any]]:
         (item for item in service_root.iterdir() if item.is_dir() and not item.name.startswith(".")),
         key=lambda item: item.name,
     ):
-        result = run(["s6-svstat", str(service)], timeout=3)
+        args = ["s6-svstat", str(service)]
+        if passwordless_sudo():
+            args = ["sudo", "-n", *args]
+        result = run(args, timeout=3)
         raw = (result.stdout or result.stderr).strip()
         status = "running" if raw.startswith("up ") else "stopped"
         if result.returncode != 0:
