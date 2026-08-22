@@ -54,8 +54,8 @@ if [ "$USE_CHINA_MIRROR" = "true" ]; then
     NPM_REGISTRY="https://registry.npmmirror.com"
     PYPI_INDEX_URL="https://pypi.tuna.tsinghua.edu.cn/simple"
     GITHUB_RAW_BASE="https://gh-proxy.org/https://raw.githubusercontent.com"
-    RUSTUP_DIST_SERVER="https://mirrors.ustc.edu.cn/rustup"
-    RUSTUP_UPDATE_ROOT="https://mirrors.ustc.edu.cn/rustup/rustup"
+    RUSTUP_DIST_SERVER="https://mirrors.ustc.edu.cn/rust-static"
+    RUSTUP_UPDATE_ROOT="https://mirrors.ustc.edu.cn/rust-static/rustup"
     HOMEBREW_INSTALL_URL="https://mirrors.ustc.edu.cn/misc/brew-install.sh"
     HOMEBREW_BREW_GIT_REMOTE_VALUE="https://mirrors.ustc.edu.cn/brew.git"
     HOMEBREW_CORE_GIT_REMOTE_VALUE="https://mirrors.ustc.edu.cn/homebrew-core.git"
@@ -150,12 +150,28 @@ install_rust() {
     export RUSTUP_HOME=/usr/local/rustup
     export CARGO_HOME=/usr/local/cargo
 
+    local rustup_installer
+    rustup_installer=$(mktemp)
+    curl -fsSL https://sh.rustup.rs -o "$rustup_installer"
+
     if [ -n "$RUSTUP_DIST_SERVER" ]; then
         export RUSTUP_DIST_SERVER
         export RUSTUP_UPDATE_ROOT
     fi
 
-    curl -fsSL https://sh.rustup.rs | bash -s -- -y --default-toolchain stable --profile minimal --no-modify-path
+    if ! bash "$rustup_installer" -y --default-toolchain stable --profile minimal --no-modify-path; then
+        if [ "$USE_CHINA_MIRROR" != "true" ]; then
+            rm -f "$rustup_installer"
+            error "Failed to install Rust"
+        fi
+
+        warn "Rust mirror failed; retrying with the official distribution server"
+        rm -rf /usr/local/rustup /usr/local/cargo
+        unset RUSTUP_DIST_SERVER RUSTUP_UPDATE_ROOT
+        bash "$rustup_installer" -y --default-toolchain stable --profile minimal --no-modify-path
+    fi
+
+    rm -f "$rustup_installer"
     rm -rf /usr/local/rustup/toolchains/*/share/doc
 
     success "Rust $(/usr/local/cargo/bin/rustc --version 2>/dev/null || echo 'installed')"
