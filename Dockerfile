@@ -152,6 +152,7 @@ RUN mkdir -p /run/sshd \
 # ==========================================
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
-    CMD curl -f http://localhost:3000/ || exit 1
+    CMD curl -sS -o /dev/null -w '%{http_code}' http://localhost:3000/ \
+        | grep -Eq '^[234][0-9]{2}$'
 
 # 使用 LinuxServer 原生的 /init 入口

@@ -14,13 +14,15 @@ fi
 # Snapshot the container's boot-time environment for the user-systemctl wrapper.
 # Later interactive `systemctl --user restart ...` calls should use the same
 # service-manager environment, not only the caller's shell environment.
-USER_SYSTEMD_RUN_DIR="${HOME}/.local/run/user-systemd"
+USER_LOCAL_RUN_DIR="${HOME}/.local/run"
+USER_SYSTEMD_RUN_DIR="${USER_LOCAL_RUN_DIR}/user-systemd"
 USER_SYSTEMD_ENV_FILE="${USER_SYSTEMD_RUN_DIR}/environment"
 mkdir -p "$USER_SYSTEMD_RUN_DIR"
 (
     umask 077
     export -p > "$USER_SYSTEMD_ENV_FILE"
 )
+chown abc:abc "$USER_LOCAL_RUN_DIR" 2>/dev/null || true
 chown -R abc:abc "$USER_SYSTEMD_RUN_DIR" 2>/dev/null || true
 chmod 700 "$USER_SYSTEMD_RUN_DIR" 2>/dev/null || true
 
