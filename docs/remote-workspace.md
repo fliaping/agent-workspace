@@ -39,16 +39,20 @@ The first boot sets `AGENT_WORKSPACE_BOOTSTRAP=remote`. The s6 bootstrap service
 updates the application source and installs:
 
 - official standalone code-server under `/config/opt/code-server`
-- code-server workspace extensions
+- the unified Agent Workspace Control Center and desktop integration
 - persistent custom-service registration
 - the selected interactive Agent CLI
 
 The completion marker is stored under `/config/.local/state/agent-workspace`.
-After installation, open a terminal in `/config/Workspace` and run `codex`,
-`claude`, or `hermes setup --portal`. Seeded `AGENTS.md` and `CLAUDE.md` files
-teach supported Agents about the persistence and service-management model.
+After installation, open code-server. Control Center opens automatically on the
+first session and walks through Agent sign-in, the durable workspace, remote
+access, and optional capabilities. It remains available from the single Agent
+Workspace Activity Bar icon. Terminal-only users can run `codex`, `claude`, or
+`hermes setup --portal` directly. Seeded `AGENTS.md` and `CLAUDE.md` files teach
+supported Agents about the persistence and service-management model.
 
-Use `workspacectl info` as the entry point for container operations. It exposes
+Use `workspacectl status` as the terminal entry point for container operations;
+`workspacectl status --json` is the stable Control Center contract. It exposes
 service, log, port, route, and capability controls, and warns when a Docker
 socket makes the privilege boundary larger than the workspace container.
 

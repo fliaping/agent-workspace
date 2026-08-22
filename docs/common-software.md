@@ -96,8 +96,13 @@ agent-workspace-manager install code-server-extensions
 
 Current reusable extensions:
 
-- `service-manager`: inspect and control s6/user services.
-- `caddy-proxy-manager`: inspect and manage proxyctl/Caddy routes.
+- `control-center`: unified onboarding and daily control for Agents, services,
+  proxy routes, access, and diagnostics.
+- `selkies-desktop`: embedded desktop integration opened from Control Center.
+
+Legacy `service-manager` and `caddy-proxy-manager` sources remain available for
+focused development, but the normal installer removes their separate Activity
+Bar entries after installing Control Center.
 
 ## Homebrew
 

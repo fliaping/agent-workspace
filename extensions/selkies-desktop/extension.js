@@ -8,12 +8,13 @@ const FIRST_OPEN_KEY = 'selkiesDesktop.firstOpenCompleted.v2';
 let bootstrapServer;
 let activePanel;
 let extensionContext;
+let activeTarget;
 
 function configuration() {
   const value = vscode.workspace.getConfiguration('selkiesDesktop');
   return {
-    url: value.get('url', 'https://ping-code.h1.fliaping.com:7555/proxy/3000/'),
-    openOnStartup: value.get('openOnStartup', 'firstInstall'),
+    url: value.get('url', 'auto'),
+    openOnStartup: value.get('openOnStartup', 'never'),
     browserMode: value.get('browserMode', 'panel'),
     openLocation: value.get('openLocation', 'active'),
     pageZoom: value.get('pageZoom', '80%'),
@@ -22,6 +23,12 @@ function configuration() {
     hidpi: value.get('hidpi', true),
     showStatusBarButton: value.get('showStatusBarButton', true)
   };
+}
+
+async function resolveTarget(rawUrl) {
+  if (rawUrl !== 'auto') return normalizeTarget(rawUrl);
+  const external = await vscode.env.asExternalUri(vscode.Uri.parse('http://127.0.0.1:3000/'));
+  return normalizeTarget(external.toString());
 }
 
 function normalizeTarget(rawUrl) {
@@ -100,7 +107,12 @@ function startBootstrapServer() {
         return;
       }
       const c = configuration();
-      const target = normalizeTarget(c.url);
+      const target = activeTarget;
+      if (!target) {
+        response.writeHead(503, { 'Content-Type': 'text/plain; charset=utf-8' });
+        response.end('Selkies target is not ready');
+        return;
+      }
       const body = bootstrapHtml(target, c);
       response.writeHead(200, {
         'Content-Type': 'text/html; charset=utf-8',
@@ -220,7 +232,8 @@ function panelColumn(c) {
 
 async function renderPanel(panel) {
   const c = configuration();
-  const target = normalizeTarget(c.url);
+  const target = await resolveTarget(c.url);
+  activeTarget = target;
   const { port } = await startBootstrapServer();
   const bootstrapUrl = `${target.origin}/proxy/${port}/`;
   panel.title = 'Selkies Desktop';
@@ -277,7 +290,8 @@ async function openSelkies() {
   if (c.browserMode !== 'panel') {
     const command = await browserCommand();
     if (command) {
-      const target = normalizeTarget(c.url);
+      const target = await resolveTarget(c.url);
+      activeTarget = target;
       const { port } = await startBootstrapServer();
       await applyBrowserDefaults();
       await vscode.commands.executeCommand(command, `${target.origin}/proxy/${port}/`);

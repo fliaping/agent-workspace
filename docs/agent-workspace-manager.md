@@ -19,7 +19,7 @@ agent-workspace-manager
 The TUI can:
 
 - update the manager source under `/config/agent-workspace-manager/source`
-- install the secure remote foundation (code-server and workspace extensions)
+- install the secure remote foundation (code-server, Control Center, and desktop integration)
 - optionally install proxyctl and Caddy routing for an existing wildcard gateway
 - register persistent custom s6 services
 - install Codex, Claude Code, Hermes, OpenClaw, Openfang, or Zeroclaw as first-class manager actions
@@ -67,7 +67,8 @@ requires deployment-specific DNS, TLS, and authentication decisions.
 
 With no names, `install agents` installs Codex as the ready-to-use default.
 Inside the workspace, `workspacectl` is the stable control surface Agents can
-use to inspect or operate container capabilities.
+use to inspect or operate container capabilities. `workspacectl status --json`
+is also the versioned backend used by Control Center.
 
 ## Source Location
 

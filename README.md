@@ -23,6 +23,7 @@
 - **国内镜像加速** — 运行时通过 `USE_CHINA_MIRROR=true` 一键切换全套国内源（APT、npm、pip、Go、Rust、Homebrew）
 - **数据持久化** — 基于 LinuxServer `/config` 标准挂载，所有工具配置、包缓存、用户数据持久化
 - **Agent 开箱即用** — 首次启动可选择 Codex、Claude Code 或 Hermes，安装后只需完成各自登录
+- **统一控制中心** — code-server 首次打开即显示使用向导，集中管理 Agent、服务、网络、桌面和诊断
 - **统一环境控制** — Agent 可通过 `workspacectl` 检查和管理服务、日志、端口、路由及可选能力
 - **systemctl 进程管理** — 通过 docker-systemctl-replacement 管理常驻 Agent 服务
 - **安全远程工作区** — Webtop 与 code-server 使用随机密码和 HTTPS，首次启动自动安装远程基础能力
@@ -39,7 +40,8 @@ cd agent-workspace
 
 脚本只要求选择一个首选 Agent（默认 Codex），然后生成仅当前用户可读的
 `.env.remote` 并启动 Webtop。首次启动自动安装所选 Agent、code-server 和工作区插件。
-终端会显示随机用户名、密码、访问地址和最后一步登录命令：
+终端会显示随机用户名、密码和访问地址；首次进入 code-server 后，Control Center
+会自动打开五步向导，引导用户启动 Agent、打开工作区、选择远程访问方式和按需组件：
 
 ```text
 https://localhost:3001  # Webtop 桌面
@@ -225,6 +227,7 @@ Agent 才通过用户级 `systemctl` 管理。三种交互式 Agent 都会读取
 
 ```bash
 workspacectl info
+workspacectl status --json
 workspacectl services
 workspacectl service restart openclaw
 workspacectl s6 status svc-selkies
@@ -247,9 +250,8 @@ Agent 的登录信息和配置写入 `HOME=/config`，因此随唯一的 `/confi
 | 模块 | 路径 | 说明 |
 |------|------|------|
 | code-server | `addons/code-server` | 官方 standalone 运行时、密码认证和持久化用户服务 |
+| Control Center | `extensions/control-center` | 统一的首次使用向导、Agent、服务、网络和诊断界面 |
 | proxyctl + Caddy 路由 | `addons/proxyctl` | 可选的泛域名路由，适合已有 DNS、TLS 和认证网关的部署 |
-| 服务管理插件 | `extensions/service-manager` | 在 code-server 侧栏查看和管理 s6 / systemd 服务 |
-| Caddy 代理插件 | `extensions/caddy-proxy-manager` | 在 code-server 侧栏查看和管理 proxyctl 路由 |
 | Selkies 桌面插件 | `extensions/selkies-desktop` | 在 code-server 内一键打开并初始化 Selkies 桌面 |
 | 自定义 s6 服务 | `scripts/register-config-services.sh` | 自动注册 `/config/custom-services.d/<name>/run` 到 s6 |
 
@@ -258,6 +260,9 @@ Agent 的登录信息和配置写入 `HOME=/config`，因此随唯一的 `/confi
 ```bash
 agent-workspace-manager install code-server-extensions
 ```
+
+安装器会迁移旧版独立的服务与 Caddy 侧栏，只保留一个 Agent Workspace 入口；
+底层功能仍由独立的 `workspacectl`、`proxyctl` 和服务管理命令实现。
 
 proxyctl 详细说明见 `addons/proxyctl/README.md`，code-server 插件说明见 [code-server Extensions](docs/code-server-extensions.md)。
 

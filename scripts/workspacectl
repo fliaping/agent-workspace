@@ -10,11 +10,15 @@ Usage: workspacectl <command> [arguments]
 
 Inspect:
   info                         Show persistence, privilege, and Docker boundaries
+  status                       Show the complete workspace control-plane snapshot
   agents                       Show installed interactive Agent CLIs
   services                     List persistent user services and s6 services
   ports                        List listening TCP ports
   routes                       List proxyctl routes when proxyctl is installed
   doctor                       Run workspace environment checks
+
+Machine-readable output:
+  <inspect command> --json     Emit the stable JSON contract used by Control Center
 
 Operate:
   service <action> <name>      status/start/stop/restart/enable/disable a user service
@@ -22,10 +26,22 @@ Operate:
   logs <name> [lines]          Tail a persistent user-service log
   install agent <name>         Install codex/claude-code/hermes or another known Agent
   install <capability>         Install a manager capability such as foundation/proxyctl
+  update                       Update the Agent Workspace application source
   proxy <arguments...>         Pass arguments to proxyctl
 
 All durable files belong under /config. Run without arguments for this help.
 EOF
+}
+
+run_json_command() {
+  local script_path helper
+  script_path="$(readlink -f "${BASH_SOURCE[0]}")"
+  helper="$(dirname "$script_path")/workspacectl-json.py"
+  if [[ ! -f "$helper" ]]; then
+    echo "workspacectl JSON helper is unavailable: $helper" >&2
+    exit 1
+  fi
+  exec python3 "$helper" "$@"
 }
 
 command_path() {
@@ -129,12 +145,42 @@ run_proxyctl() {
   proxyctl "$@"
 }
 
+json_output=false
+filtered_args=()
+for arg in "$@"; do
+  if [[ "$arg" == "--json" ]]; then
+    json_output=true
+  else
+    filtered_args+=("$arg")
+  fi
+done
+set -- "${filtered_args[@]}"
+
+if $json_output; then
+  case "${1:-status}" in
+    status|info|agents|services|ports|routes|doctor)
+      run_json_command "${1:-status}"
+      ;;
+    *)
+      echo "JSON output is only available for inspect commands" >&2
+      exit 2
+      ;;
+  esac
+fi
+
 case "${1:-help}" in
   help|-h|--help)
     usage
     ;;
   info)
     show_info
+    ;;
+  status)
+    show_info
+    echo
+    show_agents
+    echo
+    manager status
     ;;
   agents)
     show_agents
@@ -224,6 +270,9 @@ case "${1:-help}" in
       [[ -n "${2:-}" ]] || { echo "Missing capability" >&2; exit 2; }
       manager install "$2"
     fi
+    ;;
+  update)
+    manager update
     ;;
   proxy)
     shift

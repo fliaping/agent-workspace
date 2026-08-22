@@ -1,42 +1,64 @@
-# code-server Extensions
+# code-server Control Center
 
-Agent Workspace includes two optional code-server extensions:
+Agent Workspace presents one code-server Activity Bar entry for onboarding and
+daily operations:
 
-- `extensions/service-manager`: unified s6 and systemd service view.
-- `extensions/caddy-proxy-manager`: proxyctl-managed Caddy route view.
-- `extensions/selkies-desktop`: one-click Selkies desktop with persistent
-  client-side HiDPI, DPI, browser storage, zoom, and layout defaults.
+- `extensions/control-center`: five-step first-run guide plus Overview, Agents,
+  Services, Network, and Diagnostics pages.
+- `extensions/selkies-desktop`: embedded Selkies desktop support used by the
+  Control Center's **Open desktop** action.
 
-Install them inside a running container:
+The UI is unified, while its components remain decoupled. Control Center reads
+the versioned `workspacectl status --json` contract and sends mutations back
+through `workspacectl`; proxy routing and service supervision therefore remain
+usable from a terminal or by any installed Agent.
+
+Install or refresh the extensions inside a running container:
 
 ```bash
 agent-workspace-manager install code-server-extensions
 ```
 
-The installer packages the sources with VSCE and installs the resulting VSIX
-files through code-server's official CLI. Installed extensions are stored under:
+The installer packages source with VSCE, installs the VSIX files through the
+code-server CLI, and removes legacy standalone Services and Caddy sidebar
+extensions. Installed extensions are persisted under:
 
 ```text
 /config/.local/share/code-server/extensions
 ```
 
-Reload the code-server window after installing:
+Reload the code-server window after an upgrade:
 
 ```text
 Developer: Reload Window
 ```
 
-Extension JavaScript changes can keep the current extension version. Changes to
-`package.json` contributions such as views, commands, or menus must increment
-the extension version before installation. Official VSIX installation updates
-code-server's extension registry and invalidates its manifest cache, so a full
-code-server service restart is not required.
+On a fresh profile, Control Center opens automatically until its guide is
+completed or skipped. It can always be reopened from the Agent Workspace icon
+or from `Agent Workspace: Show Getting Started` in the Command Palette.
 
-The extensions are plain JavaScript; VSIX packaging is handled by the installer.
-Validate changes with:
+The layout follows the active VS Code theme, uses a compact sidebar summary and
+a responsive editor-area dashboard, and collapses cleanly on narrow screens.
+Its operational pages are:
+
+- **Overview**: readiness, durable workspace, quick actions, and Docker boundary.
+- **Agents**: install or launch Codex, Claude Code, and Hermes.
+- **Services**: filter and operate persistent user services and s6 services.
+- **Network**: access URLs, listening ports, Docker boundary, and optional
+  proxyctl routes.
+- **Diagnostics**: capability state, environment checks, source update, and
+  operation logs.
+
+The historical `extensions/service-manager` and
+`extensions/caddy-proxy-manager` directories remain as reference modules, but
+normal installations no longer expose their separate Activity Bar containers.
+
+Validate extension changes with:
 
 ```bash
-node --check extensions/service-manager/extension.js
-node --check extensions/caddy-proxy-manager/extension.js
+node --check extensions/control-center/extension.js
 node --check extensions/selkies-desktop/extension.js
 ```
+
+Changes to `package.json` contributions must increment the extension version so
+code-server invalidates its manifest cache during installation.

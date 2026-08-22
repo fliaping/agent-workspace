@@ -69,6 +69,25 @@ install_extension() {
     echo "[extensions] installed ${publisher}.${package_name}@${version}"
 }
 
-install_extension "service-manager"
-install_extension "caddy-proxy-manager"
+uninstall_extension() {
+    local extension_id="$1"
+    env -u VSCODE_IPC_HOOK_CLI -u CODE_SERVER_PARENT_PID -u NODE_EXEC_PATH \
+        "${CODE_SERVER_BIN}" \
+        --uninstall-extension "${extension_id}" \
+        --extensions-dir "${EXTENSIONS_DIR}" >/dev/null 2>&1 || true
+}
+
+# Control Center replaces the separate service and Caddy activity-bar entries.
+# The source directories stay in the repository for compatibility and focused
+# development, but normal installs expose a single operational surface.
+install_extension "control-center"
 install_extension "selkies-desktop"
+
+uninstall_extension "agent-workspace.unified-service-manager"
+uninstall_extension "agent-workspace.service-manager"
+uninstall_extension "agent-workspace.caddy-proxy-manager"
+uninstall_extension "self-conf.unified-service-manager"
+uninstall_extension "self-conf.service-manager"
+uninstall_extension "self-conf.caddy-proxy-manager"
+
+echo "[extensions] Control Center migration complete; reload the code-server window"

@@ -12,7 +12,8 @@ The extension:
 - writes HiDPI and UI DPI client preferences through a temporary same-origin
   bootstrap page before Selkies loads;
 - adds a `Selkies` status-bar button;
-- opens the desktop once after the extension is first installed.
+- resolves the current code-server proxy URL automatically;
+- leaves startup ownership to Agent Workspace Control Center by default.
 
 No Selkies or nginx server files are modified. The bootstrap HTTP listener binds
 to `127.0.0.1` on an ephemeral port and lives only inside the extension host.
@@ -25,10 +26,10 @@ to `127.0.0.1` on an ephemeral port and lives only inside the extension host.
 ## Defaults
 
 ```text
-URL:          https://ping-code.h1.fliaping.com:7555/proxy/3000/
+URL:          auto (current code-server origin -> port 3000)
 Page zoom:    80%
 Browser mode: dedicated panel
 HiDPI:        enabled
 UI DPI:       96 (100%)
-Open startup: first installation only
+Open startup: never (opened from Control Center)
 ```

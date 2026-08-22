@@ -2,7 +2,7 @@
   "name": "selkies-desktop",
   "displayName": "Selkies Desktop",
   "description": "Open the local Selkies desktop in code-server with persistent client settings.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "agent-workspace",
   "engines": {
     "vscode": "^1.85.0"
@@ -48,8 +48,8 @@
       "properties": {
         "selkiesDesktop.url": {
           "type": "string",
-          "default": "https://ping-code.h1.fliaping.com:7555/proxy/3000/",
-          "description": "Public same-origin code-server proxy URL for Selkies. Keep the trailing slash."
+          "default": "auto",
+          "description": "Selkies URL. 'auto' resolves port 3000 through the current code-server origin; an absolute URL overrides it."
         },
         "selkiesDesktop.openOnStartup": {
           "type": "string",
@@ -58,7 +58,7 @@
             "always",
             "never"
           ],
-          "default": "firstInstall",
+          "default": "never",
           "description": "Automatically open Selkies after first installation, on every startup, or never."
         },
         "selkiesDesktop.browserMode": {

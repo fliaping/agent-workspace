@@ -23,6 +23,7 @@ A containerized cloud desktop based on [LinuxServer Webtop](https://docs.linuxse
 - **China Mirror Support** — Switch to China mirrors at runtime with `USE_CHINA_MIRROR=true` (APT, npm, pip, Go, Rust, Homebrew)
 - **Data Persistence** — LinuxServer `/config` standard mount for all tools, caches, and user data
 - **Ready-to-run Agent** — Choose Codex, Claude Code, or Hermes on first boot, then complete its normal sign-in
+- **Unified Control Center** — code-server opens a first-run guide for Agents, services, networking, desktop access, and diagnostics
 - **Unified Workspace Control** — Agents use `workspacectl` for services, logs, ports, routes, and optional capabilities
 - **systemctl Process Management** — Manage daemon-style agent processes via docker-systemctl-replacement
 - **Secure Remote Workspace** — Webtop and code-server use a generated password and HTTPS, with first-boot foundation setup
@@ -39,8 +40,9 @@ cd agent-workspace
 
 The script asks for one preferred Agent (Codex by default), creates a user-only
 `.env.remote`, and starts Webtop. First boot installs that Agent, code-server,
-and the workspace extensions. It prints credentials, endpoints, and the final
-sign-in command:
+and the workspace extensions. It prints credentials and endpoints. The first
+code-server session opens Control Center's five-step guide for Agent sign-in,
+workspace access, remote access, and optional capabilities:
 
 ```text
 https://localhost:3001  # Webtop desktop
@@ -230,6 +232,7 @@ operate the current container through one stable command surface:
 
 ```bash
 workspacectl info
+workspacectl status --json
 workspacectl services
 workspacectl service restart openclaw
 workspacectl s6 status svc-selkies
@@ -256,9 +259,8 @@ the module source remains available for development:
 | Module | Path | Description |
 |--------|------|-------------|
 | code-server | `addons/code-server` | Official standalone runtime, password authentication, and persistent user service |
+| Control Center | `extensions/control-center` | Unified onboarding, Agents, services, networking, and diagnostics |
 | proxyctl + Caddy routing | `addons/proxyctl` | Optional wildcard routing for deployments with existing DNS, TLS, and gateway authentication |
-| Service Manager extension | `extensions/service-manager` | View and manage s6 / systemd services from the code-server sidebar |
-| Caddy Proxy extension | `extensions/caddy-proxy-manager` | View and manage proxyctl routes from the code-server sidebar |
 | Selkies Desktop extension | `extensions/selkies-desktop` | Open and initialize the Selkies desktop inside code-server |
 | Custom s6 services | `scripts/register-config-services.sh` | Automatically register `/config/custom-services.d/<name>/run` with s6 |
 
@@ -267,6 +269,10 @@ Install the code-server extensions:
 ```bash
 agent-workspace-manager install code-server-extensions
 ```
+
+The installer migrates the old standalone Services and Caddy sidebar entries
+to one Agent Workspace entry. Their underlying `workspacectl`, `proxyctl`, and
+service-management commands remain independently usable.
 
 See `addons/proxyctl/README.md` for proxyctl details and [code-server Extensions](docs/code-server-extensions.md) for extension usage.
 

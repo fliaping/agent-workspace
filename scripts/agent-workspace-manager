@@ -387,19 +387,9 @@ class WorkspaceManager:
                 str(self.settings.config_root / "proxyctl"),
             ),
             (
-                "code-server extensions",
+                "Control Center",
                 "ok"
-                if (
-                    list(ext_dir.glob("agent-workspace.unified-service-manager-*"))
-                    or list(ext_dir.glob("agent-workspace.service-manager-*"))
-                    or list(ext_dir.glob("self-conf.unified-service-manager-*"))
-                    or list(ext_dir.glob("self-conf.service-manager-*"))
-                )
-                and (
-                    list(ext_dir.glob("agent-workspace.caddy-proxy-manager-*"))
-                    or list(ext_dir.glob("self-conf.caddy-proxy-manager-*"))
-                )
-                and list(ext_dir.glob("agent-workspace.selkies-desktop-*"))
+                if list(ext_dir.glob("agent-workspace.control-center-*"))
                 else "missing",
                 str(ext_dir),
             ),
