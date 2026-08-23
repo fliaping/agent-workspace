@@ -2,7 +2,7 @@
   "name": "control-center",
   "displayName": "Agent Workspace Control Center",
   "description": "Unified onboarding and management for Agents, services, networking, desktop access, and diagnostics.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "agent-workspace",
   "engines": {
     "vscode": "^1.85.0"
@@ -10,6 +10,15 @@
   "categories": [
     "Other"
   ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true,
+      "description": "Control Center operates container-level Agent Workspace commands and does not execute workspace project files."
+    },
+    "virtualWorkspaces": {
+      "supported": true
+    }
+  },
   "files": [
     "extension.js",
     "README.md",
