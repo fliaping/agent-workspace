@@ -9,9 +9,15 @@ CODE_SERVER_AUTH="${CODE_SERVER_AUTH:-password}"
 CODE_SERVER_CERT="${CODE_SERVER_CERT:-true}"
 CODE_SERVER_CONFIG="${CODE_SERVER_CONFIG:-${CONFIG_ROOT}/.config/code-server/config.yaml}"
 CODE_SERVER_PASSWORD="${CODE_SERVER_PASSWORD:-${PASSWORD:-}}"
+CODE_SERVER_LOCALE="${CODE_SERVER_LOCALE:-en}"
 
 if [[ "$CODE_SERVER_AUTH" != "password" && "$CODE_SERVER_AUTH" != "none" ]]; then
   echo "[code-server] CODE_SERVER_AUTH must be password or none" >&2
+  exit 1
+fi
+
+if [[ "$CODE_SERVER_LOCALE" != "en" && "$CODE_SERVER_LOCALE" != "zh-cn" ]]; then
+  echo "[code-server] CODE_SERVER_LOCALE must be en or zh-cn" >&2
   exit 1
 fi
 
@@ -56,6 +62,7 @@ write_config() {
       python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$CODE_SERVER_PASSWORD"
     fi
     printf 'cert: %s\n' "$CODE_SERVER_CERT"
+    printf 'locale: %s\n' "$CODE_SERVER_LOCALE"
     if [[ -n "${CODE_SERVER_PROXY_DOMAIN:-}" ]]; then
       printf 'proxy-domain: %s\n' "$CODE_SERVER_PROXY_DOMAIN"
     fi

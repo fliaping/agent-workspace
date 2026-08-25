@@ -12,11 +12,15 @@ The extension:
 - writes HiDPI and UI DPI client preferences through a temporary same-origin
   bootstrap page before Selkies loads;
 - adds a `Selkies` status-bar button;
-- resolves the current code-server proxy URL automatically;
+- keeps the default desktop on the current code-server origin even when
+  `proxy-domain` is configured, so `/proxy/3000/` reuses the existing gateway
+  session instead of opening a separately authenticated port subdomain;
 - leaves startup ownership to Agent Workspace Control Center by default.
 
-No Selkies or nginx server files are modified. The bootstrap HTTP listener binds
-to `127.0.0.1` on an ephemeral port and lives only inside the extension host.
+No Selkies or nginx server files are modified. In automatic mode the bootstrap
+HTTP listener binds to `127.0.0.1` on an ephemeral port and is reached through
+the same-origin code-server path proxy. An explicitly configured absolute URL
+is opened directly and does not receive this same-origin preference bootstrap.
 
 ## Commands
 

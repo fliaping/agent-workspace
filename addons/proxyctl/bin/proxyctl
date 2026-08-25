@@ -69,6 +69,37 @@ def audit_file():
     return state_dir() / "audit.log"
 
 
+def env_file():
+    root = Path(os.environ.get("PROXYCTL_STATE_DIR", DEFAULT_STATE_DIR))
+    return root / "env"
+
+
+def write_env_values(values):
+    path = env_file()
+    try:
+        lines = path.read_text().splitlines()
+        mode = path.stat().st_mode & 0o777
+    except FileNotFoundError:
+        lines = []
+        mode = 0o600
+    pending = dict(values)
+    updated = []
+    for line in lines:
+        stripped = line.strip()
+        key = stripped.split("=", 1)[0].strip() if "=" in stripped else ""
+        if key in pending and re.fullmatch(r"[A-Z][A-Z0-9_]*", key):
+            updated.append(f"{key}={shlex.quote(str(pending.pop(key)))}")
+        else:
+            updated.append(line)
+    for key, value in pending.items():
+        updated.append(f"{key}={shlex.quote(str(value))}")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    temporary.write_text("\n".join(updated) + "\n")
+    temporary.chmod(mode)
+    temporary.replace(path)
+
+
 def root_domain():
     domain = env("PROXY_ROOT_DOMAIN")
     if not domain:
@@ -580,6 +611,71 @@ def cmd_render(_args):
     print(json.dumps(build_config(load_routes()), indent=2))
 
 
+def cmd_domain(args):
+    old_root = root_domain()
+    new_root = normalize_host(args.domain)
+    if not valid_host(new_root):
+        raise ProxyctlError(f"invalid root domain: {new_root}")
+    if new_root == old_root:
+        print(f"root domain is already {new_root}")
+        return
+
+    routes = load_routes()
+    migrated = []
+    for route in routes:
+        old_host = route["host"]
+        if old_host == old_root:
+            new_host = new_root
+        elif old_host.endswith(f".{old_root}"):
+            new_host = old_host[: -(len(old_root))] + new_root
+        else:
+            raise ProxyctlError(f"route is outside the current root domain: {old_host}")
+        if not valid_host(new_host):
+            raise ProxyctlError(f"migrated route is invalid: {new_host}")
+        migrated.append({**route, "host": new_host})
+
+    current_proxy_domain = env("CODE_SERVER_PROXY_DOMAIN", "") or ""
+    if old_root in current_proxy_domain:
+        next_proxy_domain = current_proxy_domain.replace(old_root, new_root)
+    elif current_proxy_domain:
+        next_proxy_domain = current_proxy_domain
+    else:
+        next_proxy_domain = f"{{{{port}}}}.{new_root}"
+
+    original_env = env_file().read_bytes()
+    if not args.dry_run:
+        backup_routes(routes)
+        stamp = time.strftime("%Y%m%d-%H%M%S")
+        env_backup = backups_dir() / f"env-{stamp}"
+        env_backup.write_bytes(original_env)
+    try:
+        write_env_values(
+            {
+                "PROXY_ROOT_DOMAIN": new_root,
+                "CODE_SERVER_PROXY_DOMAIN": next_proxy_domain,
+            }
+        )
+        config_env.cache_clear()
+        apply_config(migrated, dry_run=args.dry_run)
+    except Exception:
+        env_file().write_bytes(original_env)
+        config_env.cache_clear()
+        if not args.dry_run:
+            try:
+                apply_config(routes)
+            except Exception:
+                pass
+        raise
+    if args.dry_run:
+        env_file().write_bytes(original_env)
+        config_env.cache_clear()
+        return
+    save_routes(migrated)
+    audit("domain", f"{old_root} -> {new_root}")
+    print(f"root domain: {old_root} -> {new_root}")
+    print(f"code-server proxy domain: {next_proxy_domain}")
+
+
 def build_parser():
     parser = argparse.ArgumentParser(description="Manage lightweight HTTP subdomain routes through Caddy Admin API.")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -603,6 +699,11 @@ def build_parser():
     sub.add_parser("list", help="list managed routes").set_defaults(func=cmd_list)
     sub.add_parser("check", help="validate state and check upstream TCP connectivity").set_defaults(func=cmd_check)
     sub.add_parser("render", help="print generated Caddy JSON config").set_defaults(func=cmd_render)
+
+    domain = sub.add_parser("domain", help="change the root domain and migrate managed routes")
+    domain.add_argument("domain", help="new bare root domain")
+    domain.add_argument("--dry-run", action="store_true")
+    domain.set_defaults(func=cmd_domain)
 
     rollback = sub.add_parser("rollback", help="restore routes from the latest route backup or a specific file")
     rollback.add_argument("file", nargs="?")

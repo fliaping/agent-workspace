@@ -14,6 +14,13 @@ and `/run` can be replaced when the container is rebuilt.
 - Use `workspacectl s6 ...` for image-provided s6 services.
 - Use `workspacectl ports` and `workspacectl routes` for network inspection.
 - Use `workspacectl install ...` for optional Agent Workspace capabilities.
+- Use `workspacectl network domain <domain>` for the managed Caddy domain;
+  DNS, TLS, and gateway authentication remain deployment responsibilities.
+- Use `workspacectl tailscale status|login|serve` for private Tailnet access.
+  Tailscale runs in userspace mode, so do not try to create a TUN device.
+- Selkies Desktop is the container's graphical workspace. Inspect it with
+  `workspacectl status --json` and manage its image service with
+  `workspacectl s6 status|restart svc-selkies`.
 - The code-server Control Center is the user-facing view of these same commands;
   keep operations usable from both the UI and terminal.
 - The container user may have passwordless `sudo`; use it only when an

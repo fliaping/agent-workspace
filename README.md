@@ -22,7 +22,7 @@
 - **GPU 加速** — 自动检测 NVIDIA / Intel / AMD GPU，支持硬件渲染与编码
 - **国内镜像加速** — 运行时通过 `USE_CHINA_MIRROR=true` 一键切换全套国内源（APT、npm、pip、Go、Rust、Homebrew）
 - **数据持久化** — 基于 LinuxServer `/config` 标准挂载，所有工具配置、包缓存、用户数据持久化
-- **Agent 开箱即用** — 首次启动可选择 Codex、Claude Code 或 Hermes，安装后只需完成各自登录
+- **Agent 开箱即用** — 首次启动可选择 Codex、Claude Code、Hermes 或 DeepSeek Harness，安装后只需完成各自登录或模型配置
 - **统一控制中心** — code-server 首次打开即显示使用向导，集中管理 Agent、服务、网络、桌面和诊断
 - **统一环境控制** — Agent 可通过 `workspacectl` 检查和管理服务、日志、端口、路由及可选能力
 - **systemctl 进程管理** — 通过 docker-systemctl-replacement 管理常驻 Agent 服务
@@ -134,7 +134,7 @@ docker compose up -d
 | `CUSTOM_USER` / `PASSWORD` | 不设置 | Webtop HTTP Basic 认证；远程访问时必须设置 |
 | `START_DOCKER` | `false` | 启用容器内 Docker（需 `--privileged`） |
 | `USE_CHINA_MIRROR` | `false` | 运行时切换国内镜像源 |
-| `AGENT_WORKSPACE_AGENT` | `codex` | 首次启动安装 `codex`、`claude-code`、`hermes` 或 `none` |
+| `AGENT_WORKSPACE_AGENT` | `codex` | 首次启动安装 `codex`、`claude-code`、`hermes`、`deepseek-harness` 或 `none` |
 | `SSH_PASSWORD` | 不设置 | 设置后启用 SSH 服务（端口 22），值为 abc 用户密码 |
 | `NODE_OPTIONS` | - | Node.js 选项（如 `--max-old-space-size=2048`） |
 | `SELKIES_ENABLE_RATE_CONTROL` | `true` | 启用 CRF/CBR 码率控制切换 |
@@ -197,6 +197,11 @@ agent-workspace-manager install foundation
 # 可选：为已有泛域名和上游网关安装 Caddy/proxyctl
 PROXY_ROOT_DOMAIN=dev.example.com agent-workspace-manager install proxyctl
 
+# 可选：无需 NET_ADMIN 的 Tailscale 私有自组网
+agent-workspace-manager install tailscale
+workspacectl tailscale login
+workspacectl tailscale serve
+
 # 查看应用能力状态
 agent-workspace-manager status
 ```
@@ -209,7 +214,7 @@ agent-workspace-manager status
 
 ```bash
 agent-workspace-manager install agents codex
-agent-workspace-manager install agents claude-code hermes
+agent-workspace-manager install agents claude-code hermes deepseek-harness
 ```
 
 | Agent | 类型 | 安装来源 | 安装后配置 |
@@ -217,12 +222,13 @@ agent-workspace-manager install agents claude-code hermes
 | Codex | 交互式 CLI | [OpenAI 官方安装器](https://learn.chatgpt.com/docs/codex/cli) | `codex` |
 | Claude Code | 交互式 CLI | [Anthropic 官方安装器](https://code.claude.com/docs/en/quickstart) | `claude` |
 | Hermes Agent | 交互式 CLI | [Nous Research 官方安装器](https://hermes-agent.nousresearch.com/docs/) | `hermes setup --portal` |
+| DeepSeek Harness | 常驻 Web Agent，默认端口 3080 | [DeepSeek 官方 npm 包](https://github.com/deepseek-ai/deepseek-harness) | 在同一 code-server 域名打开 `/proxy/3080/` |
 | OpenClaw | 常驻服务，默认端口 18789 | npm | `openclaw onboard` |
 | Openfang | 常驻服务，默认端口 4200 | 官方 shell 安装器 | `openfang init` |
 | ZeroClaw | 常驻服务，默认端口 42617 | brew | `zeroclaw onboard` |
 
-Codex、Claude Code 和 Hermes 直接在项目终端运行，不应注册成后台服务。常驻型
-Agent 才通过用户级 `systemctl` 管理。三种交互式 Agent 都会读取工作区说明，且可用
+Codex、Claude Code 和 Hermes 直接在项目终端运行，不应注册成后台服务。DeepSeek
+Harness 与其他常驻型 Agent 通过用户级 `systemctl` 管理。四种 Agent 都会读取工作区说明，且可用
 统一入口操作当前容器：
 
 ```bash
@@ -250,9 +256,11 @@ Agent 的登录信息和配置写入 `HOME=/config`，因此随唯一的 `/confi
 | 模块 | 路径 | 说明 |
 |------|------|------|
 | code-server | `addons/code-server` | 官方 standalone 运行时、密码认证和持久化用户服务 |
-| Control Center | `extensions/control-center` | 统一的首次使用向导、Agent、服务、网络和诊断界面 |
+| Control Center | `extensions/control-center` | 统一的首次使用向导，以及 Agent、资源、服务、桌面、网络和诊断界面 |
 | proxyctl + Caddy 路由 | `addons/proxyctl` | 可选的泛域名路由，适合已有 DNS、TLS 和认证网关的部署 |
-| Selkies 桌面插件 | `extensions/selkies-desktop` | 在 code-server 内一键打开并初始化 Selkies 桌面 |
+| Selkies Desktop | `extensions/selkies-desktop` | 正式桌面能力，在 Control Center 内显示运行状态并一键打开 |
+| Tailscale 自组网 | `addons/tailscale` | 无需 NET_ADMIN 的 userspace 私有网络与 Tailnet Serve |
+| DeepSeek Harness | `addons/deepseek-harness` | 官方 `dsh`、持久化状态、同源 Web UI 与全局资源桥接 |
 | 自定义 s6 服务 | `scripts/register-config-services.sh` | 自动注册 `/config/custom-services.d/<name>/run` 到 s6 |
 
 安装 code-server 插件：

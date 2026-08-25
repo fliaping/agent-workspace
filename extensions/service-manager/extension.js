@@ -29,6 +29,22 @@ function run(command, args, options = {}) {
   });
 }
 
+async function mapLimit(items, limit, mapper) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+  const workers = Array.from(
+    { length: Math.min(Math.max(1, limit), items.length) },
+    async () => {
+      while (nextIndex < items.length) {
+        const index = nextIndex++;
+        results[index] = await mapper(items[index], index);
+      }
+    }
+  );
+  await Promise.all(workers);
+  return results;
+}
+
 function config() {
   const cfg = vscode.workspace.getConfiguration('unifiedServiceManager');
   return {
@@ -299,23 +315,40 @@ async function discoverS6(serviceDirs) {
     } catch {
       continue;
     }
-    for (const entry of entries) {
-      if (entry.name.startsWith('.')) continue;
+    const visibleEntries = entries.filter((entry) => !entry.name.startsWith('.'));
+    const discovered = await mapLimit(visibleEntries, 8, async (entry) => {
       const servicePath = path.join(root, entry.name);
       const stat = await run('s6-svstat', [servicePath], { timeout: 3000 });
       const raw = (stat.stdout || stat.stderr).trim();
       const running = raw.startsWith('up ');
-      services.push({
+      return {
         kind: 's6',
         id: servicePath,
         name: entry.name,
         status: running ? 'running' : 'stopped',
         rawStatus: raw,
         path: servicePath
-      });
-    }
+      };
+    });
+    services.push(...discovered);
   }
   return services;
+}
+
+function parseSystemdActiveStates(text) {
+  const states = new Map();
+  for (const line of text.split(/\r?\n/)) {
+    const columns = line.trim().replace(/^●\s*/, '').split(/\s+/);
+    if (columns.length < 4 || !columns[0].endsWith('.service')) continue;
+    states.set(columns[0], { active: columns[2], sub: columns[3] });
+  }
+  return states;
+}
+
+function systemdStatus(active) {
+  if (active === 'active') return 'running';
+  if (active === 'failed') return 'failed';
+  return 'stopped';
 }
 
 async function discoverSystemd(scope, includeStates) {
@@ -336,21 +369,43 @@ async function discoverSystemd(scope, includeStates) {
     })
     .filter(({ unit, state }) => unit.endsWith('.service') && includeStates.has(state));
 
-  const services = [];
-  for (const { unit, state } of units) {
+  const activeList = await run(
+    'systemctl',
+    [...baseArgs, 'list-units', '--type=service', '--all', '--no-legend', '--no-pager', '--plain'],
+    { timeout: 8000, maxBuffer: 4 * 1024 * 1024 }
+  );
+  const activeStates = parseSystemdActiveStates(activeList.stdout);
+  if (activeList.ok || activeStates.size > 0) {
+    return units.map(({ unit, state }) => {
+      const current = activeStates.get(unit) || { active: 'inactive', sub: 'dead' };
+      return {
+        kind: 'systemd',
+        scope,
+        id: unit,
+        name: unit,
+        status: systemdStatus(current.active),
+        rawStatus: `${current.active} (${current.sub}); ${state}`,
+        unit
+      };
+    });
+  }
+
+  // Agent Workspace's lightweight systemctl --user shim does not implement
+  // list-units. Keep that portable fallback bounded instead of probing every
+  // unit serially.
+  return mapLimit(units, 8, async ({ unit, state }) => {
     const active = await run('systemctl', [...baseArgs, 'is-active', unit], { timeout: 3000 });
     const activeText = (active.stdout || active.stderr).trim();
-    services.push({
+    return {
       kind: 'systemd',
       scope,
       id: unit,
       name: unit,
-      status: activeText === 'active' ? 'running' : activeText === 'failed' ? 'failed' : 'stopped',
+      status: systemdStatus(activeText),
       rawStatus: `${activeText || 'unknown'}; ${state}`,
       unit
-    });
-  }
-  return services;
+    };
+  });
 }
 
 async function manage(item, action) {

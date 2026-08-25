@@ -46,7 +46,7 @@ fi
 
 case "$agent" in
   none) ;;
-  codex|claude-code|hermes)
+  codex|claude-code|hermes|deepseek-harness)
     if [[ ! -f "$agent_marker" ]]; then
       until run_manager install agents "$agent"; do
         echo "[workspace-bootstrap] ${agent} install failed; retrying in 30 seconds"
@@ -54,7 +54,7 @@ case "$agent" in
       done
       touch "$agent_marker"
       chown abc:abc "$agent_marker" 2>/dev/null || true
-      echo "[workspace-bootstrap] ${agent} is installed; open a terminal to sign in"
+      echo "[workspace-bootstrap] ${agent} is installed; finish setup from its normal UI"
     fi
     ;;
   *) echo "[workspace-bootstrap] unsupported Agent: $agent" >&2 ;;

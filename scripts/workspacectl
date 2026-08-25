@@ -12,6 +12,11 @@ Inspect:
   info                         Show persistence, privilege, and Docker boundaries
   status                       Show the complete workspace control-plane snapshot
   agents                       Show installed interactive Agent CLIs
+  skills                       List global Skills and Agent availability
+  mcp                          List MCP servers across installed Agents
+  locale                       Show the code-server and Control Center language
+  network domain <domain>      Configure the public custom root domain
+  tailscale status             Show optional tailnet connection state
   services                     List persistent user services and s6 services
   ports                        List listening TCP ports
   routes                       List proxyctl routes when proxyctl is installed
@@ -24,8 +29,16 @@ Operate:
   service <action> <name>      status/start/stop/restart/enable/disable a user service
   s6 <action> <name>           status/start/stop/restart an s6 service
   logs <name> [lines]          Tail a persistent user-service log
-  install agent <name>         Install codex/claude-code/hermes or another known Agent
+  install agent <name>         Install codex/claude-code/hermes/deepseek-harness
   install <capability>         Install a manager capability such as foundation/proxyctl
+  skill add <source>           Install a global Skill for all supported Agents
+  skill update [name]          Update one or all globally managed Skills
+  skill remove <name>          Remove a global Skill from supported Agents
+  mcp add <name> <options>     Add one MCP server to selected Agents
+  mcp remove <name> <options>  Remove one MCP server from selected Agents
+  locale <en|zh-cn> [--restart] Switch the complete browser interface language
+  tailscale login              Sign in interactively from a terminal
+  tailscale serve              Expose code-server and Selkies inside the tailnet
   update                       Update the Agent Workspace application source
   proxy <arguments...>         Pass arguments to proxyctl
 
@@ -42,6 +55,47 @@ run_json_command() {
     exit 1
   fi
   exec python3 "$helper" "$@"
+}
+
+run_resource_command() {
+  local script_path helper
+  script_path="$(readlink -f "${BASH_SOURCE[0]}")"
+  helper="$(dirname "$script_path")/workspacectl-resources.py"
+  if [[ ! -f "$helper" ]]; then
+    echo "workspacectl resource helper is unavailable: $helper" >&2
+    exit 1
+  fi
+  exec python3 "$helper" "$@"
+}
+
+run_locale_command() {
+  local script_path helper
+  script_path="$(readlink -f "${BASH_SOURCE[0]}")"
+  helper="$(dirname "$script_path")/workspacectl-locale.py"
+  if [[ ! -f "$helper" ]]; then
+    echo "workspacectl locale helper is unavailable: $helper" >&2
+    exit 1
+  fi
+  exec python3 "$helper" "$@"
+}
+
+run_network_command() {
+  local script_path helper
+  script_path="$(readlink -f "${BASH_SOURCE[0]}")"
+  helper="$(dirname "$script_path")/workspacectl-network.py"
+  if [[ ! -f "$helper" ]]; then
+    echo "workspacectl network helper is unavailable: $helper" >&2
+    exit 1
+  fi
+  exec python3 "$helper" "$@"
+}
+
+run_tailscale() {
+  if ! command -v tailscale >/dev/null 2>&1; then
+    echo "Tailscale is not installed; run: workspacectl install tailscale" >&2
+    exit 1
+  fi
+  tailscale "$@"
 }
 
 command_path() {
@@ -81,20 +135,14 @@ show_info() {
 }
 
 show_agents() {
-  local label binary install_name path version
-  while IFS='|' read -r label binary install_name; do
-    path="$(command_path "$binary")"
-    if [[ -z "$path" ]]; then
-      printf '%-14s %-10s %s\n' "$label" "missing" "install: workspacectl install agent $install_name"
-      continue
-    fi
-    version="$(timeout 5 "$path" --version 2>/dev/null | head -n 1 || true)"
-    printf '%-14s %-10s %s%s\n' "$label" "ready" "$path" "${version:+ ($version)}"
-  done <<'EOF'
-Codex|codex|codex
-Claude Code|claude|claude-code
-Hermes Agent|hermes|hermes
-EOF
+  local script_path helper
+  script_path="$(readlink -f "${BASH_SOURCE[0]}")"
+  helper="$(dirname "$script_path")/workspacectl-json.py"
+  if [[ ! -f "$helper" ]]; then
+    echo "workspacectl JSON helper is unavailable: $helper" >&2
+    return 1
+  fi
+  python3 "$helper" agents --text
 }
 
 show_services() {
@@ -158,7 +206,7 @@ set -- "${filtered_args[@]}"
 
 if $json_output; then
   case "${1:-status}" in
-    status|info|agents|services|ports|routes|doctor)
+    status|info|agents|skills|mcp|locale|tailscale|services|ports|routes|doctor)
       run_json_command "${1:-status}"
       ;;
     *)
@@ -184,6 +232,54 @@ case "${1:-help}" in
     ;;
   agents)
     show_agents
+    ;;
+  skills)
+    shift
+    if [[ "${1:-list}" == "list" ]]; then
+      run_json_command skills
+    fi
+    run_resource_command skill "$@"
+    ;;
+  skill)
+    shift
+    run_resource_command skill "$@"
+    ;;
+  mcp)
+    shift
+    if [[ "${1:-list}" == "list" ]]; then
+      run_json_command mcp
+    fi
+    run_resource_command mcp "$@"
+    ;;
+  locale)
+    shift
+    run_locale_command "$@"
+    ;;
+  network)
+    shift
+    run_network_command "$@"
+    ;;
+  tailscale)
+    shift
+    case "${1:-status}" in
+      status)
+        run_tailscale status
+        ;;
+      login|up)
+        shift
+        run_tailscale up --hostname="${TAILSCALE_HOSTNAME:-agent-workspace}" --accept-dns=false "$@"
+        ;;
+      serve)
+        run_tailscale serve --bg http://127.0.0.1:8443
+        ;;
+      logout)
+        run_tailscale logout
+        ;;
+      *)
+        echo "Usage: workspacectl tailscale status|login|serve|logout" >&2
+        exit 2
+        ;;
+    esac
     ;;
   services)
     show_services

@@ -2,7 +2,7 @@
   "name": "selkies-desktop",
   "displayName": "Selkies Desktop",
   "description": "Open the local Selkies desktop in code-server with persistent client settings.",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "publisher": "agent-workspace",
   "engines": {
     "vscode": "^1.85.0"
@@ -49,7 +49,7 @@
         "selkiesDesktop.url": {
           "type": "string",
           "default": "auto",
-          "description": "Selkies URL. 'auto' resolves port 3000 through the current code-server origin; an absolute URL overrides it."
+          "description": "Selkies URL. 'auto' always uses the current code-server origin at /proxy/3000/ so gateway authentication is reused; an absolute URL overrides it."
         },
         "selkiesDesktop.openOnStartup": {
           "type": "string",

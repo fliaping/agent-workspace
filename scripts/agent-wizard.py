@@ -37,10 +37,10 @@ _TEXTS: dict[str, dict[str, str]] = {
         # Screen 1
         "select_title":        "Agent Workspace - Setup Wizard",
         "select_hint":         "Select agents to install:",
-        "select_keys":         "(1-6=toggle  a=all  ↑↓=move)",
+        "select_keys":         "(1-7=toggle  a=all  ↑↓=move)",
         "key_next":            "Next",
         "key_cancel":          "Cancel",
-        "key_toggle":          "1-6 Toggle",
+        "key_toggle":          "1-7 Toggle",
         "key_select_all":      "All",
         "key_move":            "↑↓ Move",
         "no_agent_selected":   "Please select at least one agent",
@@ -86,6 +86,7 @@ _TEXTS: dict[str, dict[str, str]] = {
         "desc_codex":          "OpenAI coding agent (native CLI)",
         "desc_claude_code":    "Anthropic coding agent (native CLI)",
         "desc_hermes":         "General autonomous agent (native CLI)",
+        "desc_deepseek_harness": "DeepSeek's official plugin-based coding Agent (Web UI)",
         "desc_openclaw":       "AI assistant gateway (npm)",
         "desc_openfang":       "Rust Agent OS (cargo)",
         "desc_zeroclaw":       "Ultra-light runtime (brew)",
@@ -95,10 +96,10 @@ _TEXTS: dict[str, dict[str, str]] = {
         "app_subtitle":        "安装向导",
         "select_title":        "Agent 工作区 - 安装向导",
         "select_hint":         "选择要安装的 Agent：",
-        "select_keys":         "(1-6=切换  a=全选  ↑↓=移动)",
+        "select_keys":         "(1-7=切换  a=全选  ↑↓=移动)",
         "key_next":            "下一步",
         "key_cancel":          "取消",
-        "key_toggle":          "1-6 切换",
+        "key_toggle":          "1-7 切换",
         "key_select_all":      "全选",
         "key_move":            "↑↓ 移动",
         "no_agent_selected":   "请至少选择一个 Agent",
@@ -139,6 +140,7 @@ _TEXTS: dict[str, dict[str, str]] = {
         "desc_codex":          "OpenAI 编程 Agent（原生 CLI）",
         "desc_claude_code":    "Anthropic 编程 Agent（原生 CLI）",
         "desc_hermes":         "通用自主 Agent（原生 CLI）",
+        "desc_deepseek_harness": "DeepSeek 官方插件化编程 Agent（Web UI）",
         "desc_openclaw":       "AI 助手网关 (npm)",
         "desc_openfang":       "Rust Agent 操作系统 (cargo)",
         "desc_zeroclaw":       "超轻量 Agent 运行时 (brew)",
@@ -184,6 +186,17 @@ AGENTS = {
         "binary": "hermes",
         "install_type": "hermes-native",
         "onboard": "hermes setup --portal",
+    },
+    "deepseek-harness": {
+        "label": "DeepSeek Harness",
+        "desc_key": "desc_deepseek_harness",
+        "port": 3080,
+        "mode": "service",
+        "binary": "deepseek-harness",
+        "install_type": "deepseek-harness-native",
+        "onboard": "open /proxy/3080/ and configure a model",
+        "service_cmd": "web --no-open --port 3080",
+        "service_extra_env": "Environment=DSH_HOME=/config/.dsh",
     },
     "openclaw": {
         "label": "OpenClaw",
@@ -302,6 +315,9 @@ def build_install_command(agent: str) -> list[str]:
             "https://hermes-agent.nousresearch.com/install.sh",
         )
         return ["bash", "-c", 'curl -fsSL "$1" | bash', "hermes-installer", url]
+    elif info["install_type"] == "deepseek-harness-native":
+        installer = Path(__file__).resolve().parent.parent / "addons/deepseek-harness/install.sh"
+        return ["bash", str(installer)]
     elif info["install_type"] == "npm":
         cmd = f"npm install -g {agent}@latest {get_npm_registry()}"
         return ["bash", "-c", cmd]
@@ -424,7 +440,7 @@ def run_non_interactive(agents: list[str], china_mirror: bool) -> None:
         if info.get("mode") == "service":
             create_systemd_service(name)
             service = subprocess.run(
-                ["systemctl", "--user", "enable", "--now", name],
+                ["setsid", "systemctl", "--user", "enable", "--now", name],
                 text=True,
             )
             if service.returncode != 0:
@@ -492,9 +508,10 @@ def run_tui(agents_preselect: list[str], china_mirror: bool) -> None:
             Binding("1", "toggle('codex')", t("key_toggle"), show=True),
             Binding("2", "toggle('claude-code')", show=False),
             Binding("3", "toggle('hermes')", show=False),
-            Binding("4", "toggle('openclaw')", show=False),
-            Binding("5", "toggle('openfang')", show=False),
-            Binding("6", "toggle('zeroclaw')", show=False),
+            Binding("4", "toggle('deepseek-harness')", show=False),
+            Binding("5", "toggle('openclaw')", show=False),
+            Binding("6", "toggle('openfang')", show=False),
+            Binding("7", "toggle('zeroclaw')", show=False),
             Binding("a", "toggle_all", t("key_select_all"), show=True),
             Binding("up", "focus_prev", t("key_move"), show=True),
             Binding("down", "focus_next", show=False),
@@ -858,6 +875,7 @@ def run_tui(agents_preselect: list[str], china_mirror: bool) -> None:
                     try:
                         create_systemd_service(agent_name)
                         proc = await asyncio.create_subprocess_exec(
+                            "setsid",
                             "systemctl",
                             "--user",
                             "enable",
@@ -1084,8 +1102,8 @@ def main() -> None:
         choices=list(AGENTS.keys()),
         default=[],
         help=(
-            "Agents to install (codex, claude-code, hermes, openclaw, "
-            "openfang, zeroclaw)"
+            "Agents to install (codex, claude-code, hermes, deepseek-harness, "
+            "openclaw, openfang, zeroclaw)"
         ),
     )
 

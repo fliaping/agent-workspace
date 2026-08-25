@@ -31,8 +31,39 @@ proxyctl list
 proxyctl add app 127.0.0.1:3000
 proxyctl remove app
 proxyctl check
+workspacectl network domain workspace.example.com
 tail -f /config/proxyctl/access.log
 ```
+
+## Tailscale userspace network
+
+Purpose: private tailnet access without opening a public port or granting the
+container `NET_ADMIN`.
+
+```bash
+agent-workspace-manager install tailscale
+workspacectl tailscale login
+workspacectl tailscale serve
+systemctl --user status tailscaled-workspace.service
+```
+
+Runtime, identity, and logs persist under `/config/opt/tailscale`,
+`/config/.local/share/tailscale`, and `/config/.local/log/user-systemd`.
+
+## DeepSeek Harness
+
+Purpose: official plugin-based DeepSeek coding Agent with Web and headless
+surfaces.
+
+```bash
+agent-workspace-manager install agent deepseek-harness
+systemctl --user status deepseek-harness.service
+deepseek-harness headless "inspect this workspace"
+```
+
+The Web UI is loopback-only on `127.0.0.1:3080` and opens through the existing
+code-server gateway session at `/proxy/3080/`. Runtime state and credentials
+persist under `/config/.dsh`; the official UI keeps stored API keys write-only.
 
 ## code-server
 
@@ -97,7 +128,7 @@ agent-workspace-manager install code-server-extensions
 Current reusable extensions:
 
 - `control-center`: unified onboarding and daily control for Agents, services,
-  proxy routes, access, and diagnostics.
+  desktop, custom-domain and Tailscale access, proxy routes, and diagnostics.
 - `selkies-desktop`: embedded desktop integration opened from Control Center.
 
 Legacy `service-manager` and `caddy-proxy-manager` sources remain available for

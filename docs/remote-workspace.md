@@ -15,8 +15,8 @@ browser -- HTTPS/password --> code-server :8443
 ```
 
 Run `scripts/remote-up.sh`, choose one Agent, and let it generate `.env.remote`.
-Codex is the default; Claude Code, Hermes, and no-Agent bootstraps are also
-available. Both Webtop and code-server use the generated password. Their default
+Codex is the default; Claude Code, Hermes, DeepSeek Harness, and no-Agent
+bootstraps are available. Both Webtop and code-server use the generated password. Their default
 certificates are self-signed, so this profile is best reached through a private
 network or VPN.
 
@@ -41,14 +41,16 @@ updates the application source and installs:
 - official standalone code-server under `/config/opt/code-server`
 - the unified Agent Workspace Control Center and desktop integration
 - persistent custom-service registration
-- the selected interactive Agent CLI
+- the selected Agent CLI or Web runtime
 
 The completion marker is stored under `/config/.local/state/agent-workspace`.
 After installation, open code-server. Control Center opens automatically on the
 first session and walks through Agent sign-in, the durable workspace, remote
 access, and optional capabilities. It remains available from the single Agent
 Workspace Activity Bar icon. Terminal-only users can run `codex`, `claude`, or
-`hermes setup --portal` directly. Seeded `AGENTS.md` and `CLAUDE.md` files teach
+`hermes setup --portal` directly. DeepSeek Harness runs as a loopback user
+service and opens on the same authenticated code-server origin at
+`/proxy/3080/`. Seeded `AGENTS.md` and `CLAUDE.md` files teach
 supported Agents about the persistence and service-management model.
 
 Use `workspacectl status` as the terminal entry point for container operations;
@@ -88,6 +90,32 @@ agent-workspace-manager install proxyctl
 authenticates every public hostname. Without that guarantee, keep code-server
 password authentication and `PROXY_PORT_ROUTING=code-server`.
 
+Control Center can configure or migrate the same root domain without editing
+Caddy JSON directly:
+
+```bash
+workspacectl network domain workspace.example.com
+```
+
+This configures the container-side HTTP router. DNS, public TLS, port mapping,
+and gateway authentication remain deployment responsibilities.
+
+## Private Tailscale profile
+
+Tailscale is an optional alternative when a public domain or inbound port is
+undesirable. Agent Workspace uses userspace networking, so the default mode
+does not need `/dev/net/tun`, `NET_ADMIN`, or a Docker socket:
+
+```bash
+agent-workspace-manager install tailscale
+workspacectl tailscale login
+workspacectl tailscale serve
+```
+
+Login remains interactive and Control Center never stores an auth key. Serve
+publishes code-server only inside the tailnet; Selkies remains available through
+code-server's same-origin `/proxy/3000/` path.
+
 ## Persistence boundary
 
 Persistent application state stays under:
@@ -95,10 +123,12 @@ Persistent application state stays under:
 ```text
 /config/agent-workspace-manager
 /config/opt/code-server
+/config/opt/tailscale
 /config/.config/code-server
 /config/.config/systemd/user
 /config/.local/log/user-systemd
 /config/.local/run/user-systemd
+/config/.local/share/tailscale
 /config/proxyctl
 /config/custom-services.d
 ```

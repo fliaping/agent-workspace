@@ -251,6 +251,60 @@ class WorkspaceManager:
         log(f"installing proxyctl from {installer.parent}")
         run(["bash", str(installer)], cwd=installer.parent)
 
+    def install_mcpm(self) -> None:
+        """Install MCPM in a named persistent runtime under /config."""
+        runtime = self.settings.config_root / "opt/mcpm"
+        venv = runtime / "venv"
+        python = venv / "bin/python"
+        executable = venv / "bin/mcpm"
+        runtime.mkdir(parents=True, exist_ok=True)
+
+        compatible = False
+        if python.exists():
+            probe = subprocess.run(
+                [str(python), "-c", "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            compatible = probe.returncode == 0 and probe.stdout.strip() in {"3.10", "3.11", "3.12", "3.13"}
+
+        if not compatible:
+            uv = shutil.which("uv")
+            brew = shutil.which("brew")
+            log("MCPM currently requires Python 3.10-3.13")
+            if uv:
+                env = os.environ.copy()
+                env["UV_PYTHON_INSTALL_DIR"] = str(runtime / "python")
+                log(f"creating a persistent Python 3.13 MCPM environment at {venv}")
+                run(
+                    [uv, "venv", "--python", "3.13", "--managed-python", "--seed", "--clear", str(venv)],
+                    env=env,
+                )
+            elif brew:
+                log("installing Homebrew Python 3.13 for MCPM")
+                run([brew, "install", "python@3.13"])
+                brew_python = self.settings.config_root / ".linuxbrew/opt/python@3.13/bin/python3.13"
+                if not brew_python.exists():
+                    raise ManagerError(f"Homebrew Python 3.13 was not found at {brew_python}")
+                run([str(brew_python), "-m", "venv", "--clear", str(venv)])
+            else:
+                raise ManagerError("MCPM needs Python 3.10-3.13; install uv or Homebrew and retry")
+        log("installing or updating MCPM")
+        run([str(python), "-m", "pip", "install", "--upgrade", "pip", "mcpm"])
+        if not executable.exists():
+            raise ManagerError("MCPM installer completed but its executable was not found")
+        for bin_dir in (
+            self.settings.config_root / "bin",
+            self.settings.config_root / ".local/bin",
+        ):
+            bin_dir.mkdir(parents=True, exist_ok=True)
+            target = bin_dir / "mcpm"
+            if target.exists() or target.is_symlink():
+                target.unlink()
+            target.symlink_to(executable)
+        log(f"persistent MCPM command: {self.settings.config_root / 'bin/mcpm'}")
+
     def install_code_server(self) -> None:
         root = self.source_root()
         assert root is not None
@@ -268,6 +322,20 @@ class WorkspaceManager:
             raise ManagerError(f"missing code-server extension installer: {installer}")
         log("installing code-server extensions")
         run(["bash", str(installer)])
+
+    def install_desktop_integration(self) -> None:
+        """Install the code-server bridge for the image-provided Selkies desktop."""
+        self.install_code_server_extensions()
+        log("Selkies Desktop integration is available from Control Center")
+
+    def install_tailscale(self) -> None:
+        root = self.source_root()
+        assert root is not None
+        installer = root / "addons" / "tailscale" / "install.sh"
+        if not installer.exists():
+            raise ManagerError(f"missing Tailscale installer: {installer}")
+        log("installing Tailscale userspace networking")
+        run(["bash", str(installer)], cwd=installer.parent)
 
     def install_custom_services(self) -> None:
         root = self.source_root()
@@ -318,7 +386,9 @@ class WorkspaceManager:
         if info.get("mode") == "service":
             log(f"creating user service for {info['label']}")
             wizard.create_systemd_service(agent)
-            run(["systemctl", "--user", "enable", "--now", agent])
+            # Keep the lightweight user-service supervisor outside the
+            # manager's process group so it survives terminal/tool exit.
+            run(["setsid", "systemctl", "--user", "enable", "--now", agent])
             log(f"{agent}.service enabled and started")
         else:
             log(f"{info['label']} is an interactive CLI and is ready to launch")
@@ -344,6 +414,12 @@ class WorkspaceManager:
             self.install_code_server()
         elif target in {"proxyctl", "proxy", "caddy"}:
             self.install_proxyctl()
+        elif target in {"mcpm", "mcp-manager"}:
+            self.install_mcpm()
+        elif target in {"desktop", "selkies"}:
+            self.install_desktop_integration()
+        elif target in {"tailscale", "tailnet"}:
+            self.install_tailscale()
         elif target in {"code-server-extensions", "extensions", "vscode"}:
             self.install_code_server_extensions()
         elif target in {"custom-services", "s6"}:
@@ -385,6 +461,26 @@ class WorkspaceManager:
                 "proxyctl",
                 "ok" if (self.settings.config_root / "proxyctl/bin/proxyctl").exists() else "missing",
                 str(self.settings.config_root / "proxyctl"),
+            ),
+            (
+                "MCPM",
+                "ok" if (self.settings.config_root / "bin/mcpm").exists() else "optional",
+                str(self.settings.config_root / "opt/mcpm"),
+            ),
+            (
+                "Selkies Desktop",
+                "ok"
+                if list(ext_dir.glob("agent-workspace.selkies-desktop-*"))
+                and Path("/run/service/svc-selkies").exists()
+                else "optional",
+                "image runtime + code-server integration",
+            ),
+            (
+                "Tailscale",
+                "ok"
+                if (self.settings.config_root / "opt/tailscale/libexec/tailscale").exists()
+                else "optional",
+                str(self.settings.config_root / "opt/tailscale"),
             ),
             (
                 "Control Center",
@@ -455,6 +551,12 @@ def build_parser() -> argparse.ArgumentParser:
             "proxyctl",
             "proxy",
             "caddy",
+            "mcpm",
+            "mcp-manager",
+            "desktop",
+            "selkies",
+            "tailscale",
+            "tailnet",
             "code-server-extensions",
             "extensions",
             "vscode",
@@ -562,6 +664,9 @@ def run_tui(manager: WorkspaceManager) -> int:
             "foundation": ("Installing foundation", "Install foundation"),
             "code_server": ("Installing code-server", "Install code-server"),
             "proxyctl": ("Installing proxyctl", "Install proxyctl / Caddy"),
+            "desktop": ("Installing Selkies Desktop integration", "Install Selkies Desktop integration"),
+            "tailscale": ("Installing Tailscale", "Install Tailscale userspace network"),
+            "mcpm": ("Installing MCPM", "Install global MCP manager"),
             "extensions": ("Installing code-server extensions", "Install code-server extensions"),
             "custom_services": ("Registering custom services", "Register custom s6 services"),
             "workspace_controls": ("Installing workspace controls", "Install workspace controls"),
@@ -569,6 +674,7 @@ def run_tui(manager: WorkspaceManager) -> int:
             "codex": ("Installing Codex", "Install Agent: Codex"),
             "claude_code": ("Installing Claude Code", "Install Agent: Claude Code"),
             "hermes": ("Installing Hermes Agent", "Install Agent: Hermes"),
+            "deepseek_harness": ("Installing DeepSeek Harness", "Install Agent: DeepSeek Harness"),
             "openclaw": ("Installing OpenClaw", "Install Agent: OpenClaw"),
             "openfang": ("Installing Openfang", "Install Agent: Openfang"),
             "zeroclaw": ("Installing Zeroclaw", "Install Agent: Zeroclaw"),
@@ -623,6 +729,9 @@ def run_tui(manager: WorkspaceManager) -> int:
                 "foundation": lambda: manager.install("foundation", []),
                 "code_server": manager.install_code_server,
                 "proxyctl": manager.install_proxyctl,
+                "desktop": manager.install_desktop_integration,
+                "tailscale": manager.install_tailscale,
+                "mcpm": manager.install_mcpm,
                 "extensions": manager.install_code_server_extensions,
                 "custom_services": manager.install_custom_services,
                 "workspace_controls": manager.install_workspace_controls,
@@ -630,6 +739,7 @@ def run_tui(manager: WorkspaceManager) -> int:
                 "codex": lambda: manager.install_agent_capability("codex"),
                 "claude_code": lambda: manager.install_agent_capability("claude-code"),
                 "hermes": lambda: manager.install_agent_capability("hermes"),
+                "deepseek_harness": lambda: manager.install_agent_capability("deepseek-harness"),
                 "openclaw": lambda: manager.install_agent_capability("openclaw"),
                 "openfang": lambda: manager.install_agent_capability("openfang"),
                 "zeroclaw": lambda: manager.install_agent_capability("zeroclaw"),

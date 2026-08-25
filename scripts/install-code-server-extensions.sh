@@ -77,11 +77,23 @@ uninstall_extension() {
         --extensions-dir "${EXTENSIONS_DIR}" >/dev/null 2>&1 || true
 }
 
+install_marketplace_extension() {
+    local extension_id="$1"
+    env -u VSCODE_IPC_HOOK_CLI -u CODE_SERVER_PARENT_PID -u NODE_EXEC_PATH \
+        "${CODE_SERVER_BIN}" \
+        --install-extension "${extension_id}" \
+        --force \
+        --extensions-dir "${EXTENSIONS_DIR}"
+    echo "[extensions] installed ${extension_id}"
+}
+
 # Control Center replaces the separate service and Caddy activity-bar entries.
 # The source directories stay in the repository for compatibility and focused
 # development, but normal installs expose a single operational surface.
 install_extension "control-center"
 install_extension "selkies-desktop"
+install_marketplace_extension "MS-CEINTL.vscode-language-pack-zh-hans"
+python3 "${PACKAGE_ROOT}/scripts/workspacectl-locale.py" --register-language-pack
 
 uninstall_extension "agent-workspace.unified-service-manager"
 uninstall_extension "agent-workspace.service-manager"

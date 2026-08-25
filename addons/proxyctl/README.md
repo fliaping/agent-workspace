@@ -68,8 +68,14 @@ Manage named routes:
 proxyctl add app 127.0.0.1:3000
 proxyctl add dashboard 127.0.0.1:9119 --upstream-host 127.0.0.1
 proxyctl remove app
+proxyctl domain workspace.example.com
 proxyctl rollback
 ```
+
+`proxyctl domain` safely migrates managed route hostnames, updates the root
+domain, and keeps a backup of the previous environment and routes. Use
+`workspacectl network domain` from Control Center so code-server is restarted
+after its proxy-domain setting changes.
 
 Use `--upstream-host` for loopback services that validate the HTTP `Host`
 header. The setting is stored with the route and survives `proxyctl init`.

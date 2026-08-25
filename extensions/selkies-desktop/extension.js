@@ -26,9 +26,11 @@ function configuration() {
 }
 
 async function resolveTarget(rawUrl) {
-  if (rawUrl !== 'auto') return normalizeTarget(rawUrl);
-  const external = await vscode.env.asExternalUri(vscode.Uri.parse('http://127.0.0.1:3000/'));
-  return normalizeTarget(external.toString());
+  if (rawUrl === 'auto') {
+    return { href: '/proxy/3000/', origin: '', sameOrigin: true };
+  }
+  const external = normalizeTarget(rawUrl);
+  return { href: external.toString(), origin: external.origin, sameOrigin: false };
 }
 
 function normalizeTarget(rawUrl) {
@@ -73,7 +75,7 @@ function bootstrapHtml(target, c) {
     useCssScaling: String(!c.hidpi),
     scaling_dpi: String(c.uiDpi)
   };
-  const targetJson = JSON.stringify(target.toString());
+  const targetJson = JSON.stringify(target.href);
   const settingsJson = JSON.stringify(settings);
   return `<!doctype html>
 <html lang="en">
@@ -82,7 +84,7 @@ function bootstrapHtml(target, c) {
 Preparing Selkies Desktop…
 <script>
 (() => {
-  const target = ${targetJson};
+  const target = new URL(${targetJson}, location.origin).toString();
   // Match Selkies' own URL-derived localStorage prefix exactly. Its character
   // class intentionally preserves URL separators such as ':' and '/'.
   const prefix = target.split('#')[0].replace(/[^a-zA-Z0-9.-_]/g, '_');
@@ -158,14 +160,15 @@ function zoomFactor(rawValue) {
 function panelHtml(webview, target, bootstrapUrl, c) {
   const scriptNonce = nonce();
   const initialZoom = zoomFactor(c.pageZoom);
-  const targetJson = JSON.stringify(target.toString());
+  const targetJson = JSON.stringify(target.href);
   const bootstrapJson = JSON.stringify(bootstrapUrl);
+  const frameSources = target.sameOrigin ? "'self'" : `'self' ${target.origin}`;
   return `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; frame-src ${target.origin}; style-src 'unsafe-inline'; script-src 'nonce-${scriptNonce}';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; frame-src ${frameSources}; style-src 'unsafe-inline'; script-src 'nonce-${scriptNonce}';">
   <style>
     html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: var(--vscode-editor-background); color: var(--vscode-foreground); }
     body { display: flex; flex-direction: column; }
@@ -218,7 +221,10 @@ function panelHtml(webview, target, bootstrapUrl, c) {
     document.getElementById('minus').addEventListener('click', () => applyZoom(zoom - 0.1));
     document.getElementById('plus').addEventListener('click', () => applyZoom(zoom + 0.1));
     label.addEventListener('click', () => applyZoom(1));
-    document.getElementById('external').addEventListener('click', () => vscode.postMessage({ type: 'openExternal', url: targetUrl }));
+    document.getElementById('external').addEventListener('click', () => {
+      if (targetUrl.startsWith('/')) window.open(targetUrl, '_blank', 'noopener');
+      else vscode.postMessage({ type: 'openExternal', url: targetUrl });
+    });
     applyZoom(zoom);
     reload();
   </script>
@@ -234,8 +240,11 @@ async function renderPanel(panel) {
   const c = configuration();
   const target = await resolveTarget(c.url);
   activeTarget = target;
-  const { port } = await startBootstrapServer();
-  const bootstrapUrl = `${target.origin}/proxy/${port}/`;
+  let bootstrapUrl = target.href;
+  if (target.sameOrigin) {
+    const { port } = await startBootstrapServer();
+    bootstrapUrl = `/proxy/${port}/`;
+  }
   panel.title = 'Selkies Desktop';
   panel.webview.options = { enableScripts: true };
   panel.webview.html = panelHtml(panel.webview, target, bootstrapUrl, c);
@@ -292,9 +301,13 @@ async function openSelkies() {
     if (command) {
       const target = await resolveTarget(c.url);
       activeTarget = target;
-      const { port } = await startBootstrapServer();
+      let bootstrapUrl = target.href;
+      if (target.sameOrigin) {
+        const { port } = await startBootstrapServer();
+        bootstrapUrl = `/proxy/${port}/`;
+      }
       await applyBrowserDefaults();
-      await vscode.commands.executeCommand(command, `${target.origin}/proxy/${port}/`);
+      await vscode.commands.executeCommand(command, bootstrapUrl);
       return;
     }
     if (c.browserMode === 'integrated') {

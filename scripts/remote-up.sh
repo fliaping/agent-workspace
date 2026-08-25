@@ -18,19 +18,21 @@ if [[ ! -f "$ENV_FILE" ]]; then
     echo "  1) Codex (recommended)"
     echo "  2) Claude Code"
     echo "  3) Hermes Agent"
-    echo "  4) None"
+    echo "  4) DeepSeek Harness"
+    echo "  5) None"
     read -r -p "Agent [1]: " choice
     case "${choice:-1}" in
       1) agent=codex ;;
       2) agent=claude-code ;;
       3) agent=hermes ;;
-      4) agent=none ;;
+      4) agent=deepseek-harness ;;
+      5) agent=none ;;
       *) echo "Invalid Agent choice" >&2; exit 1 ;;
     esac
   fi
   agent="${agent:-codex}"
   case "$agent" in
-    codex|claude-code|hermes|none) ;;
+    codex|claude-code|hermes|deepseek-harness|none) ;;
     *) echo "Unsupported AGENT_WORKSPACE_AGENT: $agent" >&2; exit 1 ;;
   esac
 
@@ -71,4 +73,5 @@ case "${selected_agent:-codex}" in
   codex) echo "Then open a terminal in /config/Workspace and run: codex" ;;
   claude-code) echo "Then open a terminal in /config/Workspace and run: claude" ;;
   hermes) echo "Then open a terminal in /config/Workspace and run: hermes setup --portal" ;;
+  deepseek-harness) echo "Then open the authenticated code-server path: /proxy/3080/" ;;
 esac

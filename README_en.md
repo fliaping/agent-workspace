@@ -22,7 +22,7 @@ A containerized cloud desktop based on [LinuxServer Webtop](https://docs.linuxse
 - **GPU Acceleration** — Auto-detect NVIDIA / Intel / AMD GPU for hardware rendering and encoding
 - **China Mirror Support** — Switch to China mirrors at runtime with `USE_CHINA_MIRROR=true` (APT, npm, pip, Go, Rust, Homebrew)
 - **Data Persistence** — LinuxServer `/config` standard mount for all tools, caches, and user data
-- **Ready-to-run Agent** — Choose Codex, Claude Code, or Hermes on first boot, then complete its normal sign-in
+- **Ready-to-run Agent** — Choose Codex, Claude Code, Hermes, or DeepSeek Harness on first boot, then complete normal sign-in or model setup
 - **Unified Control Center** — code-server opens a first-run guide for Agents, services, networking, desktop access, and diagnostics
 - **Unified Workspace Control** — Agents use `workspacectl` for services, logs, ports, routes, and optional capabilities
 - **systemctl Process Management** — Manage daemon-style agent processes via docker-systemctl-replacement
@@ -133,7 +133,7 @@ docker compose up -d
 | `LC_ALL` | - | Locale (e.g., `zh_CN.UTF-8`) |
 | `START_DOCKER` | `false` | Enable Docker inside container (requires `--privileged`) |
 | `USE_CHINA_MIRROR` | `false` | Switch to China mirrors at runtime |
-| `AGENT_WORKSPACE_AGENT` | `codex` | First-boot Agent: `codex`, `claude-code`, `hermes`, or `none` |
+| `AGENT_WORKSPACE_AGENT` | `codex` | First-boot Agent: `codex`, `claude-code`, `hermes`, `deepseek-harness`, or `none` |
 | `SSH_PASSWORD` | unset | Set to enable SSH service (port 22), value is abc user password |
 | `NODE_OPTIONS` | - | Node.js options (e.g., `--max-old-space-size=2048`) |
 | `XFCE_PANEL_SCALING` | `true` | Keep XFCE panel rows and icons in step with Wayland scaling; set to `false` to disable |
@@ -213,7 +213,7 @@ one or more explicit Agent names:
 
 ```bash
 agent-workspace-manager install agents codex
-agent-workspace-manager install agents claude-code hermes
+agent-workspace-manager install agents claude-code hermes deepseek-harness
 ```
 
 | Agent | Type | Installer | Post-install setup |
@@ -221,13 +221,14 @@ agent-workspace-manager install agents claude-code hermes
 | Codex | Interactive CLI | [Official OpenAI installer](https://learn.chatgpt.com/docs/codex/cli) | `codex` |
 | Claude Code | Interactive CLI | [Official Anthropic installer](https://code.claude.com/docs/en/quickstart) | `claude` |
 | Hermes Agent | Interactive CLI | [Official Nous Research installer](https://hermes-agent.nousresearch.com/docs/) | `hermes setup --portal` |
+| DeepSeek Harness | Web Agent, port 3080 | [Official DeepSeek npm package](https://github.com/deepseek-ai/deepseek-harness) | Open `/proxy/3080/` on the code-server origin |
 | OpenClaw | Daemon, port 18789 | npm | `openclaw onboard` |
 | Openfang | Daemon, port 4200 | Official shell installer | `openfang init` |
 | ZeroClaw | Daemon, port 42617 | brew | `zeroclaw onboard` |
 
 Codex, Claude Code, and Hermes run directly in a project terminal and are not
-registered as background services. Daemon-style Agents use the user service
-manager. All three interactive Agents receive workspace instructions and can
+registered as background services. DeepSeek Harness and other daemon-style
+Agents use the user service manager. All four Agents receive workspace instructions and can
 operate the current container through one stable command surface:
 
 ```bash
@@ -259,9 +260,11 @@ the module source remains available for development:
 | Module | Path | Description |
 |--------|------|-------------|
 | code-server | `addons/code-server` | Official standalone runtime, password authentication, and persistent user service |
-| Control Center | `extensions/control-center` | Unified onboarding, Agents, services, networking, and diagnostics |
+| Control Center | `extensions/control-center` | Unified onboarding plus Agents, resources, services, desktop, networking, and diagnostics |
 | proxyctl + Caddy routing | `addons/proxyctl` | Optional wildcard routing for deployments with existing DNS, TLS, and gateway authentication |
 | Selkies Desktop extension | `extensions/selkies-desktop` | Open and initialize the Selkies desktop inside code-server |
+| Tailscale network | `addons/tailscale` | Userspace private networking and Tailnet Serve without `NET_ADMIN` |
+| DeepSeek Harness | `addons/deepseek-harness` | Official `dsh`, persistent state, same-origin Web UI, and global resource bridge |
 | Custom s6 services | `scripts/register-config-services.sh` | Automatically register `/config/custom-services.d/<name>/run` with s6 |
 
 Install the code-server extensions:

@@ -30,7 +30,7 @@ fi
 chown -R abc:abc /config/.linuxbrew 2>/dev/null || true
 chown -h abc:abc /home/linuxbrew/.linuxbrew 2>/dev/null || true
 
-# Seed concise container instructions for Codex, Claude Code, and Hermes.
+# Seed concise container instructions shared by every installed Agent.
 # Never overwrite user-maintained project instructions.
 context_source="/usr/local/share/agent-workspace/context"
 workspace_root="/config/Workspace"

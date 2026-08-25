@@ -20,6 +20,15 @@ CODE_SERVER_PASSWORD='replace-me' ./install.sh
 An existing `/config/.config/code-server/config.yaml` is preserved. Set
 `CODE_SERVER_RECONFIGURE=true` to replace it.
 
+The browser interface defaults to English. Choose English or Simplified Chinese
+from Control Center, or set it from a terminal. The setting is durable and the
+`--restart` form reconnects code-server after applying it:
+
+```bash
+workspacectl locale zh-cn --restart
+workspacectl locale en --restart
+```
+
 Passwordless mode is only for an authenticating gateway and requires an
 explicit acknowledgement:
 
