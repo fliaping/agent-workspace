@@ -226,6 +226,11 @@ agent-workspace-manager install agents claude-code hermes deepseek-harness
 | Openfang | Daemon, port 4200 | Official shell installer | `openfang init` |
 | ZeroClaw | Daemon, port 42617 | brew | `zeroclaw onboard` |
 
+When Codex or Claude Code is installed and code-server is available, the manager
+also installs the official `openai.chatgpt` or `Anthropic.claude-code` extension.
+If an Agent was installed before code-server, running
+`agent-workspace-manager install code-server-extensions` fills the gap.
+
 Codex, Claude Code, and Hermes run directly in a project terminal and are not
 registered as background services. DeepSeek Harness and other daemon-style
 Agents use the user service manager. All four Agents receive workspace instructions and can

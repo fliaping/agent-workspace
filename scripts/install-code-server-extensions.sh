@@ -79,12 +79,32 @@ uninstall_extension() {
 
 install_marketplace_extension() {
     local extension_id="$1"
-    env -u VSCODE_IPC_HOOK_CLI -u CODE_SERVER_PARENT_PID -u NODE_EXEC_PATH \
+    if ! env -u VSCODE_IPC_HOOK_CLI -u CODE_SERVER_PARENT_PID -u NODE_EXEC_PATH \
         "${CODE_SERVER_BIN}" \
         --install-extension "${extension_id}" \
         --force \
-        --extensions-dir "${EXTENSIONS_DIR}"
+        --extensions-dir "${EXTENSIONS_DIR}"; then
+        return 1
+    fi
     echo "[extensions] installed ${extension_id}"
+}
+
+agent_extension_installed() {
+    local extension_id="$1"
+    [[ -n "$(find "${EXTENSIONS_DIR}" -maxdepth 1 -mindepth 1 -type d \
+        -iname "${extension_id}-*" -print -quit 2>/dev/null)" ]]
+}
+
+install_agent_extension() {
+    local extension_id="$1"
+    if agent_extension_installed "${extension_id}"; then
+        echo "[extensions] ${extension_id} is already installed"
+        return 0
+    fi
+    if ! install_marketplace_extension "${extension_id}"; then
+        echo "[extensions] warning: failed to install optional Agent extension ${extension_id}" >&2
+        return 0
+    fi
 }
 
 # Control Center replaces the separate service and Caddy activity-bar entries.
@@ -94,6 +114,15 @@ install_extension "control-center"
 install_extension "selkies-desktop"
 install_marketplace_extension "MS-CEINTL.vscode-language-pack-zh-hans"
 python3 "${PACKAGE_ROOT}/scripts/workspacectl-locale.py" --register-language-pack
+
+# Agent-specific IDE extensions normally install together with their CLI. This
+# also repairs installations where the Agent existed before code-server.
+if command -v codex >/dev/null 2>&1; then
+    install_agent_extension "openai.chatgpt"
+fi
+if command -v claude >/dev/null 2>&1; then
+    install_agent_extension "Anthropic.claude-code"
+fi
 
 uninstall_extension "agent-workspace.unified-service-manager"
 uninstall_extension "agent-workspace.service-manager"

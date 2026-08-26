@@ -70,6 +70,9 @@ The wildcard gateway remains an explicit `install proxyctl` step because it
 requires deployment-specific DNS, TLS, and authentication decisions.
 
 With no names, `install agents` installs Codex as the ready-to-use default.
+Codex and Claude Code installs also add their official code-server extensions.
+If code-server is installed later, `install code-server-extensions` detects the
+existing Agent CLIs and installs the matching extensions then.
 Inside the workspace, `workspacectl` is the stable control surface Agents can
 use to inspect or operate container capabilities. `workspacectl status --json`
 is also the versioned backend used by Control Center.

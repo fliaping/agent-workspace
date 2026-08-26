@@ -169,6 +169,7 @@ AGENTS = {
         "mode": "cli",
         "binary": "codex",
         "install_type": "codex-native",
+        "code_server_extension": "openai.chatgpt",
         "onboard": "codex",
     },
     "claude-code": {
@@ -177,6 +178,7 @@ AGENTS = {
         "mode": "cli",
         "binary": "claude",
         "install_type": "claude-native",
+        "code_server_extension": "Anthropic.claude-code",
         "onboard": "claude",
     },
     "hermes": {
@@ -330,6 +332,66 @@ def build_install_command(agent: str) -> list[str]:
     return ["echo", f"Unknown install type for {agent}"]
 
 
+def code_server_extension_installed(agent: str) -> bool:
+    """Return whether an Agent's official IDE extension is already present."""
+    extension_id = AGENTS[agent].get("code_server_extension")
+    if not extension_id:
+        return False
+
+    extensions_dir = Path(
+        os.environ.get(
+            "CODE_SERVER_EXTENSIONS_DIR",
+            "/config/.local/share/code-server/extensions",
+        )
+    )
+    prefix = f"{extension_id}-".lower()
+    try:
+        return any(
+            path.is_dir() and path.name.lower().startswith(prefix)
+            for path in extensions_dir.iterdir()
+        )
+    except OSError:
+        return False
+
+
+def build_code_server_extension_command(agent: str) -> list[str] | None:
+    """Return the code-server command for a missing official IDE extension."""
+    extension_id = AGENTS[agent].get("code_server_extension")
+    if not extension_id or code_server_extension_installed(agent):
+        return None
+
+    configured_bin = os.environ.get(
+        "CODE_SERVER_BIN", "/config/opt/code-server/bin/code-server"
+    )
+    code_server = (
+        configured_bin
+        if os.path.isfile(configured_bin)
+        else shutil.which("code-server")
+    )
+    if not code_server:
+        return None
+
+    extensions_dir = os.environ.get(
+        "CODE_SERVER_EXTENSIONS_DIR",
+        "/config/.local/share/code-server/extensions",
+    )
+    Path(extensions_dir).mkdir(parents=True, exist_ok=True)
+    return [
+        shutil.which("env") or "env",
+        "-u",
+        "VSCODE_IPC_HOOK_CLI",
+        "-u",
+        "CODE_SERVER_PARENT_PID",
+        "-u",
+        "NODE_EXEC_PATH",
+        code_server,
+        "--install-extension",
+        extension_id,
+        "--extensions-dir",
+        extensions_dir,
+    ]
+
+
 def create_systemd_service(agent: str) -> None:
     """Write a user-level systemd unit file for the agent.
 
@@ -436,6 +498,28 @@ def run_non_interactive(agents: list[str], china_mirror: bool) -> None:
 
         print(f"[OK]    {t('ni_bin_ok', name=info['label'])}")
         installed.append(name)
+
+        extension_id = info.get("code_server_extension")
+        if extension_id:
+            extension_cmd = build_code_server_extension_command(name)
+            if extension_cmd:
+                print(f"[INFO]  Installing code-server extension {extension_id}...")
+                extension = subprocess.run(extension_cmd, text=True)
+                if extension.returncode == 0:
+                    print(f"[OK]    code-server extension {extension_id} installed")
+                else:
+                    print(
+                        f"[WARNING] {info['label']} is installed, but code-server "
+                        f"extension {extension_id} failed"
+                    )
+            elif code_server_extension_installed(name):
+                print(
+                    f"[OK]    code-server extension {extension_id} already installed"
+                )
+            else:
+                print(
+                    f"[INFO]  code-server unavailable; skipped optional extension {extension_id}"
+                )
 
         if info.get("mode") == "service":
             create_systemd_service(name)
@@ -840,6 +924,34 @@ def run_tui(agents_preselect: list[str], china_mirror: bool) -> None:
                 log.write(
                     f"[green]✓ {info['label']}[/] — {t('install_bin_ok')}"
                 )
+
+                extension_id = info.get("code_server_extension")
+                if extension_id:
+                    extension_cmd = build_code_server_extension_command(agent_name)
+                    if extension_cmd:
+                        log.write(
+                            f"[blue]  ⟳ Installing code-server extension {extension_id}...[/]"
+                        )
+                        extension_ok = await self._run_logged(extension_cmd, log)
+                        if extension_ok:
+                            log.write(
+                                f"[green]  ✓ code-server extension {extension_id} installed[/]"
+                            )
+                        else:
+                            log.write(
+                                f"[yellow]  ⚠ {info['label']} is installed, but "
+                                f"code-server extension {extension_id} failed[/]"
+                            )
+                    elif code_server_extension_installed(agent_name):
+                        log.write(
+                            f"[green]  ✓ code-server extension {extension_id} "
+                            "already installed[/]"
+                        )
+                    else:
+                        log.write(
+                            f"[dim]  ℹ code-server unavailable; skipped optional "
+                            f"extension {extension_id}[/]"
+                        )
 
                 # Step 2: Configuration
                 if (

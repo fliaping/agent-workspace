@@ -393,6 +393,26 @@ class WorkspaceManager:
         else:
             log(f"{info['label']} is an interactive CLI and is ready to launch")
 
+        extension_id = info.get("code_server_extension")
+        if extension_id:
+            extension_cmd = wizard.build_code_server_extension_command(agent)
+            if extension_cmd:
+                log(f"installing code-server extension {extension_id}")
+                try:
+                    run(extension_cmd)
+                    log(f"code-server extension {extension_id} installed")
+                except subprocess.CalledProcessError as error:
+                    log(
+                        f"warning: {info['label']} is installed, but code-server "
+                        f"extension {extension_id} failed with exit code {error.returncode}"
+                    )
+            elif wizard.code_server_extension_installed(agent):
+                log(f"code-server extension {extension_id} is already installed")
+            else:
+                log(
+                    f"code-server is unavailable; skipped optional extension {extension_id}"
+                )
+
         onboard = info.get("onboard")
         if onboard:
             log(f"next setup step for {info['label']}: {onboard}")

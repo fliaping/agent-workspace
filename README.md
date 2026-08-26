@@ -227,6 +227,10 @@ agent-workspace-manager install agents claude-code hermes deepseek-harness
 | Openfang | 常驻服务，默认端口 4200 | 官方 shell 安装器 | `openfang init` |
 | ZeroClaw | 常驻服务，默认端口 42617 | brew | `zeroclaw onboard` |
 
+安装 Codex 或 Claude Code 时，如果 code-server 已可用，管理器会同时安装官方
+`openai.chatgpt` 或 `Anthropic.claude-code` 扩展。如果先安装 Agent、后安装
+code-server，执行 `agent-workspace-manager install code-server-extensions` 会自动补齐。
+
 Codex、Claude Code 和 Hermes 直接在项目终端运行，不应注册成后台服务。DeepSeek
 Harness 与其他常驻型 Agent 通过用户级 `systemctl` 管理。四种 Agent 都会读取工作区说明，且可用
 统一入口操作当前容器：
