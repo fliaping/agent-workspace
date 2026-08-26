@@ -1,6 +1,6 @@
 <div align="center">
   <h1>Agent Workspace</h1>
-  <p>Cloud Desktop for AI Agents</p>
+  <p>A ready-to-use remote development and runtime environment for AI agents</p>
   <p>
     <a href="README.md">中文</a> &bull;
     <a href="README_en.md">English</a>
@@ -9,24 +9,39 @@
 
 ---
 
-A containerized cloud desktop based on [LinuxServer Webtop](https://docs.linuxserver.io/images/docker-webtop/) (Selkies WebRTC), providing an isolated development and runtime environment for Codex, Claude Code, Hermes, and other AI agents.
+A containerized remote workspace based on [LinuxServer Webtop](https://docs.linuxserver.io/images/docker-webtop/) (Selkies WebRTC). One `/config` volume persists the desktop, code-server, Agents, MCP servers, Skills, and custom services, making it suitable for running Codex, Claude Code, Hermes, and other AI agents on a server, NAS, or WSL2 host.
 
 ![web-desktop-example](./images/web-desktop-example.png)
 
+<!--
+Suggested follow-up screenshots under images/, arranged as two columns here:
+- control-center-overview.png
+- agent-management.png
+- mcp-skills-management.png
+- desktop-network.png
+-->
+
 ## Features
 
-- **Selkies WebRTC Desktop** — Full Linux desktop via browser (HTTPS), inheriting LinuxServer Webtop's upstream display, encoding, and DPI defaults
-- **3 Desktop Environments** — XFCE (default, recommended ~800MB) / LXQt (lightweight ~300MB) / KDE (full ~1.1GB)
-- **Complete Dev Toolchain** — Node.js 22, Go 1.22, Rust, Python 3, Homebrew, uv
-- **Multiple Docker Modes** — Disabled / DinD (standalone Docker inside container) / Host Docker socket mount
-- **GPU Acceleration** — Auto-detect NVIDIA / Intel / AMD GPU for hardware rendering and encoding
-- **China Mirror Support** — Switch to China mirrors at runtime with `USE_CHINA_MIRROR=true` (APT, npm, pip, Go, Rust, Homebrew)
-- **Data Persistence** — LinuxServer `/config` standard mount for all tools, caches, and user data
-- **Ready-to-run Agent** — Choose Codex, Claude Code, Hermes, or DeepSeek Harness on first boot, then complete normal sign-in or model setup
-- **Unified Control Center** — code-server opens a first-run guide for Agents, services, networking, desktop access, and diagnostics
-- **Unified Workspace Control** — Agents use `workspacectl` for services, logs, ports, routes, and optional capabilities
-- **systemctl Process Management** — Manage daemon-style agent processes via docker-systemctl-replacement
-- **Secure Remote Workspace** — Webtop and code-server use a generated password and HTTPS, with first-boot foundation setup
+- **Ready-to-run Agents** — Choose Codex, Claude Code, Hermes, or DeepSeek Harness on first boot; Codex and Claude Code also receive their official code-server extensions
+- **Unified bilingual Control Center** — Manage Agents, global MCP servers and Skills, services, desktop, networking, and diagnostics in one place; switching language also switches code-server
+- **Agent-friendly environment control** — `workspacectl` provides a stable interface for services, logs, ports, routes, and optional capabilities
+- **Selkies WebRTC desktop** — Full Linux desktop over HTTPS with XFCE (default), LXQt, or KDE
+- **Explicit Docker boundary** — Disable Docker, use isolated DinD, or deliberately mount the host Docker socket
+- **Optional remote networking** — SSH tunnels, custom domains with Caddy, and Tailscale userspace networking without `NET_ADMIN`
+- **Complete development toolchain** — Node.js 22, Go 1.22, Rust, Python 3, Homebrew, uv, and tmux, with NVIDIA / Intel / AMD GPU acceleration
+- **Single-volume persistence** — Tools, sign-in state, configuration, caches, and custom services live under `/config`, with optional China mirrors
+
+## What Is Ready After Deployment?
+
+| Area | Ready after deployment | What the user still does |
+|------|------------------------|--------------------------|
+| Workspace | Webtop, code-server, Control Center, and `workspacectl` | Open the generated URL in a browser |
+| Preferred Agent | CLI and matching IDE entry | Complete official account sign-in or API/model configuration |
+| Daily management | UI for Agents, MCP, Skills, services, desktop, networking, and diagnostics | Add resources or enable services as the project requires |
+| Remote access | Local HTTPS endpoints and an SSH-tunnel path | Optionally enable a custom domain, authenticated gateway, or Tailscale |
+
+The shortest path is: run `remote-up.sh` → open code-server → sign in to one Agent → let that Agent configure anything else you need.
 
 ## Quick Start
 
@@ -97,6 +112,10 @@ docker run -d --name agent-workspace \
   -e TZ=Etc/UTC \
   -e CUSTOM_USER=agent \
   -e PASSWORD='replace-with-a-long-random-password' \
+  -e SELKIES_ENABLE_RATE_CONTROL=true \
+  -e SELKIES_RATE_CONTROL_MODE=crf,cbr \
+  -e SELKIES_CONGESTION_CONTROL=false \
+  -e SELKIES_ENABLE_RESIZE=true \
   -p 3001:3001 \
   -v ~/agent-workspace-data:/config \
   xuping/agent-workspace:ubuntu-xfce
@@ -136,6 +155,10 @@ docker compose up -d
 | `AGENT_WORKSPACE_AGENT` | `codex` | First-boot Agent: `codex`, `claude-code`, `hermes`, `deepseek-harness`, or `none` |
 | `SSH_PASSWORD` | unset | Set to enable SSH service (port 22), value is abc user password |
 | `NODE_OPTIONS` | - | Node.js options (e.g., `--max-old-space-size=2048`) |
+| `SELKIES_ENABLE_RATE_CONTROL` | `true` | Enable CRF/CBR rate-control switching |
+| `SELKIES_RATE_CONTROL_MODE` | `crf,cbr` | Available modes, with CRF selected by default |
+| `SELKIES_CONGESTION_CONTROL` | `false` | Disable GCC adaptation that can reduce quality during motion |
+| `SELKIES_ENABLE_RESIZE` | `true` | Synchronize desktop resolution with the browser window |
 | `XFCE_PANEL_SCALING` | `true` | Keep XFCE panel rows and icons in step with Wayland scaling; set to `false` to disable |
 
 ## Docker Modes
@@ -166,6 +189,7 @@ docker compose up -d
 | Rust | stable | + Cargo |
 | Python 3 | System | + pip, venv, uv |
 | Homebrew | Latest | Linux version, persisted to data dir |
+| tmux | System package | Persistent terminal sessions for remote Agent work |
 | docker-systemctl-replacement | Latest | systemd replacement for agent process management |
 
 ## Application Capability Management
@@ -197,6 +221,11 @@ agent-workspace-manager install foundation
 
 # Optional: Caddy/proxyctl for an existing wildcard domain and upstream gateway
 PROXY_ROOT_DOMAIN=dev.example.com agent-workspace-manager install proxyctl
+
+# Optional: private Tailscale networking without NET_ADMIN
+agent-workspace-manager install tailscale
+workspacectl tailscale login
+workspacectl tailscale serve
 
 # Show application capability status
 agent-workspace-manager status
@@ -341,7 +370,7 @@ docker start agent-workspace
 
 ## Notes
 
-- Selkies WebRTC has no password by default. Use a reverse proxy with authentication for public exposure.
+- Without `CUSTOM_USER` / `PASSWORD`, Webtop has no application-level authentication. For Internet exposure, use strong credentials plus a reverse proxy, VPN, or zero-trust gateway.
 - Homebrew is persisted to `/config/.linuxbrew`; do not mount `/home/linuxbrew/.linuxbrew` separately.
 - LinuxServer automatically initializes the `/config` directory on first startup.
 

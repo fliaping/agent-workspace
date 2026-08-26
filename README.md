@@ -1,6 +1,6 @@
 <div align="center">
   <h1>Agent Workspace</h1>
-  <p>AI 智能体云桌面开发与运行环境</p>
+  <p>开箱即用的远程 AI Agent 开发与运行环境</p>
   <p>
     <a href="README.md">中文</a> &bull;
     <a href="README_en.md">English</a>
@@ -9,24 +9,39 @@
 
 ---
 
-基于 [LinuxServer Webtop](https://docs.linuxserver.io/images/docker-webtop/)（Selkies WebRTC）的容器化云桌面，为 Codex、Claude Code、Hermes 等 AI Agent 提供安全隔离的开发与运行环境。
+基于 [LinuxServer Webtop](https://docs.linuxserver.io/images/docker-webtop/)（Selkies WebRTC）的容器化远程工作区。一个 `/config` 数据卷即可持久化桌面、code-server、Agent、MCP、Skills 和自定义服务，适合在服务器、NAS 或 WSL2 上长期运行 Codex、Claude Code、Hermes 等 AI Agent。
 
 ![web-desktop-example](./images/web-desktop-example.png)
 
+<!--
+后续截图建议直接补到 images/ 并在此排成两列：
+- control-center-overview.png
+- agent-management.png
+- mcp-skills-management.png
+- desktop-network.png
+-->
+
 ## 核心特性
 
-- **Selkies WebRTC 桌面** — 通过浏览器访问完整 Linux 桌面（HTTPS），显示、编码和 DPI 默认沿用 LinuxServer Webtop 上游配置
-- **三种桌面环境** — XFCE（默认，推荐 ~800MB）/ LXQt（轻量 ~300MB）/ KDE（完整 ~1.1GB）
-- **完整开发工具链** — Node.js 22、Go 1.22、Rust、Python 3、Homebrew、uv
-- **多种 Docker 模式** — 不启用 / DinD（容器内独立 Docker）/ 挂载宿主机 Docker
-- **GPU 加速** — 自动检测 NVIDIA / Intel / AMD GPU，支持硬件渲染与编码
-- **国内镜像加速** — 运行时通过 `USE_CHINA_MIRROR=true` 一键切换全套国内源（APT、npm、pip、Go、Rust、Homebrew）
-- **数据持久化** — 基于 LinuxServer `/config` 标准挂载，所有工具配置、包缓存、用户数据持久化
-- **Agent 开箱即用** — 首次启动可选择 Codex、Claude Code、Hermes 或 DeepSeek Harness，安装后只需完成各自登录或模型配置
-- **统一控制中心** — code-server 首次打开即显示使用向导，集中管理 Agent、服务、网络、桌面和诊断
-- **统一环境控制** — Agent 可通过 `workspacectl` 检查和管理服务、日志、端口、路由及可选能力
-- **systemctl 进程管理** — 通过 docker-systemctl-replacement 管理常驻 Agent 服务
-- **安全远程工作区** — Webtop 与 code-server 使用随机密码和 HTTPS，首次启动自动安装远程基础能力
+- **Agent 开箱即用** — 首次启动可选 Codex、Claude Code、Hermes 或 DeepSeek Harness；Codex 和 Claude Code 会同时安装官方 code-server 扩展
+- **统一双语控制中心** — 一处管理 Agent、全局 MCP 与 Skills、服务、桌面、网络和诊断；中英文切换会同步 code-server
+- **Agent 可直接操作环境** — `workspacectl` 提供稳定接口，用于检查服务、日志、端口、路由和可选能力
+- **Selkies WebRTC 桌面** — 通过 HTTPS 访问完整 Linux 桌面；可选 XFCE（默认）、LXQt 或 KDE
+- **灵活的 Docker 权限边界** — 可关闭 Docker、使用容器内 DinD，或显式挂载宿主机 Docker Socket
+- **可选远程网络** — 支持 SSH 隧道、自定义域名 + Caddy 和无需 `NET_ADMIN` 的 Tailscale 自组网
+- **完整开发工具链** — Node.js 22、Go 1.22、Rust、Python 3、Homebrew、uv、tmux，并支持 NVIDIA / Intel / AMD GPU 加速
+- **单卷持久化** — 工具、登录状态、配置、缓存和自定义服务全部持久化到 `/config`；支持一键切换国内镜像
+
+## 开箱即用范围
+
+| 部分 | 部署后已就绪 | 用户还需要做什么 |
+|------|--------------|----------------------|
+| 工作区 | Webtop、code-server、Control Center、`workspacectl` | 在浏览器打开访问地址 |
+| 首选 Agent | CLI 和对应 IDE 入口 | 完成官方账号登录或 API/模型配置 |
+| 日常管理 | Agent、MCP、Skills、服务、桌面、网络和诊断界面 | 按项目需求添加资源或启用服务 |
+| 远程访问 | 本地 HTTPS 端点和 SSH 隧道方案 | 按需启用自定义域名、认证网关或 Tailscale |
+
+最短使用路径是：运行 `remote-up.sh` → 打开 code-server → 完成一个 Agent 的登录 → 让该 Agent 继续配置其他功能。
 
 ## 快速开始
 
@@ -171,6 +186,7 @@ docker compose up -d
 | Rust | stable | + Cargo |
 | Python 3 | 系统版 | + pip、venv、uv |
 | Homebrew | 最新 | Linux 版，持久化到数据目录 |
+| tmux | 系统版 | 持久终端会话，适合远程 Agent 任务 |
 | docker-systemctl-replacement | 最新 | systemd 替代，管理 Agent 进程 |
 
 ## 应用层能力管理
@@ -335,7 +351,7 @@ docker start agent-workspace
 
 ## 注意事项
 
-- Selkies WebRTC 默认无密码认证，公网暴露请配置反向代理和认证
+- 未设置 `CUSTOM_USER` / `PASSWORD` 时没有 Webtop 应用层认证；公网部署请使用强密码，并配置反向代理、VPN 或零信任网关
 - Homebrew 持久化到 `/config/.linuxbrew`，不需要额外挂载 `/home/linuxbrew/.linuxbrew`
 - 首次启动时 LinuxServer 会自动初始化 `/config` 目录
 
