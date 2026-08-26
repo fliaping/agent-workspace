@@ -12,6 +12,10 @@ const VALID_NAME = /^[A-Za-z0-9_.@-]+$/;
 const AGENT_IDS = new Set(['codex', 'claude-code', 'hermes', 'deepseek-harness']);
 const MCP_AGENT_IDS = new Set(['codex', 'claude-code', 'hermes', 'deepseek-harness']);
 
+function isSnapshotHealthy(snapshot) {
+  return Boolean(snapshot && snapshot.summary && snapshot.summary.healthy);
+}
+
 function nonce() {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   let value = '';
@@ -227,13 +231,12 @@ class ControlCenter {
   }
 
   updateStatusBar() {
-    const healthy = this.snapshot && this.snapshot.summary && this.snapshot.summary.healthy;
-    const ready = this.snapshot && this.snapshot.bootstrap && this.snapshot.bootstrap.foundation_ready;
-    this.statusBar.text = healthy && ready ? '$(check) Agent Workspace' : '$(warning) Agent Workspace';
-    this.statusBar.backgroundColor = healthy && ready
+    const healthy = isSnapshotHealthy(this.snapshot);
+    this.statusBar.text = healthy ? '$(check) Agent Workspace' : '$(warning) Agent Workspace';
+    this.statusBar.backgroundColor = healthy
       ? undefined
       : new vscode.ThemeColor('statusBarItem.warningBackground');
-    this.statusBar.tooltip = healthy && ready
+    this.statusBar.tooltip = healthy
       ? 'Agent Workspace is ready — open Control Center'
       : 'Agent Workspace needs attention — open Control Center';
   }
@@ -701,7 +704,7 @@ const dot=(state)=>'<span class="status-dot '+esc(state)+'"></span>';
 const dockerText=(docker)=>docker.mode==='socket'?{label:copy.dockerSocketLabel,detail:copy.dockerSocketDetail}:docker.mode==='isolated'?{label:copy.dockerIsolatedLabel,detail:copy.dockerIsolatedDetail}:{label:copy.dockerDisabledLabel,detail:copy.dockerDisabledDetail};
 function toast(message){const el=document.getElementById('toast');el.textContent=message;el.style.display='block';setTimeout(()=>el.style.display='none',2600)}
 function nav(){const items=[['overview','⌂',copy.overview],['agents','✦',copy.agents],['resources','⬡',copy.resources],['services','◫',copy.services],['desktop','▰',copy.desktop],['network','⌁',copy.network],['diagnostics','◇',copy.diagnostics]];document.getElementById('nav').innerHTML=items.map(([id,icon,label])=>'<button class="'+(page===id?'active':'')+'" data-nav="'+id+'"><span class="icon">'+icon+'</span><span>'+label+'</span></button>').join('');}
-function health(){if(!data)return;const ok=data.summary.healthy&&data.bootstrap.foundation_ready;document.getElementById('health-label').textContent=ok?copy.ready:copy.attention;document.getElementById('health-dot').style.background=ok?'var(--aw-good)':'var(--aw-warn)';document.getElementById('nav-revision').textContent=(data.revision?copy.revision+' '+data.revision:'');const language=document.getElementById('language-toggle');if(language&&data.locale){language.textContent=data.locale.current==='zh-cn'?'EN':'中文';language.title=copy.switchLanguage+' · '+data.locale.label;}}
+function health(){if(!data)return;const ok=data.summary.healthy;document.getElementById('health-label').textContent=ok?copy.ready:copy.attention;document.getElementById('health-dot').style.background=ok?'var(--aw-good)':'var(--aw-warn)';document.getElementById('nav-revision').textContent=(data.revision?copy.revision+' '+data.revision:'');const language=document.getElementById('language-toggle');if(language&&data.locale){language.textContent=data.locale.current==='zh-cn'?'EN':'中文';language.title=copy.switchLanguage+' · '+data.locale.label;}}
 function pageHead(title,body,actions=''){return '<div class="page-head"><div><h2>'+title+'</h2><p>'+body+'</p></div><div>'+actions+'</div></div>';}
 function overview(){const agents=data.agents.filter(a=>a.installed);const services=data.services.filter(s=>s.status==='running');const docker=data.workspace.docker;const dockerCopy=dockerText(docker);const featured=data.services.filter(s=>s.kind==='systemd').slice(0,5);return pageHead(copy.overview,copy.subtitle)+
 '<div class="grid"><section class="card hero span-12"><h2>'+esc(data.bootstrap.foundation_ready?copy.foundationReady:copy.foundationWorking)+'</h2><p>'+esc(data.workspace.root)+' · '+esc(data.access.hostname)+'</p><div class="hero-actions"><button class="button" data-action="terminal">⌁ '+copy.openTerminal+'</button><button class="button secondary" data-action="openWorkspace">▣ '+copy.openWorkspace+'</button><button class="button ghost" data-action="openDesktop">▰ '+copy.openDesktop+'</button></div></section>'+

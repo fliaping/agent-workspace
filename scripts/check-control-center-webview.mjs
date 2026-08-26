@@ -11,7 +11,7 @@ const extensionFile = path.resolve(scriptRoot, '../extensions/control-center/ext
 
 function loadRenderers(language) {
   const marker = 'module.exports = { activate, deactivate };';
-  const replacement = 'module.exports = { controlCenterHtml, quickViewHtml };';
+  const replacement = 'module.exports = { controlCenterHtml, quickViewHtml, isSnapshotHealthy };';
   const source = fs.readFileSync(extensionFile, 'utf8').replace(marker, replacement);
   const module = { exports: {} };
   const vscode = {
@@ -44,6 +44,12 @@ function inlineScripts(html) {
 
 for (const language of ['en', 'zh-cn']) {
   const renderers = loadRenderers(language);
+  assert.equal(
+    renderers.isSnapshotHealthy({ summary: { healthy: true }, bootstrap: { foundation_ready: false } }),
+    true,
+    `${language} health must follow diagnostics instead of the bootstrap marker`
+  );
+  assert.equal(renderers.isSnapshotHealthy({ summary: { healthy: false } }), false);
   const webview = { cspSource: 'self' };
   for (const [name, html] of [
     ['control center', renderers.controlCenterHtml(webview, false)],
@@ -55,6 +61,18 @@ for (const language of ['en', 'zh-cn']) {
       assert.doesNotThrow(
         () => new Function(script),
         `${language} ${name} generated invalid JavaScript`
+      );
+    }
+    if (name === 'control center') {
+      assert.match(
+        html,
+        /const ok=data\.summary\.healthy;/,
+        `${language} Control Center health must follow diagnostics`
+      );
+      assert.doesNotMatch(
+        html,
+        /const ok=data\.summary\.healthy&&data\.bootstrap\.foundation_ready;/,
+        `${language} Control Center health still depends on the bootstrap marker`
       );
     }
   }
