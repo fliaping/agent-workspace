@@ -1,8 +1,8 @@
 {
   "name": "caddy-proxy-manager",
   "displayName": "Caddy Proxy Manager",
-  "description": "View and manage proxyctl-managed Caddy routes from code-server.",
-  "version": "0.1.0",
+  "description": "View and manage Agent Workspace custom-domain routes from code-server.",
+  "version": "0.1.1",
   "publisher": "agent-workspace",
   "engines": {
     "vscode": "^1.85.0"
@@ -147,15 +147,15 @@
     "configuration": {
       "title": "Caddy Proxy Manager",
       "properties": {
-        "caddyProxyManager.proxyctlPath": {
+        "caddyProxyManager.workspacectlPath": {
           "type": "string",
-          "default": "/config/proxyctl/bin/proxyctl",
-          "description": "Path to proxyctl."
+          "default": "/config/bin/workspacectl",
+          "description": "Path to workspacectl."
         },
         "caddyProxyManager.stateDir": {
           "type": "string",
           "default": "/config/proxyctl",
-          "description": "proxyctl state directory."
+          "description": "Custom-domain routing state directory."
         },
         "caddyProxyManager.publicScheme": {
           "type": "string",

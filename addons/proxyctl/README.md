@@ -1,8 +1,8 @@
-# Lightweight Subdomain Proxy
+# Custom-domain Routing Backend
 
-`proxyctl` manages a small Caddy-based HTTP router for a single Agent Workspace
-container. It keeps configuration under `/config/proxyctl` and exposes a narrow
-CLI so agents do not edit Caddy JSON directly.
+Agent Workspace uses a small Caddy-based HTTP router for optional custom-domain
+access. Users and agents manage it through `workspacectl`; configuration and
+runtime files remain under `/config/proxyctl` for upgrade compatibility.
 
 ## Routing Model
 
@@ -51,34 +51,33 @@ CODE_SERVER_PROXY_DOMAIN=ping-{{port}}.example.com
 Initialize or reload Caddy from current state:
 
 ```bash
-proxyctl init
+workspacectl proxy init
 ```
 
 Inspect:
 
 ```bash
-proxyctl list
-proxyctl check
-proxyctl render
+workspacectl routes
+workspacectl proxy check
+workspacectl proxy render
 ```
 
 Manage named routes:
 
 ```bash
-proxyctl add app 127.0.0.1:3000
-proxyctl add dashboard 127.0.0.1:9119 --upstream-host 127.0.0.1
-proxyctl remove app
-proxyctl domain workspace.example.com
-proxyctl rollback
+workspacectl proxy add app 127.0.0.1:3000
+workspacectl proxy add dashboard 127.0.0.1:9119 --upstream-host 127.0.0.1
+workspacectl proxy remove app
+workspacectl network domain workspace.example.com
+workspacectl proxy rollback
 ```
 
-`proxyctl domain` safely migrates managed route hostnames, updates the root
-domain, and keeps a backup of the previous environment and routes. Use
-`workspacectl network domain` from Control Center so code-server is restarted
-after its proxy-domain setting changes.
+`workspacectl network domain` safely migrates managed route hostnames, updates
+the root domain, keeps a backup, and schedules the required code-server restart.
 
 Use `--upstream-host` for loopback services that validate the HTTP `Host`
-header. The setting is stored with the route and survives `proxyctl init`.
+header. The setting is stored with the route and survives
+`workspacectl proxy init`.
 
 Logs:
 

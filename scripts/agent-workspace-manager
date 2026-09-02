@@ -248,7 +248,7 @@ class WorkspaceManager:
         installer = root / "addons" / "proxyctl" / "install.sh"
         if not installer.exists():
             raise ManagerError(f"missing proxyctl installer: {installer}")
-        log(f"installing proxyctl from {installer.parent}")
+        log(f"installing custom-domain routing backend from {installer.parent}")
         run(["bash", str(installer)], cwd=installer.parent)
 
     def install_mcpm(self) -> None:
@@ -478,8 +478,11 @@ class WorkspaceManager:
                 str(self.settings.config_root / "opt/code-server"),
             ),
             (
-                "proxyctl",
-                "ok" if (self.settings.config_root / "proxyctl/bin/proxyctl").exists() else "missing",
+                "custom-domain routing",
+                "ok"
+                if (self.settings.config_root / "proxyctl/bin/caddy").exists()
+                and (self.settings.config_root / "proxyctl/env").exists()
+                else "optional",
                 str(self.settings.config_root / "proxyctl"),
             ),
             (
@@ -683,7 +686,7 @@ def run_tui(manager: WorkspaceManager) -> int:
             "update": ("Updating application source", "Update application source"),
             "foundation": ("Installing foundation", "Install foundation"),
             "code_server": ("Installing code-server", "Install code-server"),
-            "proxyctl": ("Installing proxyctl", "Install proxyctl / Caddy"),
+            "proxyctl": ("Installing custom-domain routing", "Install custom-domain routing"),
             "desktop": ("Installing Selkies Desktop integration", "Install Selkies Desktop integration"),
             "tailscale": ("Installing Tailscale", "Install Tailscale userspace network"),
             "mcpm": ("Installing MCPM", "Install global MCP manager"),

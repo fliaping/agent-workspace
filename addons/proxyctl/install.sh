@@ -35,11 +35,10 @@ install_package() {
     --exclude './__pycache__' \
     --exclude './*/__pycache__' \
     -cf - . | tar -xf - -C "$PACKAGE_DIR"
-  chmod +x "$PACKAGE_DIR/bin/proxyctl" "$PACKAGE_DIR/install.sh"
+  chmod +x "$PACKAGE_DIR/bin/run-caddy" "$PACKAGE_DIR/install.sh"
   mkdir -p "$BIN_DIR"
-  cp "$PACKAGE_DIR/bin/proxyctl" "$BIN_DIR/proxyctl"
   cp "$PACKAGE_DIR/bin/run-caddy" "$BIN_DIR/run-caddy"
-  chmod +x "$BIN_DIR/proxyctl" "$BIN_DIR/run-caddy"
+  chmod +x "$BIN_DIR/run-caddy"
 }
 
 install_services() {
@@ -48,13 +47,11 @@ install_services() {
   mkdir -p /config/.config/systemd/user/default.target.wants
   cp "$PACKAGE_DIR/systemd/user/proxy-caddy.service" /config/.config/systemd/user/proxy-caddy.service
   ln -sfn /config/.config/systemd/user/proxy-caddy.service /config/.config/systemd/user/default.target.wants/proxy-caddy.service
-  mkdir -p /config/bin
-  ln -sfn "$BIN_DIR/proxyctl" /config/bin/proxyctl
 }
 
 write_env() {
   if [[ -f "$INSTALL_ROOT/env" && "${PROXY_RECONFIGURE:-false}" != "true" ]]; then
-    echo "[proxyctl] preserving existing config: $INSTALL_ROOT/env"
+    echo "[routing] preserving existing config: $INSTALL_ROOT/env"
     return
   fi
   cat >"$INSTALL_ROOT/env" <<EOF
@@ -74,7 +71,6 @@ fix_ownership() {
     chown -R abc:abc "$INSTALL_ROOT"
     chown abc:abc /config/.config/systemd/user/proxy-caddy.service
     chown -h abc:abc /config/.config/systemd/user/default.target.wants/proxy-caddy.service
-    chown -h abc:abc /config/bin/proxyctl
   fi
 }
 
@@ -89,12 +85,21 @@ start_services() {
 }
 
 initialize_proxy() {
+  local workspace_ctl
   set -a
   . "$INSTALL_ROOT/env"
   set +a
+  workspace_ctl="$(command -v workspacectl 2>/dev/null || true)"
+  if [[ -z "$workspace_ctl" && -x /config/bin/workspacectl ]]; then
+    workspace_ctl=/config/bin/workspacectl
+  fi
+  if [[ -z "$workspace_ctl" ]]; then
+    echo "workspacectl is required to initialize custom-domain routing" >&2
+    return 1
+  fi
   for _ in $(seq 1 30); do
     if curl -fsS "$CADDY_ADMIN/config/" >/dev/null 2>&1; then
-      proxyctl init
+      "$workspace_ctl" proxy init
       return
     fi
     sleep 1
@@ -112,7 +117,7 @@ main() {
   command -v jq >/dev/null
   command -v tar >/dev/null
   if grep -Eq '^[[:space:]]*cert:[[:space:]]*true' /config/.config/code-server/config.yaml 2>/dev/null; then
-    echo "code-server uses TLS, but proxyctl expects a loopback HTTP upstream" >&2
+    echo "code-server uses TLS, but custom-domain routing expects a loopback HTTP upstream" >&2
     echo "reinstall it with CODE_SERVER_CERT=false CODE_SERVER_RECONFIGURE=true" >&2
     exit 1
   fi
@@ -123,7 +128,7 @@ main() {
   fix_ownership
   start_services
   initialize_proxy
-  echo "installed proxyctl for *.$ROOT_DOMAIN"
+  echo "installed custom-domain routing for *.$ROOT_DOMAIN"
 }
 
 main "$@"

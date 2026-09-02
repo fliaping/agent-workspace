@@ -14,7 +14,7 @@
                 {
                   "handler": "static_response",
                   "status_code": 404,
-                  "body": "proxyctl is not initialized\n"
+                  "body": "custom-domain routing is not initialized\n"
                 }
               ]
             }

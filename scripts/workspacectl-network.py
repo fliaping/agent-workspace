@@ -98,21 +98,16 @@ def configure_domain(raw_domain: str) -> int:
     if len(domain) > 253 or not DOMAIN_RE.fullmatch(domain):
         print("domain must be a bare hostname such as workspace.example.com", file=sys.stderr)
         return 2
-    source_proxyctl = pathlib.Path(__file__).resolve().parent.parent / "addons/proxyctl/bin/proxyctl"
-    installed_proxyctl = PROXY_ROOT / "bin/proxyctl"
-    proxyctl = source_proxyctl if source_proxyctl.is_file() else installed_proxyctl
-    if installed_proxyctl.is_file() and proxyctl.is_file():
-        result = subprocess.run([str(proxyctl), "domain", domain], check=False)
+    routing_installed = (PROXY_ROOT / "bin/caddy").is_file() and (PROXY_ROOT / "env").is_file()
+    if routing_installed:
+        workspacectl = shutil.which("workspacectl") or str(CONFIG_ROOT / "bin/workspacectl")
+        result = subprocess.run([workspacectl, "proxy", "domain", domain], check=False)
     else:
         manager = shutil.which("agent-workspace-manager") or str(CONFIG_ROOT / "bin/agent-workspace-manager")
         env = os.environ.copy()
-        env.update(
-            {
-                "PROXY_ROOT_DOMAIN": domain,
-                "CODE_SERVER_PROXY_DOMAIN": f"{{{{port}}}}.{domain}",
-                "PROXY_RECONFIGURE": "true",
-            }
-        )
+        env["PROXY_ROOT_DOMAIN"] = domain
+        env.setdefault("CODE_SERVER_PROXY_DOMAIN", f"{{{{port}}}}.{domain}")
+        env["PROXY_RECONFIGURE"] = "true"
         result = subprocess.run([manager, "install", "proxyctl"], check=False, env=env)
     if result.returncode != 0:
         return result.returncode

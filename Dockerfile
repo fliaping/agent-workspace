@@ -118,6 +118,7 @@ RUN mkdir -p /custom-cont-init.d \
 
 RUN chmod +x /usr/local/bin/*.sh /usr/local/bin/agent-workspace-manager \
         /usr/local/bin/workspacectl \
+    && chmod a+r /usr/local/bin/workspacectl-*.py \
     && find /etc/services.d -name "run" -exec chmod +x {} \;
 
 # systemctl wrapper: adds --user support on top of docker-systemctl-replacement

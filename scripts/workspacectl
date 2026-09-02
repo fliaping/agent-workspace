@@ -2,7 +2,8 @@
 set -euo pipefail
 
 workspace_root="${AGENT_WORKSPACE_ROOT:-/config/Workspace}"
-log_root="/config/.local/log/user-systemd"
+config_root="${AGENT_WORKSPACE_CONFIG_ROOT:-/config}"
+log_root="$config_root/.local/log/user-systemd"
 
 usage() {
   cat <<'EOF'
@@ -15,11 +16,12 @@ Inspect:
   skills                       List global Skills and Agent availability
   mcp                          List MCP servers across installed Agents
   locale                       Show the code-server and Control Center language
+  browser status               Show desktop-browser Agent control readiness
   network domain <domain>      Configure the public custom root domain
   tailscale status             Show optional tailnet connection state
   services                     List persistent user services and s6 services
   ports                        List listening TCP ports
-  routes                       List proxyctl routes when proxyctl is installed
+  routes                       List optional custom-domain routes
   doctor                       Run workspace environment checks
 
 Machine-readable output:
@@ -30,17 +32,18 @@ Operate:
   s6 <action> <name>           status/start/stop/restart an s6 service
   logs <name> [lines]          Tail a persistent user-service log
   install agent <name>         Install codex/claude-code/hermes/deepseek-harness
-  install <capability>         Install a manager capability such as foundation/proxyctl
+  install <capability>         Install a capability such as foundation/desktop/tailscale
   skill add <source>           Install a global Skill for all supported Agents
   skill update [name]          Update one or all globally managed Skills
   skill remove <name>          Remove a global Skill from supported Agents
   mcp add <name> <options>     Add one MCP server to selected Agents
   mcp remove <name> <options>  Remove one MCP server from selected Agents
   locale <en|zh-cn> [--restart] Switch the complete browser interface language
+  browser setup                Connect trusted Agents to the user's Chromium window
   tailscale login              Sign in interactively from a terminal
   tailscale serve              Expose code-server and Selkies inside the tailnet
   update                       Update the Agent Workspace application source
-  proxy <arguments...>         Pass arguments to proxyctl
+  proxy <arguments...>         Manage optional custom-domain routing
 
 All durable files belong under /config. Run without arguments for this help.
 EOF
@@ -85,6 +88,17 @@ run_network_command() {
   helper="$(dirname "$script_path")/workspacectl-network.py"
   if [[ ! -f "$helper" ]]; then
     echo "workspacectl network helper is unavailable: $helper" >&2
+    exit 1
+  fi
+  exec python3 "$helper" "$@"
+}
+
+run_browser_command() {
+  local script_path helper
+  script_path="$(readlink -f "${BASH_SOURCE[0]}")"
+  helper="$(dirname "$script_path")/workspacectl-browser.py"
+  if [[ ! -f "$helper" ]]; then
+    echo "workspacectl browser helper is unavailable: $helper" >&2
     exit 1
   fi
   exec python3 "$helper" "$@"
@@ -179,18 +193,70 @@ manager() {
 }
 
 run_proxyctl() {
-  if ! command -v proxyctl >/dev/null 2>&1; then
-    echo "proxyctl is not installed; run: workspacectl install proxyctl" >&2
-    exit 1
+  local action="${1:-check}" script_path proxy_helper output service_state
+  local caddy_present=false env_present=false
+  script_path="$(readlink -f "${BASH_SOURCE[0]}")"
+  proxy_helper="$(dirname "$script_path")/workspacectl-proxy.py"
+  [[ -x "$config_root/proxyctl/bin/caddy" ]] && caddy_present=true
+  [[ -f "$config_root/proxyctl/env" ]] && env_present=true
+
+  if [[ "$caddy_present" == false && "$env_present" == false ]]; then
+    echo "Custom-domain routing: not enabled (optional)"
+    echo "No Caddy router or custom domain is configured."
+    echo "Local code-server and SSH-tunnel access remain available."
+    echo "To enable it: workspacectl network domain workspace.example.com"
+    case "$action" in
+      check|list) return 0 ;;
+      *) return 1 ;;
+    esac
   fi
-  if [[ -f /config/proxyctl/env ]]; then
-    set -a
-    # proxyctl/env is the supported deployment configuration and is shell-compatible.
-    # shellcheck disable=SC1091
-    source /config/proxyctl/env
-    set +a
+
+  if [[ "$caddy_present" == false || "$env_present" == false ]]; then
+    echo "Custom-domain routing: incomplete installation" >&2
+    [[ "$caddy_present" == true ]] || echo "Missing Caddy runtime: $config_root/proxyctl/bin/caddy" >&2
+    [[ "$env_present" == true ]] || echo "Missing routing configuration: $config_root/proxyctl/env" >&2
+    echo "Repair it with: workspacectl network domain workspace.example.com" >&2
+    return 1
   fi
-  proxyctl "$@"
+
+  if [[ ! -f "$proxy_helper" ]]; then
+    echo "workspacectl routing helper is unavailable: $proxy_helper" >&2
+    return 1
+  fi
+
+  export PROXYCTL_STATE_DIR="$config_root/proxyctl"
+  set -a
+  # This file is generated by the routing installer and uses shell assignments.
+  # shellcheck disable=SC1091
+  source "$config_root/proxyctl/env"
+  set +a
+
+  if [[ "$action" == "check" ]]; then
+    service_state="unknown"
+    if command -v systemctl >/dev/null 2>&1; then
+      service_state="$(systemctl --user show proxy-caddy.service --property ActiveState 2>/dev/null \
+        | sed -n 's/^ActiveState=//p' || true)"
+      [[ -n "$service_state" ]] || service_state="unknown"
+    fi
+    echo "Custom-domain routing: enabled"
+    echo "Root domain: ${PROXY_ROOT_DOMAIN:-not configured}"
+    echo "Listen address: ${PROXY_LISTEN:-not configured}"
+    echo "Router service: $service_state"
+    echo "Checking configuration and upstream connectivity..."
+  fi
+
+  if output="$(python3 "$proxy_helper" "$@" 2>&1)"; then
+    [[ -n "$output" ]] && printf '%s\n' "$output"
+    if [[ "$action" == "check" ]]; then
+      echo "Custom-domain routing check: passed"
+    fi
+    return 0
+  fi
+  [[ -n "$output" ]] && printf '%s\n' "$output" >&2
+  if [[ "$action" == "check" ]]; then
+    echo "Custom-domain routing check: failed" >&2
+  fi
+  return 1
 }
 
 json_output=false
@@ -206,7 +272,7 @@ set -- "${filtered_args[@]}"
 
 if $json_output; then
   case "${1:-status}" in
-    status|info|agents|skills|mcp|locale|tailscale|services|ports|routes|doctor)
+    status|info|agents|skills|mcp|locale|browser|tailscale|services|ports|routes|doctor)
       run_json_command "${1:-status}"
       ;;
     *)
@@ -258,6 +324,10 @@ case "${1:-help}" in
   network)
     shift
     run_network_command "$@"
+    ;;
+  browser)
+    shift
+    run_browser_command "$@"
     ;;
   tailscale)
     shift

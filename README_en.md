@@ -27,6 +27,7 @@ Suggested follow-up screenshots under images/, arranged as two columns here:
 - **Unified bilingual Control Center** — Manage Agents, global MCP servers and Skills, services, desktop, networking, and diagnostics in one place; switching language also switches code-server
 - **Agent-friendly environment control** — `workspacectl` provides a stable interface for services, logs, ports, routes, and optional capabilities
 - **Selkies WebRTC desktop** — Full Linux desktop over HTTPS with XFCE (default), LXQt, or KDE
+- **Operate the user's live browser** — With explicit user consent, Agents can use Chrome DevTools MCP to control the current Chromium tabs and signed-in session without closing or cloning the browser
 - **Explicit Docker boundary** — Disable Docker, use isolated DinD, or deliberately mount the host Docker socket
 - **Optional remote networking** — SSH tunnels, custom domains with Caddy, and Tailscale userspace networking without `NET_ADMIN`
 - **Complete development toolchain** — Node.js 22, Go 1.22, Rust, Python 3, Homebrew, uv, and tmux, with NVIDIA / Intel / AMD GPU acceleration
@@ -219,8 +220,8 @@ agent-workspace-manager update
 # Install the secure remote foundation: code-server, extensions, custom s6 registration
 agent-workspace-manager install foundation
 
-# Optional: Caddy/proxyctl for an existing wildcard domain and upstream gateway
-PROXY_ROOT_DOMAIN=dev.example.com agent-workspace-manager install proxyctl
+# Optional: configure a custom domain (installs the Caddy backend automatically)
+workspacectl network domain dev.example.com
 
 # Optional: private Tailscale networking without NET_ADMIN
 agent-workspace-manager install tailscale
@@ -273,10 +274,20 @@ workspacectl service restart openclaw
 workspacectl s6 status svc-selkies
 workspacectl logs openclaw
 workspacectl ports
+workspacectl browser status
+
+# Configure the global Chrome DevTools MCP and open the approval page in Chromium
+workspacectl browser setup
 
 # Once one Agent works, ask it to install another as needed
 workspacectl install agent claude-code
 ```
+
+Browser control uses Chromium 144+'s consent-based auto-connect. Enable remote
+debugging at `chrome://inspect/#remote-debugging` in the current Chromium window,
+then click Allow when an Agent requests access. Agent Workspace does not expose
+port 9222, but an approved Agent can read and operate every tab, cookie, and
+signed-in session in that browser profile, so approve only trusted Agents.
 
 `/config` is the only persistence boundary. Seeded `/config/Workspace/AGENTS.md`
 and `CLAUDE.md` files explain it to Agents without overwriting existing user
@@ -295,7 +306,7 @@ the module source remains available for development:
 |--------|------|-------------|
 | code-server | `addons/code-server` | Official standalone runtime, password authentication, and persistent user service |
 | Control Center | `extensions/control-center` | Unified onboarding plus Agents, resources, services, desktop, networking, and diagnostics |
-| proxyctl + Caddy routing | `addons/proxyctl` | Optional wildcard routing for deployments with existing DNS, TLS, and gateway authentication |
+| Custom-domain routing | `addons/proxyctl` | Caddy backend installed automatically by `workspacectl network domain` for deployments with existing DNS, TLS, and gateway authentication |
 | Selkies Desktop extension | `extensions/selkies-desktop` | Open and initialize the Selkies desktop inside code-server |
 | Tailscale network | `addons/tailscale` | Userspace private networking and Tailnet Serve without `NET_ADMIN` |
 | DeepSeek Harness | `addons/deepseek-harness` | Official `dsh`, persistent state, same-origin Web UI, and global resource bridge |
@@ -308,10 +319,11 @@ agent-workspace-manager install code-server-extensions
 ```
 
 The installer migrates the old standalone Services and Caddy sidebar entries
-to one Agent Workspace entry. Their underlying `workspacectl`, `proxyctl`, and
-service-management commands remain independently usable.
+to one Agent Workspace entry. Users and Agents operate everything through
+`workspacectl`; the Caddy routing backend stays decoupled but does not need to
+be used directly.
 
-See `addons/proxyctl/README.md` for proxyctl details and [code-server Extensions](docs/code-server-extensions.md) for extension usage.
+See `addons/proxyctl/README.md` for routing-backend implementation details and [code-server Extensions](docs/code-server-extensions.md) for extension usage.
 
 ## Data Persistence
 

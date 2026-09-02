@@ -60,7 +60,7 @@ socket makes the privilege boundary larger than the workspace container.
 
 ## Authenticated gateway profile
 
-The optional proxyctl profile matches deployments that already provide
+The optional custom-domain profile matches deployments that already provide
 wildcard DNS, TLS, and strong authentication:
 
 ```text
@@ -68,7 +68,8 @@ browser --> authenticating gateway --> Caddy :80 --> code-server :8443
                                                 --> named local services
 ```
 
-Configure code-server for the loopback HTTP hop, then install proxyctl:
+Configure code-server for the loopback HTTP hop, then configure the domain
+through `workspacectl` (which installs the Caddy backend automatically):
 
 ```bash
 CODE_SERVER_BIND=127.0.0.1:8443 \
@@ -83,7 +84,7 @@ PROXY_ROOT_DOMAIN=example.com \
 PROXY_HOST_PREFIXES=ping,api-ping \
 PROXY_PORT_ROUTING=direct \
 CODE_SERVER_PROXY_DOMAIN='ping-{{port}}.example.com' \
-agent-workspace-manager install proxyctl
+workspacectl network domain example.com
 ```
 
 `auth=none` and direct port routing are safe only when the upstream gateway

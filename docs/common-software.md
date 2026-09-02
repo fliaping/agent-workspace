@@ -3,14 +3,16 @@
 This document records reusable software capabilities that should stay useful
 across Agent Workspace deployments. Keep runtime state under `/config`.
 
-## proxyctl + Caddy
+## Custom-domain routing
 
 Purpose: lightweight HTTP routing for subdomain-based service exposure.
+`workspacectl` is the supported user and Agent interface; it installs and uses
+the Caddy routing backend automatically.
 
-Install or refresh:
+Configure or migrate the root domain:
 
 ```bash
-agent-workspace-manager install proxyctl
+workspacectl network domain workspace.example.com
 ```
 
 Current routing model:
@@ -27,13 +29,15 @@ handled outside Caddy, so Caddy treats all prefixes uniformly.
 Common commands:
 
 ```bash
-proxyctl list
-proxyctl add app 127.0.0.1:3000
-proxyctl remove app
-proxyctl check
-workspacectl network domain workspace.example.com
+workspacectl routes
+workspacectl proxy add app 127.0.0.1:3000
+workspacectl proxy remove app
+workspacectl proxy check
 tail -f /config/proxyctl/access.log
 ```
+
+The persisted `/config/proxyctl` directory is an internal implementation detail.
+It contains Caddy and routing state, but no separate CLI is required.
 
 ## Tailscale userspace network
 
@@ -83,6 +87,27 @@ https://ping-code.h1.fliaping.com:7555
 ```
 
 Auth is disabled in code-server; authentication is expected at the gateway.
+
+## Desktop browser control
+
+Purpose: let a trusted Agent inspect and operate the Chromium window already in
+use on the Selkies desktop, including its current tabs and signed-in state.
+
+```bash
+workspacectl browser status
+workspacectl browser setup
+workspacectl browser approve
+```
+
+The setup command adds `chrome-devtools-mcp` to installed Agents with
+consent-based auto-connect and opens `chrome://inspect/#remote-debugging` in the
+desktop browser. The user enables remote debugging there and approves each Agent
+connection. It does not restart Chromium, copy its profile, contend with
+`SingletonLock`, or publish a debugging port outside the container.
+
+An approved Agent receives the browser profile's live tabs, cookies, local
+storage, and authenticated sessions. Keep this capability opt-in and grant it
+only to trusted Agents.
 
 ## User Service Manager
 

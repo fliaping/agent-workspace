@@ -27,6 +27,7 @@
 - **统一双语控制中心** — 一处管理 Agent、全局 MCP 与 Skills、服务、桌面、网络和诊断；中英文切换会同步 code-server
 - **Agent 可直接操作环境** — `workspacectl` 提供稳定接口，用于检查服务、日志、端口、路由和可选能力
 - **Selkies WebRTC 桌面** — 通过 HTTPS 访问完整 Linux 桌面；可选 XFCE（默认）、LXQt 或 KDE
+- **直接操作用户浏览器** — 经用户明确授权后，Agent 可通过 Chrome DevTools MCP 接管当前 Chromium 标签页与登录会话，无需关闭或复制浏览器
 - **灵活的 Docker 权限边界** — 可关闭 Docker、使用容器内 DinD，或显式挂载宿主机 Docker Socket
 - **可选远程网络** — 支持 SSH 隧道、自定义域名 + Caddy 和无需 `NET_ADMIN` 的 Tailscale 自组网
 - **完整开发工具链** — Node.js 22、Go 1.22、Rust、Python 3、Homebrew、uv、tmux，并支持 NVIDIA / Intel / AMD GPU 加速
@@ -210,8 +211,8 @@ agent-workspace-manager update
 # 安装安全远程基础能力：code-server、插件、自定义 s6 服务注册
 agent-workspace-manager install foundation
 
-# 可选：为已有泛域名和上游网关安装 Caddy/proxyctl
-PROXY_ROOT_DOMAIN=dev.example.com agent-workspace-manager install proxyctl
+# 可选：配置自定义域名（自动安装 Caddy 路由后端）
+workspacectl network domain dev.example.com
 
 # 可选：无需 NET_ADMIN 的 Tailscale 私有自组网
 agent-workspace-manager install tailscale
@@ -259,6 +260,10 @@ workspacectl service restart openclaw
 workspacectl s6 status svc-selkies
 workspacectl logs openclaw
 workspacectl ports
+workspacectl browser status
+
+# 配置全局 Chrome DevTools MCP，并在当前 Chromium 打开授权页
+workspacectl browser setup
 
 # 已有任一 Agent 后，让它按需安装另一个 Agent
 workspacectl install agent claude-code
@@ -269,6 +274,11 @@ workspacectl install agent claude-code
 Docker socket 会让 Agent 获得容器外的高权限；`workspacectl info` 会明确提示这个边界。
 Agent 的登录信息和配置写入 `HOME=/config`，因此随唯一的 `/config` 数据卷持久化。
 
+浏览器控制采用 Chromium 144+ 的授权式自动连接。用户需要在当前 Chromium 的
+`chrome://inspect/#remote-debugging` 中启用远程调试，并在 Agent 发起连接时点击允许。
+该能力不会暴露 9222 端口，但获准连接的 Agent 可以读取和操作当前用户目录中的
+全部标签页、Cookie 与登录会话，因此只应授权可信 Agent。
+
 ## 可选能力模块
 
 仓库内置了一组可选模块。推荐通过 `agent-workspace-manager` 安装，模块源码也可以单独调试：
@@ -277,7 +287,7 @@ Agent 的登录信息和配置写入 `HOME=/config`，因此随唯一的 `/confi
 |------|------|------|
 | code-server | `addons/code-server` | 官方 standalone 运行时、密码认证和持久化用户服务 |
 | Control Center | `extensions/control-center` | 统一的首次使用向导，以及 Agent、资源、服务、桌面、网络和诊断界面 |
-| proxyctl + Caddy 路由 | `addons/proxyctl` | 可选的泛域名路由，适合已有 DNS、TLS 和认证网关的部署 |
+| 自定义域名路由 | `addons/proxyctl` | 由 `workspacectl network domain` 自动安装的 Caddy 后端，适合已有 DNS、TLS 和认证网关的部署 |
 | Selkies Desktop | `extensions/selkies-desktop` | 正式桌面能力，在 Control Center 内显示运行状态并一键打开 |
 | Tailscale 自组网 | `addons/tailscale` | 无需 NET_ADMIN 的 userspace 私有网络与 Tailnet Serve |
 | DeepSeek Harness | `addons/deepseek-harness` | 官方 `dsh`、持久化状态、同源 Web UI 与全局资源桥接 |
@@ -289,10 +299,10 @@ Agent 的登录信息和配置写入 `HOME=/config`，因此随唯一的 `/confi
 agent-workspace-manager install code-server-extensions
 ```
 
-安装器会迁移旧版独立的服务与 Caddy 侧栏，只保留一个 Agent Workspace 入口；
-底层功能仍由独立的 `workspacectl`、`proxyctl` 和服务管理命令实现。
+安装器会迁移旧版独立的服务与 Caddy 侧栏，只保留一个 Agent Workspace 入口。
+用户和 Agent 统一使用 `workspacectl`；Caddy 路由后端仍保持独立，但无需直接操作。
 
-proxyctl 详细说明见 `addons/proxyctl/README.md`，code-server 插件说明见 [code-server Extensions](docs/code-server-extensions.md)。
+路由后端实现说明见 `addons/proxyctl/README.md`，code-server 插件说明见 [code-server Extensions](docs/code-server-extensions.md)。
 
 ## 数据持久化
 

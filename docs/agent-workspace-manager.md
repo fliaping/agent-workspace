@@ -20,7 +20,7 @@ The TUI can:
 
 - update the manager source under `/config/agent-workspace-manager/source`
 - install the secure remote foundation (code-server, Control Center, and desktop integration)
-- optionally install proxyctl and Caddy routing for an existing wildcard gateway
+- optionally install the internal Caddy routing backend for an existing wildcard gateway
 - optionally install a no-`NET_ADMIN` Tailscale userspace network
 - register persistent custom s6 services
 - install Codex, Claude Code, Hermes, DeepSeek Harness, OpenClaw, Openfang, or
@@ -66,8 +66,10 @@ agent-workspace-manager doctor
 ```
 
 `install all` installs the secure foundation plus all selected Agent runtimes.
-The wildcard gateway remains an explicit `install proxyctl` step because it
-requires deployment-specific DNS, TLS, and authentication decisions.
+Normal users configure a wildcard gateway with
+`workspacectl network domain <domain>`, which installs this backend automatically.
+The compatible `install proxyctl` target remains available for automation and
+backend maintenance because DNS, TLS, and authentication remain deployment-owned.
 
 With no names, `install agents` installs Codex as the ready-to-use default.
 Codex and Claude Code installs also add their official code-server extensions.

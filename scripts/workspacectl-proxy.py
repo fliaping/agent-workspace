@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""Internal custom-domain routing implementation for workspacectl."""
 import argparse
 import ipaddress
 import json
@@ -574,9 +575,21 @@ def cmd_check(_args):
         if route.get("upstream_host"):
             normalize_upstream_host(route["upstream_host"])
     if env("PROXYCTL_SKIP_CONNECT_CHECK", "0") != "1":
+        failures = []
         for route in routes:
-            check_tcp(route["target"])
-        check_tcp(code_server_target())
+            try:
+                check_tcp(route["target"])
+            except OSError as exc:
+                failures.append(f"{route['host']} -> {route['target']}: {exc}")
+        code_host = code_server_host(root_domain())
+        code_target = code_server_target()
+        try:
+            check_tcp(code_target)
+        except OSError as exc:
+            failures.append(f"{code_host} -> {code_target}: {exc}")
+        if failures:
+            detail = "\n  ".join(failures)
+            raise ProxyctlError(f"unreachable upstreams:\n  {detail}")
     print("ok")
 
 
@@ -677,7 +690,10 @@ def cmd_domain(args):
 
 
 def build_parser():
-    parser = argparse.ArgumentParser(description="Manage lightweight HTTP subdomain routes through Caddy Admin API.")
+    parser = argparse.ArgumentParser(
+        prog="workspacectl proxy",
+        description="Manage optional custom-domain routes through the internal Caddy backend.",
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     init = sub.add_parser("init", help="initialize Caddy routes")
@@ -718,7 +734,7 @@ def main():
     try:
         args.func(args)
     except (ProxyctlError, OSError) as exc:
-        print(f"proxyctl: {exc}", file=sys.stderr)
+        print(f"Routing backend: {exc}", file=sys.stderr)
         return 1
     return 0
 

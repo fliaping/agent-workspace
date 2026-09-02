@@ -2,7 +2,7 @@
   "name": "control-center",
   "displayName": "Agent Workspace Control Center",
   "description": "Unified onboarding and management for Agents, global MCP servers and Skills, services, networking, desktop access, and diagnostics.",
-  "version": "0.3.5",
+  "version": "0.3.8",
   "publisher": "agent-workspace",
   "engines": {
     "vscode": "^1.85.0"

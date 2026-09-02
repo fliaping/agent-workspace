@@ -691,7 +691,10 @@ def parse_env_file(path: pathlib.Path) -> dict[str, str]:
 
 def routes() -> dict[str, Any]:
     state_root = CONFIG_ROOT / "proxyctl"
-    executable = state_root / "bin/proxyctl"
+    caddy_present = (state_root / "bin/caddy").is_file()
+    env_present = (state_root / "env").is_file()
+    installed = caddy_present and env_present
+    incomplete = caddy_present != env_present
     env = parse_env_file(state_root / "env")
     public_port = env.get("PROXY_PUBLIC_PORT", "")
     if not public_port:
@@ -726,8 +729,8 @@ def routes() -> dict[str, Any]:
     except (OSError, json.JSONDecodeError):
         pass
     return {
-        "installed": executable.is_file(),
-        "mode": "custom-domain" if executable.is_file() else "local",
+        "installed": installed,
+        "mode": "custom-domain" if installed else "incomplete" if incomplete else "local",
         "root_domain": env.get("PROXY_ROOT_DOMAIN", ""),
         "code_server_domain": env.get("CODE_SERVER_PROXY_DOMAIN", ""),
         "listen": env.get("PROXY_LISTEN", ""),
@@ -750,6 +753,82 @@ def desktop_capability(service_rows: list[dict[str, Any]]) -> dict[str, Any]:
         "local_url": "https://localhost:3001",
         "code_server_path": "/proxy/3000/",
         "install_target": "desktop",
+    }
+
+
+def browser_control_state() -> dict[str, Any]:
+    binary = command_path("chromium") or command_path("google-chrome")
+    version = command_version(binary) if binary else ""
+    match = re.search(r"\b(\d+)(?:\.\d+){2,3}\b", version)
+    major = int(match.group(1)) if match else 0
+    profile = pathlib.Path(
+        os.environ.get(
+            "AGENT_WORKSPACE_BROWSER_PROFILE",
+            str(CONFIG_ROOT / ".config/chromium"),
+        )
+    )
+    pids = []
+    for entry in pathlib.Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            command = (entry / "cmdline").read_bytes().split(b"\0")
+        except OSError:
+            continue
+        if not command:
+            continue
+        executable = pathlib.Path(command[0].decode(errors="ignore")).name
+        if executable in {"chromium", "chrome", "google-chrome", "wrapped-chromium"}:
+            pids.append(int(entry.name))
+
+    debug_port = 0
+    remote_debugging = False
+    try:
+        lines = [
+            line.strip()
+            for line in (profile / "DevToolsActivePort").read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        debug_port = int(lines[0])
+        with socket.create_connection(("127.0.0.1", debug_port), timeout=0.25):
+            remote_debugging = True
+    except (OSError, ValueError, IndexError):
+        pass
+
+    loaders = {
+        "codex": load_codex_mcp,
+        "claude-code": load_claude_mcp,
+        "hermes": load_hermes_mcp,
+        "deepseek-harness": load_deepseek_mcp,
+    }
+    mcp_agents = [agent for agent, loader in loaders.items() if "chrome-devtools" in loader()]
+    supported = major >= 144
+    if not binary or not supported:
+        state = "unsupported"
+    elif not mcp_agents:
+        state = "needs-setup"
+    elif not pids:
+        state = "not-running"
+    elif not remote_debugging:
+        state = "needs-approval"
+    else:
+        state = "ready"
+    return {
+        "installed": bool(binary),
+        "supported": supported,
+        "state": state,
+        "binary": binary,
+        "version": version,
+        "major_version": major,
+        "profile": str(profile),
+        "running": bool(pids),
+        "pids": sorted(pids),
+        "remote_debugging": remote_debugging,
+        "debug_port": debug_port,
+        "mcp_agents": mcp_agents,
+        "mcp_configured": bool(mcp_agents),
+        "connection_mode": "consent-based-auto-connect",
+        "exposed": False,
     }
 
 
@@ -808,6 +887,15 @@ def tailscale_state() -> dict[str, Any]:
 def capability_state() -> list[dict[str, Any]]:
     extension_root = CONFIG_ROOT / ".local/share/code-server/extensions"
     control_center = bool(list(extension_root.glob("agent-workspace.control-center-*")))
+    routing_caddy = (CONFIG_ROOT / "proxyctl/bin/caddy").is_file()
+    routing_env = (CONFIG_ROOT / "proxyctl/env").is_file()
+    routing_state = (
+        "ready"
+        if routing_caddy and routing_env
+        else "needs-attention"
+        if routing_caddy != routing_env
+        else "optional"
+    )
     return [
         {
             "id": "source",
@@ -829,9 +917,9 @@ def capability_state() -> list[dict[str, Any]]:
         },
         {
             "id": "proxyctl",
-            "label": "Proxy routing",
-            "state": "ready" if (CONFIG_ROOT / "proxyctl/bin/proxyctl").is_file() else "optional",
-            "detail": str(CONFIG_ROOT / "proxyctl"),
+            "label": "Custom-domain routing",
+            "state": routing_state,
+            "detail": "Optional Caddy routing backend",
         },
         {
             "id": "mcpm",
@@ -965,6 +1053,7 @@ def snapshot() -> dict[str, Any]:
         "skills": global_skills,
         "mcp": global_mcp,
         "services": services,
+        "browser": browser_control_state,
         "tailscale": tailscale_state,
         "ports": ports,
         "network": routes,
@@ -995,6 +1084,7 @@ def snapshot() -> dict[str, Any]:
         "mcp": mcp_rows,
         "services": service_rows,
         "desktop": desktop_capability(service_rows),
+        "browser": collected["browser"],
         "tailscale": collected["tailscale"],
         "ports": collected["ports"],
         "network": collected["network"],
@@ -1021,6 +1111,7 @@ def payload_for(command: str) -> Any:
         "skills": global_skills,
         "mcp": global_mcp,
         "locale": interface_locale,
+        "browser": browser_control_state,
         "tailscale": tailscale_state,
         "services": services,
         "ports": ports,

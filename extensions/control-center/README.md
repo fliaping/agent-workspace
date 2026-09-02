@@ -6,7 +6,8 @@ services, ports, proxy routes, capabilities, and diagnostics while using
 `workspacectl --json` as its backend.
 
 Selkies Desktop has its own first-class page for runtime state, editor
-integration, access, and session operations. The separate Network page keeps
+integration, access, session operations, and consent-based Agent control of the
+user's current Chromium window. The separate Network page keeps
 SSH, custom-domain Caddy routing, and optional Tailscale userspace access in one
 place. Tailscale authentication is deliberately handed to an interactive
 terminal instead of being collected by the webview.

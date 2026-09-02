@@ -21,6 +21,10 @@ and `/run` can be replaced when the container is rebuilt.
 - Selkies Desktop is the container's graphical workspace. Inspect it with
   `workspacectl status --json` and manage its image service with
   `workspacectl s6 status|restart svc-selkies`.
+- Use `workspacectl browser status` before requesting access to the user's live
+  Chromium window. Browser control is opt-in: the user must enable and approve
+  the local Chrome DevTools connection, which grants access to all open tabs and
+  signed-in sessions. Never publish its debugging endpoint.
 - The code-server Control Center is the user-facing view of these same commands;
   keep operations usable from both the UI and terminal.
 - The container user may have passwordless `sudo`; use it only when an

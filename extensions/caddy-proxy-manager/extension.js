@@ -8,7 +8,7 @@ const OUTPUT = vscode.window.createOutputChannel('Caddy Proxy Manager');
 function cfg() {
   const c = vscode.workspace.getConfiguration('caddyProxyManager');
   return {
-    proxyctlPath: c.get('proxyctlPath', '/config/proxyctl/bin/proxyctl'),
+    workspacectlPath: c.get('workspacectlPath', '/config/bin/workspacectl'),
     stateDir: c.get('stateDir', '/config/proxyctl'),
     publicScheme: c.get('publicScheme', 'https'),
     publicPort: c.get('publicPort', '7555'),
@@ -164,10 +164,10 @@ async function loadState() {
   return { env, routes };
 }
 
-async function proxyctl(args, timeout = 20000) {
+async function routingCommand(args, timeout = 20000) {
   const c = cfg();
-  OUTPUT.appendLine(`$ ${c.proxyctlPath} ${args.join(' ')}`);
-  const result = await run(c.proxyctlPath, args, { timeout, maxBuffer: 4 * 1024 * 1024 });
+  OUTPUT.appendLine(`$ ${c.workspacectlPath} proxy ${args.join(' ')}`);
+  const result = await run(c.workspacectlPath, ['proxy', ...args], { timeout, maxBuffer: 4 * 1024 * 1024 });
   if (result.stdout.trim()) OUTPUT.appendLine(result.stdout.trim());
   if (result.stderr.trim()) OUTPUT.appendLine(result.stderr.trim());
   return result;
@@ -176,7 +176,7 @@ async function proxyctl(args, timeout = 20000) {
 async function addRoute(provider) {
   const name = await vscode.window.showInputBox({
     title: 'Route name',
-    prompt: 'Subdomain label. The configured prefix/root domain will be applied by proxyctl.',
+    prompt: 'Subdomain label. The configured prefix/root domain will be applied by workspacectl.',
     placeHolder: 'app'
   });
   if (!name) return;
@@ -191,7 +191,7 @@ async function addRoute(provider) {
   });
   if (!target) return;
 
-  const result = await proxyctl(['add', name.trim(), target.trim()]);
+  const result = await routingCommand(['add', name.trim(), target.trim()]);
   if (result.ok) {
     vscode.window.showInformationMessage(`Added route ${name} -> ${target}`);
     provider.refresh();
@@ -211,7 +211,7 @@ async function removeRoute(item, provider) {
   );
   if (choice !== 'Remove') return;
 
-  const result = await proxyctl(['remove', label]);
+  const result = await routingCommand(['remove', label]);
   if (result.ok) {
     vscode.window.showInformationMessage(`Removed route ${item.route.host}`);
     provider.refresh();
@@ -222,15 +222,15 @@ async function removeRoute(item, provider) {
 
 async function check() {
   OUTPUT.show(true);
-  const result = await proxyctl(['check']);
-  if (result.ok) vscode.window.showInformationMessage('proxyctl check: ok');
-  else vscode.window.showErrorMessage('proxyctl check failed');
+  const result = await routingCommand(['check']);
+  if (result.ok) vscode.window.showInformationMessage('Custom-domain routing check: ok');
+  else vscode.window.showErrorMessage('Custom-domain routing check failed');
 }
 
 async function showConfig() {
   OUTPUT.show(true);
   OUTPUT.appendLine('\n== Generated Caddy Config ==');
-  await proxyctl(['render'], 20000);
+  await routingCommand(['render'], 20000);
 }
 
 async function showAccessLog() {
@@ -264,12 +264,12 @@ async function showCaddyLog() {
 
 async function rollback(provider) {
   const choice = await vscode.window.showWarningMessage(
-    'Roll back the last proxyctl route change?',
+    'Roll back the last custom-domain route change?',
     { modal: true },
     'Rollback'
   );
   if (choice !== 'Rollback') return;
-  const result = await proxyctl(['rollback'], 30000);
+  const result = await routingCommand(['rollback'], 30000);
   if (result.ok) {
     vscode.window.showInformationMessage('Rolled back proxy routes');
     provider.refresh();
