@@ -1,0 +1,259 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+CONFIG_ROOT="${AGENT_WORKSPACE_CONFIG_ROOT:-/config}"
+LOG_DIR="${CONFIG_ROOT}/.local/log/agent-workspace"
+LOG_FILE="${LOG_DIR}/deb-installer.log"
+DRY_RUN=false
+ASSUME_YES=false
+PACKAGE_FILE=""
+
+INTERFACE_LOCALE="${LC_ALL:-${LANG:-en}}"
+if [[ "${INTERFACE_LOCALE,,}" == zh* ]]; then
+  APP_TITLE="Agent Workspace 软件包安装器"
+  QUESTION_TEXT="安装这个软件包吗？"
+  TRUST_WARNING="请只安装你信任的软件包。Debian 软件包可以执行管理员脚本并修改当前容器。"
+  INSTALL_LABEL="安装"
+  CANCEL_LABEL="取消"
+  CONTINUE_PROMPT="是否继续？[y/N]"
+  CONFIRM_UNAVAILABLE="无法显示交互式确认。检查软件包后，请使用 --yes 重新运行。"
+  ONE_PACKAGE_ERROR="每次只能安装一个 .deb 软件包。"
+  CHOOSE_PACKAGE_ERROR="请选择要安装的 .deb 软件包。"
+  READABLE_PACKAGE_ERROR="所选文件不是可读取的 .deb 软件包。"
+  VALID_PACKAGE_ERROR="所选文件不是有效的 Debian 软件包。"
+  ADMIN_ERROR="管理员权限不可用。此工作区通常需要容器内的免密码 sudo。"
+  BUSY_ERROR="另一个软件包安装任务正在运行。"
+  PACKAGE_LABEL="软件包"
+  VERSION_LABEL="版本"
+  ARCH_LABEL="架构"
+  FILE_LABEL="文件"
+  NO_DESCRIPTION="没有软件包说明"
+  INSTALLING_LABEL="正在安装"
+  SUCCESS_SUFFIX="安装成功。"
+  LOG_LABEL="日志"
+  FAILED_LABEL="安装失败"
+  ERROR_LABEL="错误"
+else
+  APP_TITLE="Agent Workspace Software Installer"
+  QUESTION_TEXT="Install this software package?"
+  TRUST_WARNING="Only install packages you trust. Debian packages may run administrator scripts and modify this container."
+  INSTALL_LABEL="Install"
+  CANCEL_LABEL="Cancel"
+  CONTINUE_PROMPT="Continue? [y/N]"
+  CONFIRM_UNAVAILABLE="Interactive confirmation is unavailable. Re-run with --yes after inspecting the package."
+  ONE_PACKAGE_ERROR="Install one .deb package at a time."
+  CHOOSE_PACKAGE_ERROR="Choose a .deb package to install."
+  READABLE_PACKAGE_ERROR="The selected file is not a readable .deb package."
+  VALID_PACKAGE_ERROR="The selected file is not a valid Debian package."
+  ADMIN_ERROR="Administrator access is unavailable. This workspace normally requires passwordless container sudo."
+  BUSY_ERROR="Another software package installation is already running."
+  PACKAGE_LABEL="Package"
+  VERSION_LABEL="Version"
+  ARCH_LABEL="Architecture"
+  FILE_LABEL="File"
+  NO_DESCRIPTION="No description"
+  INSTALLING_LABEL="Installing"
+  SUCCESS_SUFFIX="was installed successfully."
+  LOG_LABEL="Log"
+  FAILED_LABEL="Installation failed"
+  ERROR_LABEL="Error"
+fi
+
+usage() {
+  cat <<'EOF'
+Usage: agent-workspace-deb-installer [--dry-run] [--yes] <package.deb>
+
+Open a Debian package from the desktop, inspect its metadata, resolve
+dependencies with apt, and keep the installation log under /config.
+EOF
+}
+
+show_error() {
+  local message="$1"
+  if [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] && command -v zenity >/dev/null 2>&1; then
+    zenity --error --no-markup --title="$APP_TITLE" --width=480 --text="$message" || true
+  elif [[ -n "${DISPLAY:-}" ]] && command -v xmessage >/dev/null 2>&1; then
+    xmessage -center -title "$APP_TITLE" "$message" || true
+  else
+    printf '%s: %s\n' "$ERROR_LABEL" "$message" >&2
+  fi
+}
+
+show_info() {
+  local message="$1"
+  if [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] && command -v zenity >/dev/null 2>&1; then
+    zenity --info --no-markup --title="$APP_TITLE" --width=480 --text="$message" || true
+  elif [[ -n "${DISPLAY:-}" ]] && command -v xmessage >/dev/null 2>&1; then
+    xmessage -center -title "$APP_TITLE" "$message" || true
+  else
+    printf '%s\n' "$message"
+  fi
+}
+
+confirm_install() {
+  local details="$1" prompt=""
+  if $ASSUME_YES; then
+    return 0
+  fi
+  if [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] && command -v zenity >/dev/null 2>&1; then
+    printf -v prompt '%s\n\n%s\n\n%s' "$QUESTION_TEXT" "$details" "$TRUST_WARNING"
+    zenity --question \
+      --no-markup \
+      --title="$APP_TITLE" \
+      --width=680 \
+      --ok-label="$INSTALL_LABEL" \
+      --cancel-label="$CANCEL_LABEL" \
+      --text="$prompt"
+    return $?
+  fi
+  if [[ -n "${DISPLAY:-}" ]] && command -v xmessage >/dev/null 2>&1; then
+    printf -v prompt '%s\n\n%s\n\n%s' "$QUESTION_TEXT" "$details" "$TRUST_WARNING"
+    xmessage -center -title "$APP_TITLE" -buttons "$INSTALL_LABEL:0,$CANCEL_LABEL:1" "$prompt"
+    return $?
+  fi
+  if [[ -t 0 ]]; then
+    printf '%s\n\n%s %s ' "$details" "$TRUST_WARNING" "$CONTINUE_PROMPT"
+    read -r answer
+    [[ "$answer" =~ ^[Yy]$ ]]
+    return
+  fi
+  show_error "$CONFIRM_UNAVAILABLE"
+  return 1
+}
+
+privileged_prefix() {
+  if [[ "$(id -u)" == "0" ]]; then
+    return 0
+  fi
+  if command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then
+    printf '%s\n' "sudo" "-n"
+    return 0
+  fi
+  if command -v pkexec >/dev/null 2>&1; then
+    printf '%s\n' "pkexec"
+    return 0
+  fi
+  return 1
+}
+
+run_install() {
+  local package="$1" temporary="$2" privilege_output=""
+  local -a prefix=()
+  if [[ "$(id -u)" != "0" ]]; then
+    privilege_output="$(privileged_prefix)" || return 126
+    mapfile -t prefix <<<"$privilege_output"
+  fi
+  "${prefix[@]}" env DEBIAN_FRONTEND=noninteractive \
+    apt-get install -y "$package" >"$temporary" 2>&1
+}
+
+for argument in "$@"; do
+  case "$argument" in
+    --dry-run) DRY_RUN=true ;;
+    --yes|-y) ASSUME_YES=true ;;
+    --help|-h) usage; exit 0 ;;
+    --*) show_error "$ERROR_LABEL: $argument"; exit 2 ;;
+    *)
+      if [[ -n "$PACKAGE_FILE" ]]; then
+        show_error "$ONE_PACKAGE_ERROR"
+        exit 2
+      fi
+      PACKAGE_FILE="$argument"
+      ;;
+  esac
+done
+
+if [[ -z "$PACKAGE_FILE" ]]; then
+  show_error "$CHOOSE_PACKAGE_ERROR"
+  exit 2
+fi
+
+PACKAGE_FILE="$(realpath -- "$PACKAGE_FILE" 2>/dev/null || true)"
+if [[ -z "$PACKAGE_FILE" || ! -f "$PACKAGE_FILE" || "$PACKAGE_FILE" != *.deb ]]; then
+  show_error "$READABLE_PACKAGE_ERROR"
+  exit 2
+fi
+if ! dpkg-deb --info "$PACKAGE_FILE" >/dev/null 2>&1; then
+  show_error "$VALID_PACKAGE_ERROR"
+  exit 2
+fi
+
+PACKAGE_NAME="$(dpkg-deb --field "$PACKAGE_FILE" Package 2>/dev/null || true)"
+PACKAGE_VERSION="$(dpkg-deb --field "$PACKAGE_FILE" Version 2>/dev/null || true)"
+PACKAGE_ARCH="$(dpkg-deb --field "$PACKAGE_FILE" Architecture 2>/dev/null || true)"
+PACKAGE_DESCRIPTION="$(dpkg-deb --field "$PACKAGE_FILE" Description 2>/dev/null | head -n 1 || true)"
+printf -v DETAILS '%s: %s\n%s: %s\n%s: %s\n%s\n\n%s: %s' \
+  "$PACKAGE_LABEL" "${PACKAGE_NAME:-unknown}" "$VERSION_LABEL" "${PACKAGE_VERSION:-unknown}" \
+  "$ARCH_LABEL" "${PACKAGE_ARCH:-unknown}" \
+  "${PACKAGE_DESCRIPTION:-$NO_DESCRIPTION}" "$FILE_LABEL" "$PACKAGE_FILE"
+
+if $DRY_RUN; then
+  PRIVILEGE_OUTPUT="$(privileged_prefix)" || {
+    show_error "$ADMIN_ERROR"
+    exit 126
+  }
+  PRIVILEGE=()
+  if [[ -n "$PRIVILEGE_OUTPUT" ]]; then
+    mapfile -t PRIVILEGE <<<"$PRIVILEGE_OUTPUT"
+  fi
+  exec "${PRIVILEGE[@]}" apt-get install --simulate "$PACKAGE_FILE"
+fi
+
+if ! confirm_install "$DETAILS"; then
+  exit 0
+fi
+
+mkdir -p "$LOG_DIR"
+RUNTIME_DIR="${CONFIG_ROOT}/.local/run/agent-workspace"
+mkdir -p "$RUNTIME_DIR"
+exec 9>"${RUNTIME_DIR}/deb-installer.lock"
+if ! flock -n 9; then
+  show_error "$BUSY_ERROR"
+  exit 75
+fi
+TEMPORARY_LOG="$(mktemp "${TMPDIR:-/tmp}/agent-workspace-deb.XXXXXX.log")"
+trap 'rm -f -- "$TEMPORARY_LOG"' EXIT
+STARTED_AT="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+
+run_install "$PACKAGE_FILE" "$TEMPORARY_LOG" &
+INSTALL_PID=$!
+
+if [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] && command -v zenity >/dev/null 2>&1; then
+  (
+    LAST_LINE=""
+    while kill -0 "$INSTALL_PID" 2>/dev/null; do
+      CURRENT_LINE="$(tail -n 1 "$TEMPORARY_LOG" 2>/dev/null || true)"
+      if [[ -n "$CURRENT_LINE" && "$CURRENT_LINE" != "$LAST_LINE" ]]; then
+        CURRENT_LINE="${CURRENT_LINE//&/&amp;}"
+        CURRENT_LINE="${CURRENT_LINE//</&lt;}"
+        CURRENT_LINE="${CURRENT_LINE//>/&gt;}"
+        printf '# %s\n' "$CURRENT_LINE"
+        LAST_LINE="$CURRENT_LINE"
+      fi
+      sleep 0.35
+    done
+  ) | zenity --progress --pulsate --no-cancel --auto-close \
+      --title="$APP_TITLE" --width=560 --text="$INSTALLING_LABEL ${PACKAGE_NAME:-package}…" || true
+fi
+
+wait "$INSTALL_PID"
+INSTALL_STATUS=$?
+{
+  printf '\n[%s] %s %s (%s)\n' "$STARTED_AT" "${PACKAGE_NAME:-unknown}" "${PACKAGE_VERSION:-unknown}" "$PACKAGE_FILE"
+  cat "$TEMPORARY_LOG"
+  printf '[exit=%s]\n' "$INSTALL_STATUS"
+} >>"$LOG_FILE"
+
+if [[ "$INSTALL_STATUS" -eq 0 ]]; then
+  printf -v RESULT_MESSAGE '%s %s %s\n\n%s: %s' "${PACKAGE_NAME:-package}" "${PACKAGE_VERSION:-}" "$SUCCESS_SUFFIX" "$LOG_LABEL" "$LOG_FILE"
+  show_info "$RESULT_MESSAGE"
+  exit 0
+fi
+
+if [[ "$INSTALL_STATUS" -eq 126 ]]; then
+  show_error "$ADMIN_ERROR"
+else
+  printf -v RESULT_MESSAGE '%s (exit %s)\n\n%s: %s' "$FAILED_LABEL" "$INSTALL_STATUS" "$LOG_LABEL" "$LOG_FILE"
+  show_error "$RESULT_MESSAGE"
+fi
+exit "$INSTALL_STATUS"

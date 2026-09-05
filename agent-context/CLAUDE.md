@@ -21,14 +21,26 @@ and `/run` can be replaced when the container is rebuilt.
 - Selkies Desktop is the container's graphical workspace. Inspect it with
   `workspacectl status --json` and manage its image service with
   `workspacectl s6 status|restart svc-selkies`.
-- Use `workspacectl browser status` before requesting access to the user's live
-  Chromium window. Browser control is opt-in: the user must enable and approve
-  the local Chrome DevTools connection, which grants access to all open tabs and
-  signed-in sessions. Never publish its debugging endpoint.
+- Use `workspacectl browser status` before operating the user's managed Chromium
+  window. Configured container Agents can access all open tabs and signed-in
+  sessions without a per-session prompt. Treat that access as sensitive and
+  never publish its loopback debugging endpoint.
+- Use `workspacectl desktop status` before controlling native GUI applications.
+  Desktop Computer Use captures the same Selkies display and can send pointer
+  and keyboard input. Prefer managed Chromium CDP for web tasks; reserve desktop
+  control for native apps. Stop all Agent input immediately with
+  `workspacectl desktop emergency-stop`, and resume only with explicit user
+  intent. The bridge on `8765` is loopback-only. PixelFlux currently binds its
+  internal upstream on `8764` to the container interface, so never publish or
+  proxy either port and do not attach this workspace to an untrusted Docker network.
 - The code-server Control Center is the user-facing view of these same commands;
   keep operations usable from both the UI and terminal.
 - The container user may have passwordless `sudo`; use it only when an
   image-layer change is truly necessary.
+- For a local Debian package, first run
+  `agent-workspace-deb-installer --dry-run /path/to/package.deb`. A `.deb` can
+  execute privileged maintainer scripts and changes the replaceable image
+  layer; use `--yes` only after explicit user approval.
 - A mounted `/var/run/docker.sock` can grant control outside this container.
   Inspect the active Docker mode before using it.
 

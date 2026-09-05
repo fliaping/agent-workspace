@@ -24,10 +24,12 @@ Suggested follow-up screenshots under images/, arranged as two columns here:
 ## Features
 
 - **Ready-to-run Agents** — Choose Codex, Claude Code, Hermes, or DeepSeek Harness on first boot; Codex and Claude Code also receive their official code-server extensions
-- **Unified bilingual Control Center** — Manage Agents, global MCP servers and Skills, services, desktop, networking, and diagnostics in one place; switching language also switches code-server
+- **Unified bilingual Control Center** — Manage Agents, the managed browser, global MCP servers and Skills, services, desktop, networking, and diagnostics in one place; switching language also switches code-server
 - **Agent-friendly environment control** — `workspacectl` provides a stable interface for services, logs, ports, routes, and optional capabilities
 - **Selkies WebRTC desktop** — Full Linux desktop over HTTPS with XFCE (default), LXQt, or KDE
-- **Operate the user's live browser** — With explicit user consent, Agents can use Chrome DevTools MCP to control the current Chromium tabs and signed-in session without closing or cloning the browser
+- **Managed Agent browser** — The default desktop Chromium uses a persistent managed profile so Agents can operate the same window, tabs, and signed-in session without repeated prompts
+- **Desktop Computer Use** — Agents can capture and operate the same Selkies desktop with pointer, keyboard, scroll, drag, window focus, and emergency stop tools
+- **Desktop package installer** — Double-click a `.deb` in the file manager to inspect its metadata, confirm the risk, resolve dependencies, and install it
 - **Explicit Docker boundary** — Disable Docker, use isolated DinD, or deliberately mount the host Docker socket
 - **Optional remote networking** — SSH tunnels, custom domains with Caddy, and Tailscale userspace networking without `NET_ADMIN`
 - **Complete development toolchain** — Node.js 22, Go 1.22, Rust, Python 3, Homebrew, uv, and tmux, with NVIDIA / Intel / AMD GPU acceleration
@@ -156,10 +158,15 @@ docker compose up -d
 | `AGENT_WORKSPACE_AGENT` | `codex` | First-boot Agent: `codex`, `claude-code`, `hermes`, `deepseek-harness`, or `none` |
 | `SSH_PASSWORD` | unset | Set to enable SSH service (port 22), value is abc user password |
 | `NODE_OPTIONS` | - | Node.js options (e.g., `--max-old-space-size=2048`) |
+| `AGENT_WORKSPACE_BROWSER_PROFILE` | `/config/.config/agent-browser` | Persistent profile for the default managed desktop Chromium |
+| `AGENT_WORKSPACE_BROWSER_PROFILE_NAME` | `Agent Workspace (Managed)` | Visible Chromium profile name that makes an accidentally opened unmanaged browser easy to spot |
+| `AGENT_WORKSPACE_BROWSER_PORT` | `9222` | Container-internal Chrome DevTools port bound only to `127.0.0.1` |
+| `AGENT_WORKSPACE_BROWSER_DISPLAY` | auto-detected | Override the X display used by Chromium when needed, such as `:0` |
 | `SELKIES_ENABLE_RATE_CONTROL` | `true` | Enable CRF/CBR rate-control switching |
 | `SELKIES_RATE_CONTROL_MODE` | `crf,cbr` | Available modes, with CRF selected by default |
 | `SELKIES_CONGESTION_CONTROL` | `false` | Disable GCC adaptation that can reduce quality during motion |
 | `SELKIES_ENABLE_RESIZE` | `true` | Synchronize desktop resolution with the browser window |
+| `PIXELFLUX_CU` | `8764` | Native Selkies Computer Use internal port; upstream binds the container interface, so never publish it |
 | `XFCE_PANEL_SCALING` | `true` | Keep XFCE panel rows and icons in step with Wayland scaling; set to `false` to disable |
 
 ## Docker Modes
@@ -275,19 +282,49 @@ workspacectl s6 status svc-selkies
 workspacectl logs openclaw
 workspacectl ports
 workspacectl browser status
+workspacectl desktop status
 
-# Configure the global Chrome DevTools MCP and open the approval page in Chromium
+# Configure the global Chrome DevTools MCP and start the default managed browser
 workspacectl browser setup
+
+# Configure same-screen desktop Computer Use for every installed Agent
+workspacectl desktop setup
 
 # Once one Agent works, ask it to install another as needed
 workspacectl install agent claude-code
 ```
 
-Browser control uses Chromium 144+'s consent-based auto-connect. Enable remote
-debugging at `chrome://inspect/#remote-debugging` in the current Chromium window,
-then click Allow when an Agent requests access. Agent Workspace does not expose
-port 9222, but an approved Agent can read and operate every tab, cookie, and
-signed-in session in that browser profile, so approve only trusted Agents.
+The default desktop browser starts through `/config/bin/agent-workspace-browser`
+and persists its profile under `/config/.config/agent-browser`. Its Chrome
+DevTools endpoint listens only on container loopback at `127.0.0.1:9222`; it is
+not published through Docker, Caddy, or Tailscale and does not require repeated
+per-Agent approval. Configured container Agents can read and operate every tab,
+cookie, and signed-in session, so managed mode is intended for trusted Agents in
+a single-user workspace.
+
+Native desktop applications use `/config/bin/agent-desktop-mcp`. The safety
+bridge is loopback-only at `127.0.0.1:8765`. Upstream PixelFlux currently binds
+its internal port `8764` to the container interface, so never publish it through
+Docker, Caddy, or Tailscale, and do not join an untrusted Docker network. The bridge provides screenshot, click,
+drag, scroll, key, text, window focus, session state, and emergency stop.
+Web tasks continue to prefer managed Chromium CDP. Run
+`workspacectl desktop emergency-stop` to block all Agent desktop input and
+`workspacectl desktop resume` only after it is safe to continue.
+
+`.deb` files in the desktop file manager open with the Agent Workspace Software
+Installer by default. It shows the package name, version, architecture, source
+path, and privileged-install warning before using `apt` to resolve dependencies.
+Logs are stored in `/config/.local/log/agent-workspace/deb-installer.log`. Agents
+can preview changes with
+`agent-workspace-deb-installer --dry-run /path/to/package.deb`, and should add
+`--yes` for unattended installation only after explicit user approval.
+
+On an existing installation, the first managed launch copies a closed legacy
+`/config/.config/chromium` profile into the managed directory and keeps the old
+directory intact for rollback.
+If Chromium still displays `Work`, that is the internal profile name;
+`chrome://version` should show `/config/.config/agent-browser/Default` as the
+Profile Path.
 
 `/config` is the only persistence boundary. Seeded `/config/Workspace/AGENTS.md`
 and `CLAUDE.md` files explain it to Agents without overwriting existing user
@@ -308,6 +345,7 @@ the module source remains available for development:
 | Control Center | `extensions/control-center` | Unified onboarding plus Agents, resources, services, desktop, networking, and diagnostics |
 | Custom-domain routing | `addons/proxyctl` | Caddy backend installed automatically by `workspacectl network domain` for deployments with existing DNS, TLS, and gateway authentication |
 | Selkies Desktop extension | `extensions/selkies-desktop` | Open and initialize the Selkies desktop inside code-server |
+| Desktop Computer Use | `addons/desktop-bridge` | Same-screen control, global MCP, loopback boundary, and emergency stop |
 | Tailscale network | `addons/tailscale` | Userspace private networking and Tailnet Serve without `NET_ADMIN` |
 | DeepSeek Harness | `addons/deepseek-harness` | Official `dsh`, persistent state, same-origin Web UI, and global resource bridge |
 | Custom s6 services | `scripts/register-config-services.sh` | Automatically register `/config/custom-services.d/<name>/run` with s6 |

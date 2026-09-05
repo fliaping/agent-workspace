@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Install Software Package
+Name[zh_CN]=安装软件包
+Comment=Inspect and install a Debian package in Agent Workspace
+Comment[zh_CN]=检查并在 Agent Workspace 中安装 Debian 软件包
+Exec=/config/bin/agent-workspace-deb-installer %f
+Icon=system-software-install
+Terminal=false
+StartupNotify=true
+Categories=System;
+MimeType=application/vnd.debian.binary-package;application/x-deb;
+Keywords=deb;package;installer;software;

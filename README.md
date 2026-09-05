@@ -24,10 +24,12 @@
 ## 核心特性
 
 - **Agent 开箱即用** — 首次启动可选 Codex、Claude Code、Hermes 或 DeepSeek Harness；Codex 和 Claude Code 会同时安装官方 code-server 扩展
-- **统一双语控制中心** — 一处管理 Agent、全局 MCP 与 Skills、服务、桌面、网络和诊断；中英文切换会同步 code-server
+- **统一双语控制中心** — 一处管理 Agent、托管浏览器、全局 MCP 与 Skills、服务、桌面、网络和诊断；中英文切换会同步 code-server
 - **Agent 可直接操作环境** — `workspacectl` 提供稳定接口，用于检查服务、日志、端口、路由和可选能力
 - **Selkies WebRTC 桌面** — 通过 HTTPS 访问完整 Linux 桌面；可选 XFCE（默认）、LXQt 或 KDE
-- **直接操作用户浏览器** — 经用户明确授权后，Agent 可通过 Chrome DevTools MCP 接管当前 Chromium 标签页与登录会话，无需关闭或复制浏览器
+- **Agent 托管浏览器** — 桌面默认 Chromium 使用持久化托管用户目录，Agent 可直接操作同一窗口、标签页和登录会话，无需每次确认
+- **桌面 Computer Use** — Agent 可截图并操作 Selkies 正在显示的同一个桌面，支持鼠标、键盘、滚动、拖拽、窗口聚焦和紧急停止
+- **桌面软件包安装器** — 在文件管理器中双击 `.deb` 即可检查软件包信息、确认风险并自动解析依赖后安装
 - **灵活的 Docker 权限边界** — 可关闭 Docker、使用容器内 DinD，或显式挂载宿主机 Docker Socket
 - **可选远程网络** — 支持 SSH 隧道、自定义域名 + Caddy 和无需 `NET_ADMIN` 的 Tailscale 自组网
 - **完整开发工具链** — Node.js 22、Go 1.22、Rust、Python 3、Homebrew、uv、tmux，并支持 NVIDIA / Intel / AMD GPU 加速
@@ -153,10 +155,15 @@ docker compose up -d
 | `AGENT_WORKSPACE_AGENT` | `codex` | 首次启动安装 `codex`、`claude-code`、`hermes`、`deepseek-harness` 或 `none` |
 | `SSH_PASSWORD` | 不设置 | 设置后启用 SSH 服务（端口 22），值为 abc 用户密码 |
 | `NODE_OPTIONS` | - | Node.js 选项（如 `--max-old-space-size=2048`） |
+| `AGENT_WORKSPACE_BROWSER_PROFILE` | `/config/.config/agent-browser` | 桌面默认托管 Chromium 的持久化用户目录 |
+| `AGENT_WORKSPACE_BROWSER_PROFILE_NAME` | `Agent Workspace (Managed)` | Chromium 内显示的托管 Profile 名称，用于快速识别是否打开了错误的浏览器 |
+| `AGENT_WORKSPACE_BROWSER_PORT` | `9222` | 仅监听 `127.0.0.1` 的容器内部 Chrome DevTools 端口 |
+| `AGENT_WORKSPACE_BROWSER_DISPLAY` | 自动探测 | 需要覆盖时指定 Chromium 使用的 X 显示器，如 `:0` |
 | `SELKIES_ENABLE_RATE_CONTROL` | `true` | 启用 CRF/CBR 码率控制切换 |
 | `SELKIES_RATE_CONTROL_MODE` | `crf,cbr` | 可选码率模式，首项 CRF 为默认值 |
 | `SELKIES_CONGESTION_CONTROL` | `false` | 关闭会压低动态画质的 GCC 自适应码率 |
 | `SELKIES_ENABLE_RESIZE` | `true` | 浏览器窗口变化时同步调整桌面分辨率 |
+| `PIXELFLUX_CU` | `8764` | Selkies 原生 Computer Use 内部端口；上游绑定容器接口，绝不能通过 Docker 或代理暴露 |
 | `XFCE_PANEL_SCALING` | `true` | Wayland 缩放变化时同步调整 XFCE 面板与图标；设为 `false` 可关闭 |
 
 ## Docker 模式
@@ -261,9 +268,13 @@ workspacectl s6 status svc-selkies
 workspacectl logs openclaw
 workspacectl ports
 workspacectl browser status
+workspacectl desktop status
 
-# 配置全局 Chrome DevTools MCP，并在当前 Chromium 打开授权页
+# 配置全局 Chrome DevTools MCP，并启动桌面默认托管浏览器
 workspacectl browser setup
+
+# 配置同屏桌面 Computer Use，并接入所有已安装 Agent
+workspacectl desktop setup
 
 # 已有任一 Agent 后，让它按需安装另一个 Agent
 workspacectl install agent claude-code
@@ -274,10 +285,31 @@ workspacectl install agent claude-code
 Docker socket 会让 Agent 获得容器外的高权限；`workspacectl info` 会明确提示这个边界。
 Agent 的登录信息和配置写入 `HOME=/config`，因此随唯一的 `/config` 数据卷持久化。
 
-浏览器控制采用 Chromium 144+ 的授权式自动连接。用户需要在当前 Chromium 的
-`chrome://inspect/#remote-debugging` 中启用远程调试，并在 Agent 发起连接时点击允许。
-该能力不会暴露 9222 端口，但获准连接的 Agent 可以读取和操作当前用户目录中的
-全部标签页、Cookie 与登录会话，因此只应授权可信 Agent。
+桌面默认浏览器通过 `/config/bin/agent-workspace-browser` 启动，用户目录持久化在
+`/config/.config/agent-browser`。其 Chrome DevTools 端点只监听容器回环地址
+`127.0.0.1:9222`，不会经 Docker、Caddy 或 Tailscale 暴露，也不会要求每个 Agent
+会话重复确认。容器内配置过 Chrome DevTools MCP 的 Agent 可以读取和操作全部标签页、
+Cookie 与登录会话，因此该模式适用于可信 Agent 的单用户工作区。
+
+原生桌面应用通过 `/config/bin/agent-desktop-mcp` 使用 Computer Use。安全 bridge
+只监听 `127.0.0.1:8765`；上游 PixelFlux 当前会把内部端口 `8764` 绑定到容器
+接口，因此绝不能通过 Docker、Caddy 或 Tailscale 发布，也不应把工作区加入不可信
+Docker 网络。bridge 提供截图、点击、拖拽、滚动、按键、文本输入、窗口聚焦、会话
+状态和紧急停止。网页任务仍默认使用托管浏览器 CDP。需要立即阻断所有 Agent
+桌面输入时执行 `workspacectl desktop emergency-stop`，确认安全后再执行
+`workspacectl desktop resume`。
+
+文件管理器中的 `.deb` 文件默认由 Agent Workspace 软件包安装器打开。安装前会展示
+软件包名称、版本、架构、路径和高权限风险提示，确认后使用 `apt` 自动解析依赖；日志
+保存在 `/config/.local/log/agent-workspace/deb-installer.log`。Agent 可以先运行
+`agent-workspace-deb-installer --dry-run /path/to/package.deb` 检查变更，只有在用户明确
+同意安装后才应添加 `--yes` 执行无人值守安装。
+
+已有环境第一次启动托管浏览器时，如果旧 Chromium 已关闭，启动器会把
+`/config/.config/chromium` 安全复制到托管目录，并保留旧目录作为回退。
+如果 Chromium 内仍显示 `Work`，这是内部 Profile 名称；在
+`chrome://version` 中应能看到 Profile Path 为
+`/config/.config/agent-browser/Default`。
 
 ## 可选能力模块
 
@@ -289,6 +321,7 @@ Agent 的登录信息和配置写入 `HOME=/config`，因此随唯一的 `/confi
 | Control Center | `extensions/control-center` | 统一的首次使用向导，以及 Agent、资源、服务、桌面、网络和诊断界面 |
 | 自定义域名路由 | `addons/proxyctl` | 由 `workspacectl network domain` 自动安装的 Caddy 后端，适合已有 DNS、TLS 和认证网关的部署 |
 | Selkies Desktop | `extensions/selkies-desktop` | 正式桌面能力，在 Control Center 内显示运行状态并一键打开 |
+| Desktop Computer Use | `addons/desktop-bridge` | 同屏桌面控制、全局 MCP、回环权限边界与紧急停止 |
 | Tailscale 自组网 | `addons/tailscale` | 无需 NET_ADMIN 的 userspace 私有网络与 Tailnet Serve |
 | DeepSeek Harness | `addons/deepseek-harness` | 官方 `dsh`、持久化状态、同源 Web UI 与全局资源桥接 |
 | 自定义 s6 服务 | `scripts/register-config-services.sh` | 自动注册 `/config/custom-services.d/<name>/run` 到 s6 |

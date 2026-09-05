@@ -17,6 +17,7 @@ Inspect:
   mcp                          List MCP servers across installed Agents
   locale                       Show the code-server and Control Center language
   browser status               Show desktop-browser Agent control readiness
+  desktop status               Show desktop Computer Use readiness and boundary
   network domain <domain>      Configure the public custom root domain
   tailscale status             Show optional tailnet connection state
   services                     List persistent user services and s6 services
@@ -39,7 +40,11 @@ Operate:
   mcp add <name> <options>     Add one MCP server to selected Agents
   mcp remove <name> <options>  Remove one MCP server from selected Agents
   locale <en|zh-cn> [--restart] Switch the complete browser interface language
-  browser setup                Connect trusted Agents to the user's Chromium window
+  browser setup                Configure the default managed Agent browser
+  browser open                 Open the managed browser without an approval prompt
+  desktop setup                Install Computer Use and connect installed Agents
+  desktop emergency-stop       Immediately block Agent desktop input
+  desktop resume               Re-enable Agent desktop input
   tailscale login              Sign in interactively from a terminal
   tailscale serve              Expose code-server and Selkies inside the tailnet
   update                       Update the Agent Workspace application source
@@ -99,6 +104,17 @@ run_browser_command() {
   helper="$(dirname "$script_path")/workspacectl-browser.py"
   if [[ ! -f "$helper" ]]; then
     echo "workspacectl browser helper is unavailable: $helper" >&2
+    exit 1
+  fi
+  exec python3 "$helper" "$@"
+}
+
+run_desktop_command() {
+  local script_path helper
+  script_path="$(readlink -f "${BASH_SOURCE[0]}")"
+  helper="$(dirname "$script_path")/workspacectl-desktop.py"
+  if [[ ! -f "$helper" ]]; then
+    echo "workspacectl desktop helper is unavailable: $helper" >&2
     exit 1
   fi
   exec python3 "$helper" "$@"
@@ -272,7 +288,7 @@ set -- "${filtered_args[@]}"
 
 if $json_output; then
   case "${1:-status}" in
-    status|info|agents|skills|mcp|locale|browser|tailscale|services|ports|routes|doctor)
+    status|info|agents|skills|mcp|locale|browser|desktop|tailscale|services|ports|routes|doctor)
       run_json_command "${1:-status}"
       ;;
     *)
@@ -328,6 +344,10 @@ case "${1:-help}" in
   browser)
     shift
     run_browser_command "$@"
+    ;;
+  desktop)
+    shift
+    run_desktop_command "$@"
     ;;
   tailscale)
     shift

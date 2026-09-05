@@ -33,7 +33,8 @@ ENV SELKIES_ENABLE_RATE_CONTROL=true \
     SELKIES_RATE_CONTROL_MODE=crf,cbr \
     SELKIES_CONGESTION_CONTROL=false \
     SELKIES_ENABLE_RESIZE=true \
-    XFCE_PANEL_SCALING=true
+    XFCE_PANEL_SCALING=true \
+    PIXELFLUX_CU=8764
 
 # 工具版本
 ENV GO_VERSION="go1.22.4"
@@ -75,8 +76,8 @@ RUN if [ "$USE_CHINA_MIRROR" = "true" ]; then \
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl gnupg sudo \
     build-essential git wget jq unzip xz-utils \
-    python3 python3-pip python3-venv python3-dev \
-    libssl-dev libffi-dev lsof tmux \
+    python3 python3-pip python3-venv python3-dev zenity \
+    libssl-dev libffi-dev lsof tmux wlrctl \
     openssh-server \
     locales fonts-wqy-zenhei fonts-wqy-microhei fonts-noto-cjk \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
@@ -117,8 +118,18 @@ RUN mkdir -p /custom-cont-init.d \
     && ln -sf /usr/local/bin/fix-docker-tmpdir.sh /custom-cont-init.d/fix-docker-tmpdir.sh
 
 RUN chmod +x /usr/local/bin/*.sh /usr/local/bin/agent-workspace-manager \
-        /usr/local/bin/workspacectl \
+        /usr/local/bin/workspacectl /usr/local/bin/agent-workspace-browser \
+        /usr/local/bin/agent-workspace-exo-open \
     && chmod a+r /usr/local/bin/workspacectl-*.py \
+    && if [ -e /usr/bin/exo-open ]; then mv /usr/bin/exo-open /usr/bin/exo-open-real; fi \
+    && cp /usr/local/bin/agent-workspace-exo-open /usr/bin/exo-open \
+    && sed -i 's#^Exec=/usr/local/bin/wrapped-chromium.*#Exec=/usr/local/bin/agent-workspace-browser %U#' \
+        /usr/share/applications/chromium.desktop \
+    && sed -i \
+        -e 's#^X-XFCE-Binaries=.*#X-XFCE-Binaries=agent-workspace-browser;#' \
+        -e 's#^X-XFCE-Commands=.*#X-XFCE-Commands=/usr/local/bin/agent-workspace-browser;#' \
+        -e 's#^X-XFCE-CommandsWithParameter=.*#X-XFCE-CommandsWithParameter=/usr/local/bin/agent-workspace-browser "%s";#' \
+        /usr/share/xfce4/helpers/chromium.desktop \
     && find /etc/services.d -name "run" -exec chmod +x {} \;
 
 # systemctl wrapper: adds --user support on top of docker-systemctl-replacement

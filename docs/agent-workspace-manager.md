@@ -20,6 +20,7 @@ The TUI can:
 
 - update the manager source under `/config/agent-workspace-manager/source`
 - install the secure remote foundation (code-server, Control Center, and desktop integration)
+- install the persistent managed Chromium launcher used by both the desktop user and Agents
 - optionally install the internal Caddy routing backend for an existing wildcard gateway
 - optionally install a no-`NET_ADMIN` Tailscale userspace network
 - register persistent custom s6 services
@@ -56,6 +57,7 @@ agent-workspace-manager install foundation
 agent-workspace-manager install code-server
 agent-workspace-manager install proxyctl
 agent-workspace-manager install desktop
+agent-workspace-manager install computer-use
 agent-workspace-manager install tailscale
 agent-workspace-manager install code-server-extensions
 agent-workspace-manager install custom-services
@@ -89,6 +91,8 @@ workspacectl mcp --json
 workspacectl mcp add <name> --transport http --url <url> --agents all
 workspacectl locale zh-cn --restart
 workspacectl network domain workspace.example.com
+workspacectl desktop setup
+workspacectl desktop emergency-stop
 workspacectl tailscale login
 workspacectl tailscale serve
 agent-workspace-manager install mcpm

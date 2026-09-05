@@ -17,7 +17,9 @@ import socket
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.parse
+import urllib.request
 from typing import Any
 
 try:
@@ -744,6 +746,7 @@ def desktop_capability(service_rows: list[dict[str, Any]]) -> dict[str, Any]:
     service = next((item for item in service_rows if item["id"] == "svc-selkies"), None)
     runtime = pathlib.Path("/run/service/svc-selkies").exists()
     running = bool(service and service["status"] == "running")
+    computer_use = desktop_computer_use_state(service_rows)
     return {
         "installed": integration,
         "runtime_available": runtime,
@@ -753,7 +756,62 @@ def desktop_capability(service_rows: list[dict[str, Any]]) -> dict[str, Any]:
         "local_url": "https://localhost:3001",
         "code_server_path": "/proxy/3000/",
         "install_target": "desktop",
+        "computer_use": computer_use,
     }
+
+
+def desktop_computer_use_state(service_rows: list[dict[str, Any]]) -> dict[str, Any]:
+    service = next((item for item in service_rows if item["id"] == "agent-desktop-bridge"), None)
+    installed = (CONFIG_ROOT / "bin/agent-desktop-mcp").exists()
+    base: dict[str, Any] = {
+        "installed": installed,
+        "running": bool(service and service["status"] == "running"),
+        "state": "stopped" if installed else "missing",
+        "paused": False,
+        "backend_available": False,
+        "backend": "selkies-pixelflux-wayland",
+        "bridge_url": "http://127.0.0.1:8765",
+        "native_url": "http://127.0.0.1:8764",
+        "native_bind": "0.0.0.0:8764",
+        "native_security": "internal upstream; never publish this port",
+        "loopback_only": True,
+        "resolution": {"width": 0, "height": 0},
+        "active_sessions": [],
+        "capabilities": [],
+        "mcp_agents": [],
+        "mcp_configured": False,
+        "window_enumeration_complete": False,
+        "browser_policy": "Use managed Chromium CDP for web tasks; use desktop Computer Use for native applications.",
+    }
+    loaders = {
+        "codex": load_codex_mcp,
+        "claude-code": load_claude_mcp,
+        "hermes": load_hermes_mcp,
+        "deepseek-harness": load_deepseek_mcp,
+    }
+    mcp_agents = [agent for agent, loader in loaders.items() if "agent-desktop" in loader()]
+    base["mcp_agents"] = mcp_agents
+    base["mcp_configured"] = bool(mcp_agents)
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:8765/v1/status", timeout=0.3) as response:
+            value = json.loads(response.read().decode("utf-8"))
+        if isinstance(value, dict):
+            base.update(value)
+            base["installed"] = installed
+            base["running"] = True
+            base["mcp_agents"] = mcp_agents
+            base["mcp_configured"] = bool(mcp_agents)
+    except urllib.error.HTTPError as exc:
+        try:
+            value = json.loads(exc.read().decode("utf-8"))
+            if isinstance(value, dict):
+                base.update(value)
+                base["running"] = True
+        except (OSError, json.JSONDecodeError):
+            pass
+    except (OSError, urllib.error.URLError, json.JSONDecodeError):
+        pass
+    return base
 
 
 def browser_control_state() -> dict[str, Any]:
@@ -764,10 +822,44 @@ def browser_control_state() -> dict[str, Any]:
     profile = pathlib.Path(
         os.environ.get(
             "AGENT_WORKSPACE_BROWSER_PROFILE",
+            str(CONFIG_ROOT / ".config/agent-browser"),
+        )
+    )
+    legacy_profile = pathlib.Path(
+        os.environ.get(
+            "AGENT_WORKSPACE_BROWSER_LEGACY_PROFILE",
             str(CONFIG_ROOT / ".config/chromium"),
         )
     )
+    profile_name = os.environ.get(
+        "AGENT_WORKSPACE_BROWSER_PROFILE_NAME", "Agent Workspace (Managed)"
+    ).strip() or "Agent Workspace (Managed)"
+    profile_directory = "Default"
+    current_profile_name = ""
+    try:
+        local_state = json.loads((profile / "Local State").read_text(encoding="utf-8"))
+        candidate = local_state.get("profile", {}).get("last_used", "Default")
+        if isinstance(candidate, str) and re.fullmatch(r"Default|Profile [0-9]+", candidate):
+            profile_directory = candidate
+    except (OSError, json.JSONDecodeError, AttributeError):
+        pass
+    try:
+        preferences = json.loads(
+            (profile / profile_directory / "Preferences").read_text(encoding="utf-8")
+        )
+        candidate_name = preferences.get("profile", {}).get("name", "")
+        if isinstance(candidate_name, str):
+            current_profile_name = candidate_name.strip()
+    except (OSError, json.JSONDecodeError, AttributeError):
+        pass
+    try:
+        debug_port = int(os.environ.get("AGENT_WORKSPACE_BROWSER_PORT", "9222"))
+    except ValueError:
+        debug_port = 9222
+    if not 1024 <= debug_port <= 65535:
+        debug_port = 9222
     pids = []
+    other_browser_pids = []
     for entry in pathlib.Path("/proc").iterdir():
         if not entry.name.isdigit():
             continue
@@ -777,22 +869,26 @@ def browser_control_state() -> dict[str, Any]:
             continue
         if not command:
             continue
-        executable = pathlib.Path(command[0].decode(errors="ignore")).name
-        if executable in {"chromium", "chrome", "google-chrome", "wrapped-chromium"}:
-            pids.append(int(entry.name))
+        decoded = [item.decode(errors="ignore") for item in command if item]
+        if not decoded:
+            continue
+        command_line = " ".join(decoded)
+        executable = pathlib.Path(decoded[0].split(maxsplit=1)[0]).name
+        if (
+            executable in {"chromium", "chrome", "google-chrome", "wrapped-chromium"}
+            and "--type=" not in command_line
+        ):
+            target = pids if f"--user-data-dir={profile}" in command_line else other_browser_pids
+            target.append(int(entry.name))
 
-    debug_port = 0
     remote_debugging = False
     try:
-        lines = [
-            line.strip()
-            for line in (profile / "DevToolsActivePort").read_text(encoding="utf-8").splitlines()
-            if line.strip()
-        ]
-        debug_port = int(lines[0])
-        with socket.create_connection(("127.0.0.1", debug_port), timeout=0.25):
-            remote_debugging = True
-    except (OSError, ValueError, IndexError):
+        with urllib.request.urlopen(
+            f"http://127.0.0.1:{debug_port}/json/version", timeout=0.25
+        ) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        remote_debugging = isinstance(payload, dict) and bool(payload.get("webSocketDebuggerUrl"))
+    except (OSError, urllib.error.URLError, json.JSONDecodeError):
         pass
 
     loaders = {
@@ -802,15 +898,31 @@ def browser_control_state() -> dict[str, Any]:
         "deepseek-harness": load_deepseek_mcp,
     }
     mcp_agents = [agent for agent, loader in loaders.items() if "chrome-devtools" in loader()]
-    supported = major >= 144
+    managed_default = False
+    for desktop_entry in [
+        CONFIG_ROOT / ".local/share/applications/chromium.desktop",
+        pathlib.Path("/usr/share/applications/chromium.desktop"),
+    ]:
+        try:
+            if "agent-workspace-browser" in desktop_entry.read_text(encoding="utf-8"):
+                managed_default = True
+                break
+        except OSError:
+            continue
+    supported = major >= 136
+    migration_pending = not profile.exists() and (legacy_profile / "Local State").is_file()
     if not binary or not supported:
         state = "unsupported"
     elif not mcp_agents:
         state = "needs-setup"
+    elif migration_pending and other_browser_pids:
+        state = "needs-restart"
+    elif other_browser_pids and not pids:
+        state = "needs-restart"
     elif not pids:
         state = "not-running"
     elif not remote_debugging:
-        state = "needs-approval"
+        state = "needs-restart"
     else:
         state = "ready"
     return {
@@ -821,13 +933,22 @@ def browser_control_state() -> dict[str, Any]:
         "version": version,
         "major_version": major,
         "profile": str(profile),
+        "profile_name": current_profile_name or profile_name,
+        "desired_profile_name": profile_name,
+        "profile_name_applied": current_profile_name == profile_name,
         "running": bool(pids),
         "pids": sorted(pids),
+        "other_browser_pids": sorted(other_browser_pids),
         "remote_debugging": remote_debugging,
         "debug_port": debug_port,
         "mcp_agents": mcp_agents,
         "mcp_configured": bool(mcp_agents),
-        "connection_mode": "consent-based-auto-connect",
+        "connection_mode": "managed-loopback-cdp",
+        "legacy_profile": str(legacy_profile),
+        "profile_exists": profile.exists(),
+        "migration_pending": migration_pending,
+        "legacy_browser_running": bool(other_browser_pids),
+        "managed_default": managed_default,
         "exposed": False,
     }
 
@@ -1112,6 +1233,7 @@ def payload_for(command: str) -> Any:
         "mcp": global_mcp,
         "locale": interface_locale,
         "browser": browser_control_state,
+        "desktop": lambda: desktop_capability(services()),
         "tailscale": tailscale_state,
         "services": services,
         "ports": ports,

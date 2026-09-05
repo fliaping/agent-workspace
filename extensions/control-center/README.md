@@ -5,9 +5,13 @@ operations. It presents Agents, global MCP servers and Skills, workspace access,
 services, ports, proxy routes, capabilities, and diagnostics while using
 `workspacectl --json` as its backend.
 
-Selkies Desktop has its own first-class page for runtime state, editor
-integration, access, session operations, and consent-based Agent control of the
-user's current Chromium window. The separate Network page keeps
+The managed Chromium browser has a first-class page showing its default-launcher
+state, persistent profile, loopback control endpoint, profile migration, and the
+connection status of every installed Agent. Browser MCP setup and launch actions
+live on that page. Selkies Desktop remains a separate capability page for runtime
+state, editor integration, access, and session operations. That page also manages
+the loopback desktop Computer Use bridge, Agent MCP connections, active control
+sessions, the full-desktop permission boundary, and emergency stop. The Network page keeps
 SSH, custom-domain Caddy routing, and optional Tailscale userspace access in one
 place. Tailscale authentication is deliberately handed to an interactive
 terminal instead of being collected by the webview.

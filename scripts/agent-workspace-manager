@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -208,9 +209,14 @@ class WorkspaceManager:
         local_bin_dir.mkdir(parents=True, exist_ok=True)
 
         # Native Agent installers already put ~/.local/bin on PATH. Install
-        # both commands there as compatibility links for older images whose
+        # these commands there as compatibility links for older images whose
         # PATH predates /config/bin.
-        for command in ["agent-workspace-manager", "workspacectl"]:
+        for command in [
+            "agent-workspace-manager",
+            "workspacectl",
+            "agent-workspace-browser",
+            "agent-workspace-deb-installer",
+        ]:
             source_command = root / "scripts" / command
             if not source_command.exists():
                 raise ManagerError(f"missing workspace control command: {source_command}")
@@ -228,6 +234,76 @@ class WorkspaceManager:
             if local_target.exists() or local_target.is_symlink():
                 local_target.unlink()
             local_target.symlink_to(target)
+
+        applications_dir = self.settings.config_root / ".local/share/applications"
+        applications_dir.mkdir(parents=True, exist_ok=True)
+        browser_desktop = root / "desktop/chromium.desktop"
+        if not browser_desktop.is_file():
+            raise ManagerError(f"missing managed browser desktop entry: {browser_desktop}")
+        shutil.copyfile(browser_desktop, applications_dir / "chromium.desktop")
+
+        deb_installer_desktop = root / "desktop/deb-installer.desktop"
+        if not deb_installer_desktop.is_file():
+            raise ManagerError(f"missing Debian package desktop entry: {deb_installer_desktop}")
+        deb_installer_target = applications_dir / "agent-workspace-deb-installer.desktop"
+        shutil.copyfile(deb_installer_desktop, deb_installer_target)
+        deb_installer_target.chmod(0o644)
+        xdg_mime = shutil.which("xdg-mime")
+        if xdg_mime:
+            for mime_type in (
+                "application/vnd.debian.binary-package",
+                "application/x-deb",
+            ):
+                run(
+                    [
+                        xdg_mime,
+                        "default",
+                        deb_installer_target.name,
+                        mime_type,
+                    ],
+                    check=False,
+                )
+        update_desktop_database = shutil.which("update-desktop-database")
+        if update_desktop_database:
+            run([update_desktop_database, str(applications_dir)], check=False)
+
+        xfce_helper_dir = self.settings.config_root / ".local/share/xfce4/helpers"
+        xfce_helper_dir.mkdir(parents=True, exist_ok=True)
+        xfce_helper = root / "desktop/xfce4/helpers/chromium.desktop"
+        if not xfce_helper.is_file():
+            raise ManagerError(f"missing managed browser XFCE helper: {xfce_helper}")
+        shutil.copyfile(xfce_helper, xfce_helper_dir / "chromium.desktop")
+
+        panel_root = self.settings.config_root / ".config/xfce4/panel"
+        for panel_launcher in panel_root.glob("launcher-*/*.desktop"):
+            try:
+                content = panel_launcher.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            updated = re.sub(
+                r"^Exec=exo-open --launch WebBrowser(?:\s+.*)?$",
+                f"Exec={bin_dir / 'agent-workspace-browser'} %u",
+                content,
+                flags=re.MULTILINE,
+            )
+            if updated != content:
+                panel_launcher.write_text(updated, encoding="utf-8")
+
+        shortcut_file = (
+            self.settings.config_root
+            / ".config/xfce4/xfconf/xfce-perchannel-xml/xfce4-keyboard-shortcuts.xml"
+        )
+        if shortcut_file.is_file():
+            try:
+                shortcut_content = shortcut_file.read_text(encoding="utf-8")
+                shortcut_updated = shortcut_content.replace(
+                    'value="exo-open --launch WebBrowser"',
+                    f'value="{bin_dir / "agent-workspace-browser"}"',
+                )
+                if shortcut_updated != shortcut_content:
+                    shortcut_file.write_text(shortcut_updated, encoding="utf-8")
+            except OSError as exc:
+                log(f"warning: could not update XFCE browser shortcuts: {exc}")
 
         workspace_root = self.settings.config_root / "Workspace"
         workspace_root.mkdir(parents=True, exist_ok=True)
@@ -326,7 +402,51 @@ class WorkspaceManager:
     def install_desktop_integration(self) -> None:
         """Install the code-server bridge for the image-provided Selkies desktop."""
         self.install_code_server_extensions()
+        self.install_desktop_bridge()
         log("Selkies Desktop integration is available from Control Center")
+
+    def install_desktop_bridge(self) -> None:
+        """Install the loopback Computer Use bridge and configure installed Agents."""
+        root = self.source_root()
+        assert root is not None
+        installer = root / "addons" / "desktop-bridge" / "install.sh"
+        if not installer.exists():
+            raise ManagerError(f"missing desktop bridge installer: {installer}")
+        log("installing desktop Computer Use bridge")
+        run(["bash", str(installer)], cwd=installer.parent)
+
+        resources = root / "scripts" / "workspacectl-resources.py"
+        available_agents = []
+        for agent, binary in {
+            "codex": "codex",
+            "claude-code": "claude",
+            "hermes": "hermes",
+            "deepseek-harness": "deepseek-harness",
+        }.items():
+            if shutil.which(binary):
+                available_agents.append(agent)
+        if available_agents:
+            log(f"configuring desktop MCP for {', '.join(available_agents)}")
+            result = run(
+                [
+                    sys.executable,
+                    str(resources),
+                    "mcp",
+                    "add",
+                    "agent-desktop",
+                    "--transport",
+                    "stdio",
+                    "--command-line",
+                    str(self.settings.config_root / "bin/agent-desktop-mcp"),
+                    "--agents",
+                    ",".join(available_agents),
+                ],
+                check=False,
+            )
+            if result.returncode != 0:
+                log("warning: desktop bridge is installed, but one or more Agent MCP registrations failed")
+        else:
+            log("no Agent is installed yet; desktop MCP will be added with the first Agent")
 
     def install_tailscale(self) -> None:
         root = self.source_root()
@@ -417,6 +537,31 @@ class WorkspaceManager:
         if onboard:
             log(f"next setup step for {info['label']}: {onboard}")
 
+        desktop_mcp = self.settings.config_root / "bin/agent-desktop-mcp"
+        if desktop_mcp.exists():
+            root = self.source_root()
+            assert root is not None
+            resources = root / "scripts" / "workspacectl-resources.py"
+            log(f"configuring desktop Computer Use MCP for {info['label']}")
+            result = run(
+                [
+                    sys.executable,
+                    str(resources),
+                    "mcp",
+                    "add",
+                    "agent-desktop",
+                    "--transport",
+                    "stdio",
+                    "--command-line",
+                    str(desktop_mcp),
+                    "--agents",
+                    agent,
+                ],
+                check=False,
+            )
+            if result.returncode != 0:
+                log(f"warning: could not add desktop MCP to {info['label']}")
+
     def install_agent_capabilities(self, agents: list[str]) -> None:
         if not agents:
             agents = ["codex"]
@@ -429,6 +574,7 @@ class WorkspaceManager:
             self.install_workspace_controls()
             self.install_code_server()
             self.install_code_server_extensions()
+            self.install_desktop_bridge()
             self.install_custom_services()
         elif target in {"code-server", "code", "ide"}:
             self.install_code_server()
@@ -438,6 +584,8 @@ class WorkspaceManager:
             self.install_mcpm()
         elif target in {"desktop", "selkies"}:
             self.install_desktop_integration()
+        elif target in {"computer-use", "desktop-bridge", "desktop-control"}:
+            self.install_desktop_bridge()
         elif target in {"tailscale", "tailnet"}:
             self.install_tailscale()
         elif target in {"code-server-extensions", "extensions", "vscode"}:
@@ -451,6 +599,7 @@ class WorkspaceManager:
         elif target == "all":
             self.install_code_server()
             self.install_code_server_extensions()
+            self.install_desktop_bridge()
             self.install_custom_services()
             self.install_agent_capabilities(extra_args)
         else:
@@ -497,6 +646,13 @@ class WorkspaceManager:
                 and Path("/run/service/svc-selkies").exists()
                 else "optional",
                 "image runtime + code-server integration",
+            ),
+            (
+                "Desktop Computer Use",
+                "ok"
+                if (self.settings.config_root / "bin/agent-desktop-mcp").exists()
+                else "optional",
+                "loopback bridge + global MCP",
             ),
             (
                 "Tailscale",
@@ -578,6 +734,9 @@ def build_parser() -> argparse.ArgumentParser:
             "mcp-manager",
             "desktop",
             "selkies",
+            "computer-use",
+            "desktop-bridge",
+            "desktop-control",
             "tailscale",
             "tailnet",
             "code-server-extensions",
@@ -688,6 +847,7 @@ def run_tui(manager: WorkspaceManager) -> int:
             "code_server": ("Installing code-server", "Install code-server"),
             "proxyctl": ("Installing custom-domain routing", "Install custom-domain routing"),
             "desktop": ("Installing Selkies Desktop integration", "Install Selkies Desktop integration"),
+            "computer_use": ("Installing desktop Computer Use", "Install desktop Computer Use"),
             "tailscale": ("Installing Tailscale", "Install Tailscale userspace network"),
             "mcpm": ("Installing MCPM", "Install global MCP manager"),
             "extensions": ("Installing code-server extensions", "Install code-server extensions"),
@@ -753,6 +913,7 @@ def run_tui(manager: WorkspaceManager) -> int:
                 "code_server": manager.install_code_server,
                 "proxyctl": manager.install_proxyctl,
                 "desktop": manager.install_desktop_integration,
+                "computer_use": manager.install_desktop_bridge,
                 "tailscale": manager.install_tailscale,
                 "mcpm": manager.install_mcpm,
                 "extensions": manager.install_code_server_extensions,

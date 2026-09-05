@@ -47,7 +47,7 @@ function strings() {
   const zh = vscode.env.language.toLowerCase().startsWith('zh');
   if (!zh) {
     return {
-      overview: 'Overview', agents: 'Agents', resources: 'MCP & Skills', services: 'Services', desktop: 'Desktop', network: 'Network', diagnostics: 'Diagnostics',
+      overview: 'Overview', agents: 'Agents', resources: 'MCP & Skills', services: 'Services', browser: 'Browser', desktop: 'Desktop', network: 'Network', diagnostics: 'Diagnostics',
       title: 'Agent Workspace', subtitle: 'One place to understand and operate your remote Agent environment.',
       ready: 'Workspace ready', attention: 'Needs attention', refreshing: 'Refreshing', refresh: 'Refresh',
       openDesktop: 'Open desktop', openTerminal: 'Open terminal', openWorkspace: 'Open workspace',
@@ -100,17 +100,32 @@ function strings() {
       desktopHelp: 'Operate the graphical workspace independently from networking and services.',
       desktopRuntime: 'Image runtime', desktopIntegration: 'Editor integration', desktopSession: 'Desktop session',
       desktopAccess: 'Desktop access', desktopPath: 'code-server path', copyDesktopTunnel: 'Copy desktop SSH tunnel',
-      browserControl: 'Agent browser control', browserControlReady: 'Agents can request access to the Chromium window you are using.',
-      browserControlHelp: 'Uses Chrome consent-based auto-connect. It keeps the current profile, login state, tabs, and browser process.',
-      browserRunning: 'Browser running', browserApproval: 'User approval required', browserAgents: 'Configured Agents',
-      browserSecurity: 'Approved Agents can read and operate every open tab and logged-in session in this browser profile.',
-      enableBrowserControl: 'Enable Agent control', openBrowserApproval: 'Open approval settings',
-      browserNeedsSetup: 'MCP setup required', browserNeedsApproval: 'Enable Remote debugging in Chromium', browserNotRunning: 'Start Chromium',
-      browserUnsupported: 'Chromium 144 or newer is required', browserApprovalHint: 'In the desktop Chromium window, enable Remote debugging and click Allow when the Agent requests access.'
+      computerUse: 'Desktop Computer Use', computerUseHelp: 'Agents can see and operate the same native desktop shown by Selkies.',
+      computerUseReady: 'Computer Use ready', computerUsePaused: 'Input is paused', computerUseStopped: 'Bridge is stopped', computerUseBackendMissing: 'Selkies control backend unavailable',
+      setupComputerUse: 'Set up Computer Use', emergencyStop: 'Emergency stop', resumeControl: 'Resume control',
+      controlEndpoint: 'Control endpoint', screenResolution: 'Screen resolution', activeSessions: 'Active sessions', agentConnections: 'Agent connections',
+      noActiveSessions: 'No active Agent control session.', computerUseBoundary: 'Full desktop boundary',
+      computerUseBoundaryDetail: 'Trusted container Agents can view the complete screen and send mouse or keyboard input. The bridge is loopback-only; never publish the internal PixelFlux port.',
+      browserFirstPolicy: 'Web tasks use the managed browser through CDP. Desktop Computer Use is reserved for native applications.',
+      browserControl: 'Managed Agent browser', browserControlReady: 'Agents can operate the same persistent Chromium window used on the desktop.',
+      browserControlHelp: 'The default desktop browser uses a managed profile and a loopback-only control endpoint. Agent sessions connect without repeated approval prompts.',
+      browserRunning: 'Browser running', browserApproval: 'Control endpoint', browserAgents: 'Configured Agents',
+      browserSecurity: 'Container Agents can read and operate every open tab and logged-in session in this managed browser profile.',
+      enableBrowserControl: 'Set up managed browser', openManagedBrowser: 'Open managed browser',
+      browserNeedsSetup: 'MCP setup required', browserNeedsApproval: 'Restart in managed mode', browserNotRunning: 'Managed browser is stopped',
+      browserUnsupported: 'Chromium 136 or newer is required', browserApprovalHint: 'Managed browser control is local to the container and no longer asks for per-session approval.',
+      browserPageHelp: 'Set up and inspect the browser shared by the desktop user and trusted Agents.',
+      browserProfile: 'Managed profile', browserProfileName: 'Visible profile name', browserProfileNamePending: 'New name applies after restarting the managed browser', browserEndpoint: 'Local control endpoint', browserDefault: 'Default desktop browser',
+      browserDefaultReady: 'Managed launcher active', browserDefaultMissing: 'Managed launcher not installed',
+      browserMcpTitle: 'Agent connections', browserMcpHelp: 'Chrome DevTools MCP is configured globally for installed Agents.',
+      browserConnected: 'Connected', browserNotConnected: 'Not configured', browserNoAgents: 'Install an Agent before configuring browser access.',
+      browserMigration: 'Existing browser data', browserMigrationPending: 'Will be copied on first managed launch', browserMigrationComplete: 'Managed profile is ready', browserProfileOnFirstLaunch: 'A new managed profile will be created on first launch',
+      browserBoundary: 'Access boundary', browserBoundaryDetail: 'Only processes inside this trusted single-user container can reach the loopback control endpoint.',
+      browserSettings: 'Browser settings', applyBrowserSettings: 'Apply Agent configuration'
     };
   }
   return {
-    overview: '总览', agents: 'Agents', resources: 'MCP 与 Skills', services: '服务', desktop: '桌面', network: '网络', diagnostics: '诊断',
+    overview: '总览', agents: 'Agents', resources: 'MCP 与 Skills', services: '服务', browser: '浏览器', desktop: '桌面', network: '网络', diagnostics: '诊断',
     title: 'Agent Workspace', subtitle: '在一个地方了解和管理你的远程 Agent 环境。',
     ready: '工作区已就绪', attention: '需要处理', refreshing: '正在刷新', refresh: '刷新',
     openDesktop: '打开桌面', openTerminal: '打开终端', openWorkspace: '打开工作区',
@@ -163,13 +178,28 @@ function strings() {
     desktopHelp: '独立管理图形工作区，不与网络和服务功能混在一起。',
     desktopRuntime: '镜像运行时', desktopIntegration: '编辑器集成', desktopSession: '桌面会话',
     desktopAccess: '桌面访问', desktopPath: 'code-server 路径', copyDesktopTunnel: '复制桌面 SSH 隧道',
-    browserControl: 'Agent 浏览器控制', browserControlReady: 'Agent 可以请求访问你正在使用的 Chromium 窗口。',
-    browserControlHelp: '使用 Chromium 的授权式自动连接；保留当前用户目录、登录状态、标签页和浏览器进程。',
-    browserRunning: '浏览器运行状态', browserApproval: '用户授权', browserAgents: '已配置 Agent',
-    browserSecurity: '授权后的 Agent 可以读取并操作这个浏览器用户目录中的全部标签页和登录会话。',
-    enableBrowserControl: '启用 Agent 控制', openBrowserApproval: '打开授权设置',
-    browserNeedsSetup: '需要配置 MCP', browserNeedsApproval: '请在 Chromium 中启用远程调试', browserNotRunning: '请启动 Chromium',
-    browserUnsupported: '需要 Chromium 144 或更高版本', browserApprovalHint: '请在桌面 Chromium 窗口中启用“远程调试”，并在 Agent 请求连接时点击“允许”。'
+    computerUse: '桌面 Computer Use', computerUseHelp: 'Agent 可以看到并操作 Selkies 正在展示的同一个原生桌面。',
+    computerUseReady: 'Computer Use 已就绪', computerUsePaused: '输入已暂停', computerUseStopped: 'Bridge 已停止', computerUseBackendMissing: 'Selkies 控制后端不可用',
+    setupComputerUse: '配置 Computer Use', emergencyStop: '紧急停止', resumeControl: '恢复控制',
+    controlEndpoint: '控制端点', screenResolution: '屏幕分辨率', activeSessions: '活动控制会话', agentConnections: 'Agent 连接',
+    noActiveSessions: '当前没有 Agent 控制会话。', computerUseBoundary: '完整桌面权限边界',
+    computerUseBoundaryDetail: '可信容器内的 Agent 可以查看完整屏幕，并发送鼠标和键盘输入；bridge 仅监听回环地址，绝不能发布内部 PixelFlux 端口。',
+    browserFirstPolicy: '网页任务默认使用托管浏览器 CDP；只有原生桌面应用使用 Computer Use。',
+    browserControl: 'Agent 托管浏览器', browserControlReady: 'Agent 与桌面用户共同操作同一个持久化 Chromium 窗口。',
+    browserControlHelp: '桌面默认浏览器使用托管用户目录和仅回环开放的控制端点，Agent 会话无需反复授权。',
+    browserRunning: '浏览器运行状态', browserApproval: '控制端点', browserAgents: '已配置 Agent',
+    browserSecurity: '容器内 Agent 可以读取并操作托管浏览器用户目录中的全部标签页和登录会话。',
+    enableBrowserControl: '配置托管浏览器', openManagedBrowser: '打开托管浏览器',
+    browserNeedsSetup: '需要配置 MCP', browserNeedsApproval: '需要以托管模式重启', browserNotRunning: '托管浏览器未运行',
+    browserUnsupported: '需要 Chromium 136 或更高版本', browserApprovalHint: '托管浏览器控制仅在容器内部开放，不再要求每个 Agent 会话重复授权。',
+    browserPageHelp: '配置并查看桌面用户与可信 Agent 共用的浏览器能力。',
+    browserProfile: '托管用户目录', browserProfileName: '可见 Profile 名称', browserProfileNamePending: '重启托管浏览器后应用新名称', browserEndpoint: '本地控制端点', browserDefault: '桌面默认浏览器',
+    browserDefaultReady: '托管启动器已生效', browserDefaultMissing: '托管启动器未安装',
+    browserMcpTitle: 'Agent 连接', browserMcpHelp: '通过全局 Chrome DevTools MCP 为已安装 Agent 提供浏览器能力。',
+    browserConnected: '已接入', browserNotConnected: '未配置', browserNoAgents: '请先安装一个 Agent，再配置浏览器能力。',
+    browserMigration: '现有浏览器数据', browserMigrationPending: '首次托管启动时将自动复制', browserMigrationComplete: '托管用户目录已就绪', browserProfileOnFirstLaunch: '首次启动时将创建新的托管用户目录',
+    browserBoundary: '访问边界', browserBoundaryDetail: '只有这个可信单用户容器内的进程可以访问回环控制端点。',
+    browserSettings: '浏览器设置', applyBrowserSettings: '应用 Agent 配置'
   };
 }
 
@@ -372,9 +402,9 @@ class ControlCenter {
     await this.openDesktop();
   }
 
-  async openBrowserApproval() {
+  async openManagedBrowser() {
     const copy = strings();
-    const ok = await this.operation(copy.openBrowserApproval, ['browser', 'approve'], 30000);
+    const ok = await this.operation(copy.openManagedBrowser, ['browser', 'open'], 30000);
     if (!ok) return;
     vscode.window.showWarningMessage(copy.browserApprovalHint);
     await this.openDesktop();
@@ -447,11 +477,31 @@ class ControlCenter {
         case 'installDesktop':
           await this.operation('Install Selkies Desktop integration', ['install', 'desktop']);
           break;
+        case 'setupComputerUse':
+          await this.operation(strings().setupComputerUse, ['desktop', 'setup'], 180000);
+          break;
+        case 'desktopControl':
+          if (['start', 'stop', 'restart', 'resume'].includes(message.action)) {
+            await this.operation(`${strings().computerUse}: ${message.action}`, ['desktop', message.action], 60000);
+          }
+          break;
+        case 'desktopEmergencyStop': {
+          const copy = strings();
+          const choice = await vscode.window.showWarningMessage(
+            `${copy.emergencyStop}: ${copy.computerUseBoundaryDetail}`,
+            { modal: true },
+            copy.emergencyStop
+          );
+          if (choice === copy.emergencyStop) {
+            await this.operation(copy.emergencyStop, ['desktop', 'emergency-stop'], 30000);
+          }
+          break;
+        }
         case 'setupBrowser':
           await this.setupBrowser();
           break;
-        case 'openBrowserApproval':
-          await this.openBrowserApproval();
+        case 'openManagedBrowser':
+          await this.openManagedBrowser();
           break;
         case 'installTailscale':
           await this.operation('Install Tailscale', ['install', 'tailscale']);
@@ -739,7 +789,7 @@ const stateLabel=(value)=>({ready:copy.installed,missing:copy.missing,optional:c
 const dot=(state)=>'<span class="status-dot '+esc(state)+'"></span>';
 const dockerText=(docker)=>docker.mode==='socket'?{label:copy.dockerSocketLabel,detail:copy.dockerSocketDetail}:docker.mode==='isolated'?{label:copy.dockerIsolatedLabel,detail:copy.dockerIsolatedDetail}:{label:copy.dockerDisabledLabel,detail:copy.dockerDisabledDetail};
 function toast(message){const el=document.getElementById('toast');el.textContent=message;el.style.display='block';setTimeout(()=>el.style.display='none',2600)}
-function nav(){const items=[['overview','⌂',copy.overview],['agents','✦',copy.agents],['resources','⬡',copy.resources],['services','◫',copy.services],['desktop','▰',copy.desktop],['network','⌁',copy.network],['diagnostics','◇',copy.diagnostics]];document.getElementById('nav').innerHTML=items.map(([id,icon,label])=>'<button class="'+(page===id?'active':'')+'" data-nav="'+id+'"><span class="icon">'+icon+'</span><span>'+label+'</span></button>').join('');}
+function nav(){const items=[['overview','⌂',copy.overview],['agents','✦',copy.agents],['browser','◉',copy.browser],['resources','⬡',copy.resources],['services','◫',copy.services],['desktop','▰',copy.desktop],['network','⌁',copy.network],['diagnostics','◇',copy.diagnostics]];document.getElementById('nav').innerHTML=items.map(([id,icon,label])=>'<button class="'+(page===id?'active':'')+'" data-nav="'+id+'"><span class="icon">'+icon+'</span><span>'+label+'</span></button>').join('');}
 function health(){if(!data)return;const ok=data.summary.healthy;document.getElementById('health-label').textContent=ok?copy.ready:copy.attention;document.getElementById('health-dot').style.background=ok?'var(--aw-good)':'var(--aw-warn)';document.getElementById('nav-revision').textContent=(data.revision?copy.revision+' '+data.revision:'');const language=document.getElementById('language-toggle');if(language&&data.locale){language.textContent=data.locale.current==='zh-cn'?'EN':'中文';language.title=copy.switchLanguage+' · '+data.locale.label;}}
 function pageHead(title,body,actions=''){return '<div class="page-head"><div><h2>'+title+'</h2><p>'+body+'</p></div><div>'+actions+'</div></div>';}
 function overview(){const agents=data.agents.filter(a=>a.installed);const services=data.services.filter(s=>s.status==='running');const docker=data.workspace.docker;const dockerCopy=dockerText(docker);const featured=data.services.filter(s=>s.kind==='systemd').slice(0,5);return pageHead(copy.overview,copy.subtitle)+
@@ -747,7 +797,7 @@ function overview(){const agents=data.agents.filter(a=>a.installed);const servic
 '<section class="card span-4"><h3>'+copy.installedAgents+'</h3><div class="metric">'+agents.length+' <small>/ '+data.agents.length+'</small></div><div class="muted">'+(agents.map(a=>esc(a.label)).join(' · ')||copy.noAgents)+'</div></section>'+
 '<section class="card span-4"><h3>'+copy.runningServices+'</h3><div class="metric">'+services.length+' <small>/ '+data.services.length+'</small></div><div class="muted">systemd user + s6</div></section>'+
 '<section class="card span-4"><h3>'+copy.secureMode+'</h3><div class="metric" style="font-size:18px">'+esc(dockerCopy.label)+'</div><div class="muted">'+esc(dockerCopy.detail)+'</div></section>'+
-'<section class="card span-6"><div class="section-title"><h3>'+copy.quickStart+'</h3></div><div class="list"><div class="list-row">'+dot(agents.length?'ready':'missing')+'<div class="list-main"><strong>'+copy.agents+'</strong><small>'+esc(agents.length?agents[0].version:copy.agentHelp)+'</small></div><button class="button ghost small" data-nav="agents">'+copy.viewAll+'</button></div><div class="list-row">'+dot(data.skills.shared_count?'ready':'optional')+'<div class="list-main"><strong>'+copy.resources+'</strong><small>'+esc(data.mcp.count+' MCP · '+data.skills.shared_count+' Skills')+'</small></div><button class="button ghost small" data-nav="resources">'+copy.detail+'</button></div><div class="list-row">'+dot('ready')+'<div class="list-main"><strong>'+copy.openWorkspace+'</strong><small>'+esc(data.workspace.root)+'</small></div><button class="button ghost small" data-action="openWorkspace">'+copy.open+'</button></div><div class="list-row">'+dot(data.network.mode==='incomplete'?'needs-attention':data.network.installed?'ready':'optional')+'<div class="list-main"><strong>'+copy.proxyRoutes+'</strong><small>'+esc(data.network.installed?(data.network.root_domain||copy.installed):data.network.mode==='incomplete'?copy.attention:copy.optional)+'</small></div><button class="button ghost small" data-nav="network">'+copy.detail+'</button></div></div></section>'+
+'<section class="card span-6"><div class="section-title"><h3>'+copy.quickStart+'</h3></div><div class="list"><div class="list-row">'+dot(agents.length?'ready':'missing')+'<div class="list-main"><strong>'+copy.agents+'</strong><small>'+esc(agents.length?agents[0].version:copy.agentHelp)+'</small></div><button class="button ghost small" data-nav="agents">'+copy.viewAll+'</button></div><div class="list-row">'+dot(data.browser&&data.browser.state==='ready'?'ready':data.browser&&data.browser.state==='needs-restart'?'needs-attention':'optional')+'<div class="list-main"><strong>'+copy.browser+'</strong><small>'+esc(data.browser&&data.browser.state==='ready'?copy.browserControlReady:copy.browserNeedsSetup)+'</small></div><button class="button ghost small" data-nav="browser">'+copy.detail+'</button></div><div class="list-row">'+dot(data.skills.shared_count?'ready':'optional')+'<div class="list-main"><strong>'+copy.resources+'</strong><small>'+esc(data.mcp.count+' MCP · '+data.skills.shared_count+' Skills')+'</small></div><button class="button ghost small" data-nav="resources">'+copy.detail+'</button></div><div class="list-row">'+dot('ready')+'<div class="list-main"><strong>'+copy.openWorkspace+'</strong><small>'+esc(data.workspace.root)+'</small></div><button class="button ghost small" data-action="openWorkspace">'+copy.open+'</button></div><div class="list-row">'+dot(data.network.mode==='incomplete'?'needs-attention':data.network.installed?'ready':'optional')+'<div class="list-main"><strong>'+copy.proxyRoutes+'</strong><small>'+esc(data.network.installed?(data.network.root_domain||copy.installed):data.network.mode==='incomplete'?copy.attention:copy.optional)+'</small></div><button class="button ghost small" data-nav="network">'+copy.detail+'</button></div></div></section>'+
 '<section class="card span-6"><div class="section-title"><h3>'+copy.recentServices+'</h3><button class="button ghost small" data-nav="services">'+copy.viewAll+'</button></div><div class="list">'+(featured.length?featured.map(serviceRow).join(''):'<div class="empty">'+copy.noServices+'</div>')+'</div></section></div>';}
 function serviceRow(s){return '<div class="list-row">'+dot(s.status)+'<div class="list-main"><strong>'+esc(s.name)+'</strong><small>'+esc(s.kind+' · '+s.status+(s.pid?' · PID '+s.pid:''))+'</small></div></div>';}
 function agentsPage(){return pageHead(copy.agents,copy.agentHelp)+ '<div class="agent-grid">'+data.agents.map(a=>{const color=a.accent==='amber'?'#dda65c':a.accent==='cyan'?'#45c9c2':a.accent==='green'?'#55c98f':'#8b7cf6';const primary=a.installed?(a.web_path?'<button class="button" data-action="openPath" data-path="'+esc(a.web_path)+'">'+copy.open+'</button>':'<button class="button" data-action="launchAgent" data-command="'+esc(a.launch)+'">'+copy.launch+'</button>'):'<button class="button" data-action="installAgent" data-id="'+esc(a.id)+'">'+copy.install+'</button>';return '<section class="card agent-card" style="--agent:'+color+'"><div class="agent-top"><div class="agent-avatar">'+esc(a.label.slice(0,2).toUpperCase())+'</div><div><div class="agent-name">'+esc(a.label)+'</div><span class="badge '+(a.installed?'ready':'optional')+'">'+(a.installed?copy.installed:copy.optional)+'</span> '+(a.selected?'<span class="badge">'+copy.selected+'</span>':'')+'</div></div><p class="muted">'+esc(a.version||copy.versionUnknown)+'</p><div class="code">'+esc(a.web_path||a.launch)+'</div><div class="agent-actions">'+primary+'<button class="button ghost" data-action="terminal">'+copy.openTerminal+'</button></div></section>';}).join('')+'</div>';}
@@ -759,18 +809,48 @@ function resourcesPage(){const needle=resourceFilter.toLowerCase();const servers
 function servicesPage(){const needle=serviceFilter.toLowerCase();const rows=data.services.filter(s=>(s.name+' '+s.id+' '+s.kind).toLowerCase().includes(needle));return pageHead(copy.services,copy.recentServices,'<input id="service-filter" class="filter" placeholder="'+copy.searchServices+'" value="'+esc(serviceFilter)+'">')+'<div class="table-wrap"><table><thead><tr><th>'+copy.service+'</th><th>'+copy.kind+'</th><th>'+copy.status+'</th><th>PID</th><th style="text-align:right">'+copy.actions+'</th></tr></thead><tbody>'+(rows.length?rows.map(s=>'<tr><td>'+dot(s.status)+' <strong>'+esc(s.name)+'</strong><div class="muted">'+esc(s.id)+'</div></td><td>'+esc(s.kind+(s.scope?' · '+s.scope:''))+'</td><td class="state-'+esc(s.status)+'">'+esc(stateLabel(s.status))+'</td><td>'+esc(s.pid||'—')+'</td><td><div class="row-actions">'+(s.status==='running'?'<button class="button ghost small" data-action="service" data-op="stop" data-kind="'+esc(s.kind)+'" data-id="'+esc(s.id)+'">'+copy.stop+'</button>':'<button class="button ghost small" data-action="service" data-op="start" data-kind="'+esc(s.kind)+'" data-id="'+esc(s.id)+'">'+copy.start+'</button>')+'<button class="button ghost small" data-action="service" data-op="restart" data-kind="'+esc(s.kind)+'" data-id="'+esc(s.id)+'">'+copy.restart+'</button>'+(s.kind==='systemd'?'<button class="button ghost small" data-action="logs" data-id="'+esc(s.id)+'">'+copy.logs+'</button>':'')+'</div></td></tr>').join(''):'<tr><td colspan="5" class="empty">'+copy.noServices+'</td></tr>')+'</tbody></table></div>';}
 function desktopPage(){
   const desktop=data.desktop||{installed:false,runtime_available:false,running:false,state:'missing',local_url:'https://localhost:3001',code_server_path:'/proxy/3000/',service:'svc-selkies'};
-  const browser=data.browser||{installed:false,supported:false,state:'unsupported',running:false,remote_debugging:false,mcp_agents:[],version:'',profile:'/config/.config/chromium'};
+  const cu=desktop.computer_use||{installed:false,running:false,state:'missing',paused:false,backend_available:false,loopback_only:true,resolution:{width:0,height:0},active_sessions:[],mcp_agents:[],capabilities:[],bridge_url:'http://127.0.0.1:8765',native_url:'http://127.0.0.1:8764'};
   const ready=desktop.installed&&desktop.runtime_available;
   const actions=ready?'<button class="button" data-action="openDesktop">'+copy.openDesktop+'</button>':'<button class="button" data-action="installDesktop">'+copy.installDesktop+'</button>';
-  const browserStatus=browser.state==='ready'?copy.ready:browser.state==='needs-setup'?copy.browserNeedsSetup:browser.state==='needs-approval'?copy.browserNeedsApproval:browser.state==='not-running'?copy.browserNotRunning:copy.browserUnsupported;
-  const browserAction=browser.state==='needs-setup'?'<button class="button" data-action="setupBrowser">'+copy.enableBrowserControl+'</button>':browser.supported&&!browser.remote_debugging?'<button class="button" data-action="openBrowserApproval">'+copy.openBrowserApproval+'</button>':'<button class="button ghost" data-action="openDesktop">'+copy.openDesktop+'</button>';
+  const cuLabel=cu.paused?copy.computerUsePaused:cu.state==='ready'?copy.computerUseReady:cu.running?copy.computerUseBackendMissing:copy.computerUseStopped;
+  const cuTone=cu.paused?'needs-attention':cu.state==='ready'?'ready':'optional';
+  const resolution=cu.resolution&&cu.resolution.width?cu.resolution.width+' × '+cu.resolution.height:copy.unknown;
+  const agentConnections=(cu.mcp_agents||[]).length?(cu.mcp_agents||[]).map(id=>'<span class="badge ready">'+esc(agentLabel(id))+'</span>').join(' '):'<span class="muted">'+copy.browserNoAgents+'</span>';
+  const sessions=(cu.active_sessions||[]).length?(cu.active_sessions||[]).map(session=>'<div class="list-row">'+dot('ready')+'<div class="list-main"><strong>'+esc(session.id)+'</strong><small>'+esc(session.last_action+' · '+session.idle_seconds+'s')+'</small></div></div>').join(''):'<div class="empty">'+copy.noActiveSessions+'</div>';
+  const controlActions=!cu.installed?'<button class="button" data-action="setupComputerUse">'+copy.setupComputerUse+'</button>':!cu.running?'<button class="button" data-action="desktopControl" data-op="start">'+copy.start+'</button>':cu.paused?'<button class="button" data-action="desktopControl" data-op="resume">'+copy.resumeControl+'</button>':'<button class="button danger" data-action="desktopEmergencyStop">'+copy.emergencyStop+'</button> <button class="button ghost" data-action="desktopControl" data-op="stop">'+copy.stop+'</button>';
   return pageHead(copy.desktop,copy.desktopHelp,actions)+'<div class="grid">'+
     '<section class="card hero span-12"><h2>'+copy.selkiesCapability+'</h2><p>'+(ready?copy.desktopReady:copy.desktopUnavailable)+'</p><div class="hero-actions">'+actions+(desktop.runtime_available?' <button class="button ghost" data-action="service" data-op="restart" data-kind="s6" data-id="'+esc(desktop.service)+'">'+copy.restart+'</button>':'')+'</div></section>'+
     '<section class="card span-4"><h3>'+copy.desktopRuntime+'</h3><div class="metric" style="font-size:18px">'+esc(desktop.runtime_available?copy.ready:copy.missing)+'</div><div class="muted">/run/service/'+esc(desktop.service)+'</div></section>'+
     '<section class="card span-4"><h3>'+copy.desktopIntegration+'</h3><div class="metric" style="font-size:18px">'+esc(desktop.installed?copy.installed:copy.missing)+'</div><div class="muted">agent-workspace.selkies-desktop</div></section>'+
     '<section class="card span-4"><h3>'+copy.desktopSession+'</h3><div class="metric" style="font-size:18px">'+esc(desktop.running?copy.ready:copy.optional)+'</div><div class="muted">'+esc(desktop.service)+'</div></section>'+
-    '<section class="card span-12"><div class="section-title"><div><h3>'+copy.browserControl+'</h3><span class="muted">'+esc(browser.version||copy.browserUnsupported)+'</span></div>'+dot(browser.state==='ready'?'ready':browser.state==='needs-setup'||browser.state==='unsupported'?'optional':'needs-attention')+'</div><div class="metric" style="font-size:18px">'+esc(browserStatus)+'</div><p class="muted">'+copy.browserControlHelp+'</p><div class="list"><div class="list-row">'+dot(browser.running?'ready':'optional')+'<div class="list-main"><strong>'+copy.browserRunning+'</strong><small>'+esc(browser.running?copy.ready:copy.browserNotRunning)+'</small></div></div><div class="list-row">'+dot(browser.remote_debugging?'ready':browser.mcp_configured?'needs-attention':'optional')+'<div class="list-main"><strong>'+copy.browserApproval+'</strong><small>'+esc(browser.remote_debugging?copy.ready:browser.mcp_configured?copy.browserNeedsApproval:copy.optional)+'</small></div></div><div class="list-row">'+dot(browser.mcp_agents.length?'ready':'optional')+'<div class="list-main"><strong>'+copy.browserAgents+'</strong><small>'+esc(browser.mcp_agents.join(', ')||copy.browserNeedsSetup)+'</small></div></div></div><p class="muted" style="color:var(--aw-warn)">'+copy.browserSecurity+'</p><div class="hero-actions">'+browserAction+'</div></section>'+
+    '<section class="card hero span-12"><div class="section-title"><div><h2>'+copy.computerUse+'</h2><span class="muted">'+copy.computerUseHelp+'</span></div>'+dot(cuTone)+'</div><div class="metric" style="font-size:18px">'+esc(cuLabel)+'</div><p>'+copy.browserFirstPolicy+'</p><div class="hero-actions">'+controlActions+'</div></section>'+
+    '<section class="card span-4"><h3>'+copy.controlEndpoint+'</h3><div class="metric" style="font-size:17px">'+esc(cu.loopback_only?copy.ready:copy.attention)+'</div><div class="muted">Bridge: '+esc(cu.bridge_url)+'</div><div class="muted">PixelFlux: '+esc(cu.native_bind||cu.native_url)+'</div></section>'+
+    '<section class="card span-4"><h3>'+copy.screenResolution+'</h3><div class="metric" style="font-size:18px">'+esc(resolution)+'</div><div class="muted">Wayland · PixelFlux</div></section>'+
+    '<section class="card span-4"><h3>'+copy.agentConnections+'</h3><div style="margin-top:16px">'+agentConnections+'</div><div class="muted" style="margin-top:9px">MCP · '+esc((cu.capabilities||[]).length)+' tools</div></section>'+
+    '<section class="card span-8"><div class="section-title"><h3>'+copy.activeSessions+'</h3><span class="badge '+((cu.active_sessions||[]).length?'ready':'optional')+'">'+esc((cu.active_sessions||[]).length)+'</span></div><div class="list">'+sessions+'</div></section>'+
+    '<section class="card span-4"><div class="risk high"><div class="risk-icon">!</div><div><h3>'+copy.computerUseBoundary+'</h3><p class="muted">'+copy.computerUseBoundaryDetail+'</p></div></div></section>'+
     '<section class="card span-12"><div class="section-title"><h3>'+copy.desktopAccess+'</h3></div><div class="list"><div class="list-row">'+dot(desktop.running?'ready':'optional')+'<div class="list-main"><strong>'+copy.desktopPath+'</strong><small>'+esc(desktop.code_server_path)+'</small></div><button class="button ghost small" data-action="openDesktop">'+copy.open+'</button></div><div class="list-row">'+dot(desktop.running?'ready':'optional')+'<div class="list-main"><strong>HTTPS</strong><small>'+esc(desktop.local_url)+'</small></div></div></div><div class="code">ssh -N -L 3001:127.0.0.1:3001 user@server</div><button class="button ghost small" style="margin-top:9px" data-action="copyDesktopTunnel">'+copy.copyDesktopTunnel+'</button></section></div>';
+}
+function browserPage(){
+  const browser=data.browser||{installed:false,supported:false,state:'unsupported',running:false,remote_debugging:false,mcp_agents:[],mcp_configured:false,version:'',profile:'/config/.config/agent-browser',profile_name:'Agent Workspace (Managed)',desired_profile_name:'Agent Workspace (Managed)',profile_name_applied:false,legacy_profile:'/config/.config/chromium',debug_port:9222,managed_default:false,profile_exists:false,migration_pending:false};
+  const installedAgents=data.agents.filter(agent=>agent.installed);
+  const browserStatus=browser.state==='ready'?copy.ready:browser.state==='needs-setup'?copy.browserNeedsSetup:browser.state==='needs-restart'?copy.browserNeedsApproval:browser.state==='not-running'?copy.browserNotRunning:copy.browserUnsupported;
+  const browserTone=browser.state==='ready'?'ready':browser.state==='needs-restart'?'needs-attention':'optional';
+  const primary=browser.supported?(browser.mcp_configured?'<button class="button" data-action="openManagedBrowser">'+copy.openManagedBrowser+'</button>':'<button class="button" data-action="setupBrowser"'+(installedAgents.length?'':' disabled')+'>'+copy.enableBrowserControl+'</button>'):'';
+  const agentRows=installedAgents.length?installedAgents.map(agent=>{const connected=browser.mcp_agents.includes(agent.id);return '<div class="list-row">'+dot(connected?'ready':'optional')+'<div class="list-main"><strong>'+esc(agent.label)+'</strong><small>'+esc(connected?copy.browserConnected:copy.browserNotConnected)+'</small></div><span class="badge '+(connected?'ready':'optional')+'">'+esc(connected?copy.browserConnected:copy.browserNotConnected)+'</span></div>';}).join(''):'<div class="empty">'+copy.browserNoAgents+'</div>';
+  return pageHead(copy.browser,copy.browserPageHelp)+'<div class="grid">'+
+    '<section class="card hero span-12"><div class="section-title"><div><h2>'+copy.browserControl+'</h2><span class="muted">'+esc(browser.version||copy.browserUnsupported)+'</span></div>'+dot(browserTone)+'</div><p>'+copy.browserControlHelp+'</p><div class="hero-actions">'+primary+(browser.supported&&browser.mcp_configured?'<button class="button ghost" data-action="setupBrowser"'+(installedAgents.length?'':' disabled')+'>'+copy.applyBrowserSettings+'</button>':'')+'<button class="button ghost" data-action="openDesktop">'+copy.openDesktop+'</button></div></section>'+
+    '<section class="card span-4"><h3>'+copy.status+'</h3><div class="metric" style="font-size:18px">'+esc(browserStatus)+'</div><div class="muted">'+esc(browser.running?copy.browserRunning:copy.browserNotRunning)+'</div></section>'+
+    '<section class="card span-4"><h3>'+copy.browserDefault+'</h3><div class="metric" style="font-size:18px">'+esc(browser.managed_default?copy.browserDefaultReady:copy.browserDefaultMissing)+'</div><div class="muted">chromium.desktop</div></section>'+
+    '<section class="card span-4"><h3>'+copy.browserApproval+'</h3><div class="metric" style="font-size:18px">'+esc(browser.remote_debugging?copy.ready:copy.browserNotRunning)+'</div><div class="muted">127.0.0.1:'+esc(browser.debug_port||9222)+'</div></section>'+
+    '<section class="card span-8"><div class="section-title"><div><h3>'+copy.browserMcpTitle+'</h3><span class="muted">'+copy.browserMcpHelp+'</span></div><button class="button ghost small" data-action="setupBrowser"'+(installedAgents.length&&browser.supported?'':' disabled')+'>'+copy.applyBrowserSettings+'</button></div><div class="list">'+agentRows+'</div></section>'+
+    '<section class="card span-4"><div class="risk medium"><div class="risk-icon">!</div><div><h3>'+copy.browserBoundary+'</h3><p class="muted">'+copy.browserBoundaryDetail+'</p></div></div><p class="muted" style="color:var(--aw-warn);margin-top:18px">'+copy.browserSecurity+'</p></section>'+
+    '<section class="card span-12"><div class="section-title"><h3>'+copy.browserSettings+'</h3><span class="badge '+(browser.managed_default?'ready':'warning')+'">'+esc(browser.managed_default?copy.browserDefaultReady:copy.browserDefaultMissing)+'</span></div><div class="list">'+
+      '<div class="list-row">'+dot(browser.managed_default?'ready':'needs-attention')+'<div class="list-main"><strong>'+copy.browserDefault+'</strong><small>'+esc(browser.managed_default?copy.browserDefaultReady:copy.browserDefaultMissing)+'</small></div></div>'+
+      '<div class="list-row">'+dot(browser.profile_name_applied?'ready':'needs-attention')+'<div class="list-main"><strong>'+copy.browserProfileName+'</strong><small>'+esc(browser.profile_name_applied?browser.profile_name:(browser.profile_name+' → '+browser.desired_profile_name+' · '+copy.browserProfileNamePending))+'</small></div><span class="badge '+(browser.profile_name_applied?'ready':'warning')+'">'+esc(browser.profile_name_applied?copy.ready:copy.attention)+'</span></div>'+
+      '<div class="list-row">'+dot('ready')+'<div class="list-main"><strong>'+copy.browserProfile+'</strong><small>'+esc(browser.profile)+'</small></div></div>'+
+      '<div class="list-row">'+dot(browser.remote_debugging?'ready':'optional')+'<div class="list-main"><strong>'+copy.browserEndpoint+'</strong><small>http://127.0.0.1:'+esc(browser.debug_port||9222)+'</small></div></div>'+
+      '<div class="list-row">'+dot(browser.migration_pending?'needs-attention':browser.profile_exists?'ready':'optional')+'<div class="list-main"><strong>'+copy.browserMigration+'</strong><small>'+esc(browser.migration_pending?copy.browserMigrationPending:browser.profile_exists?copy.browserMigrationComplete:copy.browserProfileOnFirstLaunch)+'</small></div><span class="badge '+(browser.migration_pending?'warning':browser.profile_exists?'ready':'optional')+'">'+esc(browser.migration_pending?copy.attention:browser.profile_exists?copy.ready:copy.optional)+'</span></div></div></section></div>';
 }
 function networkPage(){
   const net=data.network;
@@ -797,6 +877,7 @@ function wizard(){
   if(wizardStep===2)body='<h2>'+copy.stepWorkspace+'</h2><p>'+copy.workspaceBody+'</p><div class="wizard-body"><section class="card"><h3>'+copy.openWorkspace+'</h3><div class="code">'+esc(data.workspace.root)+'</div><div class="hero-actions"><button class="button" data-action="openWorkspace">'+copy.openWorkspace+'</button><button class="button ghost" data-action="terminal">'+copy.openTerminal+'</button></div></section></div>';
   if(wizardStep===3)body='<h2>'+copy.stepDesktop+'</h2><p>'+copy.accessBody+'</p><div class="wizard-body grid"><section class="card span-6"><h3>'+copy.selkiesCapability+'</h3><div class="code">'+esc(data.access.desktop_local)+'</div><button class="button" style="margin-top:12px" data-action="'+(desktopReady?'openDesktop':'installDesktop')+'">'+(desktopReady?copy.openDesktop:copy.installDesktop)+'</button></section><section class="card span-6"><div class="section-title"><h3>'+copy.desktopSession+'</h3>'+dot(desktop.running?'ready':'optional')+'</div><div class="metric" style="font-size:18px">'+esc(desktop.running?copy.ready:copy.optional)+'</div><p class="muted">'+esc(desktop.service||'svc-selkies')+'</p><button class="button ghost" data-nav="desktop">'+copy.detail+'</button></section></div>';
   if(wizardStep===4)body='<h2>'+copy.stepOptional+'</h2><p>'+copy.optionalBody+'</p><div class="wizard-body"><section class="card"><div class="list">'+
+    '<div class="list-row">'+dot(data.browser&&data.browser.state==='ready'?'ready':data.browser&&data.browser.state==='needs-restart'?'needs-attention':'optional')+'<div class="list-main"><strong>'+copy.browser+'</strong><small>'+esc(data.browser&&data.browser.state==='ready'?copy.browserControlReady:copy.browserNeedsSetup)+'</small></div><button class="button ghost small" data-nav="browser">'+copy.detail+'</button></div>'+
     '<div class="list-row">'+dot(data.skills.shared_count?'ready':'optional')+'<div class="list-main"><strong>'+copy.resources+'</strong><small>'+esc(data.mcp.count+' MCP · '+data.skills.shared_count+' Skills')+'</small></div><button class="button ghost small" data-nav="resources">'+copy.detail+'</button></div>'+
     '<div class="list-row">'+dot(data.network.mode==='incomplete'?'needs-attention':data.network.installed?'ready':'optional')+'<div class="list-main"><strong>'+copy.customDomain+'</strong><small>'+esc(data.network.mode==='incomplete'?copy.attention:data.network.root_domain||copy.optional)+'</small></div><button class="button ghost small" data-action="configureDomain">'+copy.configureDomain+'</button></div>'+
     '<div class="list-row">'+dot(tail.state==='connected'?'ready':'optional')+'<div class="list-main"><strong>'+copy.tailscale+'</strong><small>'+esc(tail.state==='connected'?copy.tailnetConnected:tail.installed?copy.tailnetLogin:copy.optional)+'</small></div>'+(tail.state==='connected'?'<button class="button ghost small" data-nav="network">'+copy.detail+'</button>':tail.installed?'<button class="button ghost small" data-action="connectTailscale">'+copy.connectTailscale+'</button>':'<button class="button ghost small" data-action="installTailscale">'+copy.install+'</button>')+'</div>'+
@@ -805,9 +886,9 @@ function wizard(){
   const actions='<div class="wizard-actions"><button class="button ghost skip" data-action="completeOnboarding">'+copy.skip+'</button>'+(wizardStep?'<button class="button ghost" data-wizard="back">'+copy.back+'</button>':'')+'<button class="button" data-wizard="'+(wizardStep===4?'finish':'next')+'">'+(wizardStep===4?copy.finish:copy.next)+'</button></div>';
   return '<div class="wizard"><section class="card wizard-shell">'+steps+'<div class="wizard-content">'+body+actions+'</div></section></div>';
 }
-function render(){nav();health();if(!data)return;const onboarding=!data.bootstrap.onboarding.complete||forceWelcome;if(onboarding&&page==='overview'){document.getElementById('content').innerHTML=wizard();return;}const pages={overview,agents:agentsPage,resources:resourcesPage,services:servicesPage,desktop:desktopPage,network:networkPage,diagnostics:diagnosticsPage};document.getElementById('content').innerHTML=pages[page]();const serviceInput=document.getElementById('service-filter');if(serviceInput){serviceInput.focus();serviceInput.setSelectionRange(serviceInput.value.length,serviceInput.value.length);serviceInput.addEventListener('input',e=>{serviceFilter=e.target.value;render();});}const resourceInput=document.getElementById('resource-filter');if(resourceInput){resourceInput.focus();resourceInput.setSelectionRange(resourceInput.value.length,resourceInput.value.length);resourceInput.addEventListener('input',e=>{resourceFilter=e.target.value;render();});}}
+function render(){nav();health();if(!data)return;const onboarding=!data.bootstrap.onboarding.complete||forceWelcome;if(onboarding&&page==='overview'){document.getElementById('content').innerHTML=wizard();return;}const pages={overview,agents:agentsPage,browser:browserPage,resources:resourcesPage,services:servicesPage,desktop:desktopPage,network:networkPage,diagnostics:diagnosticsPage};document.getElementById('content').innerHTML=pages[page]();const serviceInput=document.getElementById('service-filter');if(serviceInput){serviceInput.focus();serviceInput.setSelectionRange(serviceInput.value.length,serviceInput.value.length);serviceInput.addEventListener('input',e=>{serviceFilter=e.target.value;render();});}const resourceInput=document.getElementById('resource-filter');if(resourceInput){resourceInput.focus();resourceInput.setSelectionRange(resourceInput.value.length,resourceInput.value.length);resourceInput.addEventListener('input',e=>{resourceFilter=e.target.value;render();});}}
 document.addEventListener('click',event=>{const navButton=event.target.closest('[data-nav]');if(navButton){page=navButton.dataset.nav;forceWelcome=false;render();return;}const wizardButton=event.target.closest('[data-wizard]');if(wizardButton){if(wizardButton.dataset.wizard==='back')wizardStep=Math.max(0,wizardStep-1);else if(wizardButton.dataset.wizard==='finish')post('completeOnboarding');else wizardStep=Math.min(4,wizardStep+1);render();return;}const button=event.target.closest('[data-action]');if(!button)return;const action=button.dataset.action;if(action==='refresh')post('refresh');else if(action==='terminal')post('terminal');else if(action==='openWorkspace')post('openWorkspace');else if(action==='openDesktop')post('openDesktop');else if(action==='openPath'&&/^\\/proxy\\/\\d+\\/$/.test(button.dataset.path||''))window.open(button.dataset.path,'_blank','noopener');else if(action==='launchAgent')post('terminal',{command:button.dataset.command});else if(action==='installAgent')post('installAgent',{id:button.dataset.id});else if(action==='installMcpm')post('installMcpm');else if(action==='addSkill')post('addSkill');else if(action==='updateSkills')post('updateSkills');else if(action==='updateSkill')post('updateSkill',{id:button.dataset.id});else if(action==='removeSkill')post('removeSkill',{id:button.dataset.id});else if(action==='addMcp')post('addMcp');else if(action==='removeMcp')post('removeMcp',{id:button.dataset.id,agents:button.dataset.agents,managed:button.dataset.managed==='true'});else if(action==='service')post('serviceAction',{id:button.dataset.id,kind:button.dataset.kind,action:button.dataset.op});else if(action==='logs')post('showLogs',{id:button.dataset.id});else if(action==='installProxy')post('installProxy');else if(action==='checkProxy')post('checkProxy');else if(action==='addRoute')post('addRoute');else if(action==='removeRoute')post('removeRoute',{name:button.dataset.name,host:button.dataset.host});else if(action==='openUrl')post('openUrl',{url:button.dataset.url});else if(action==='copyTunnel'){post('copyTunnel');toast(copy.copyTunnel);}else if(action==='copyDesktopTunnel'){post('copyDesktopTunnel');toast(copy.copyDesktopTunnel);}else if(action==='completeOnboarding')post('completeOnboarding');else if(action==='showOutput')post('showOutput');else if(action==='updateSource')post('updateSource');});
-document.addEventListener('click',event=>{const button=event.target.closest('[data-action]');if(!button)return;const action=button.dataset.action;if(['configureDomain','installDesktop','setupBrowser','openBrowserApproval','installTailscale','connectTailscale','serveTailscale'].includes(action))post(action);});
+document.addEventListener('click',event=>{const button=event.target.closest('[data-action]');if(!button)return;const action=button.dataset.action;if(['configureDomain','installDesktop','setupBrowser','openManagedBrowser','installTailscale','connectTailscale','serveTailscale','setupComputerUse','desktopEmergencyStop'].includes(action))post(action);else if(action==='desktopControl')post('desktopControl',{action:button.dataset.op});});
 document.getElementById('language-toggle').addEventListener('click',event=>{event.stopPropagation();post('switchLanguage');});
 window.addEventListener('message',event=>{const message=event.data;if(message.type==='snapshot'){data=message.data;if(typeof message.forceWelcome==='boolean')forceWelcome=message.forceWelcome;render();}else if(message.type==='showWelcome'){forceWelcome=message.value;wizardStep=0;page='overview';render();}else if(message.type==='refreshing'){document.getElementById('health-label').textContent=copy.refreshing;}else if(message.type==='error'){document.getElementById('content').innerHTML='<div class="empty"><h2>'+copy.attention+'</h2><p>'+esc(message.message)+'</p><button class="button" data-action="refresh">'+copy.refresh+'</button></div>';}});post('ready');
 </script></body></html>`;

@@ -96,18 +96,99 @@ use on the Selkies desktop, including its current tabs and signed-in state.
 ```bash
 workspacectl browser status
 workspacectl browser setup
-workspacectl browser approve
+workspacectl browser open
 ```
 
-The setup command adds `chrome-devtools-mcp` to installed Agents with
-consent-based auto-connect and opens `chrome://inspect/#remote-debugging` in the
-desktop browser. The user enables remote debugging there and approves each Agent
-connection. It does not restart Chromium, copy its profile, contend with
-`SingletonLock`, or publish a debugging port outside the container.
+The setup command adds `chrome-devtools-mcp` to installed Agents and points it at
+the managed Chromium endpoint on `127.0.0.1:9222`. The desktop's default browser
+launcher always uses `/config/.config/agent-browser`, so users and Agents share
+one visible browser without per-session approval prompts. The endpoint is not
+published outside the container.
 
-An approved Agent receives the browser profile's live tabs, cookies, local
-storage, and authenticated sessions. Keep this capability opt-in and grant it
-only to trusted Agents.
+The active Chromium profile is visibly named `Agent Workspace (Managed)` by
+default, making a separately launched unmanaged Chromium profile easy to spot.
+Override it with `AGENT_WORKSPACE_BROWSER_PROFILE_NAME` when needed.
+
+For an existing workspace, close legacy Chromium once before the first managed
+launch. The launcher copies `/config/.config/chromium` atomically, excludes
+runtime lock files, and retains the original profile for rollback. A container
+Agent receives the managed profile's live tabs, cookies, local storage, and
+authenticated sessions, so use this mode only with trusted Agents.
+
+The managed *user data directory* is `/config/.config/agent-browser`. Chromium
+profiles remain nested inside it: a migrated installation can therefore still
+show the profile name `Work` while its on-disk profile path is
+`/config/.config/agent-browser/Default`.
+
+Verify a desktop launch with either of these checks:
+
+```bash
+workspacectl browser status
+# Expected when running: state ready, endpoint ready, profile agent-browser
+
+# In Chromium, chrome://version should show:
+# Profile Path: /config/.config/agent-browser/Default
+```
+
+If Control Center reports `Restart in managed mode`, another Chromium process
+is using a non-managed profile. Close that browser window once and reopen **Web
+Browser** from the desktop or run `workspacectl browser open`.
+
+## Desktop Computer Use
+
+Purpose: let trusted Agents see and operate native applications on the exact
+Selkies desktop visible to the user.
+
+```bash
+workspacectl desktop setup
+workspacectl desktop status
+workspacectl desktop screenshot --output /config/Downloads/desktop.png
+workspacectl desktop emergency-stop
+workspacectl desktop resume
+```
+
+Selkies' PixelFlux backend currently binds its internal port `8764` to the
+container interface; never publish it or attach the workspace to an untrusted
+Docker network. The persistent `agent-desktop-bridge` user service listens only
+on `127.0.0.1:8765`, records active
+MCP sessions, normalizes Computer Use actions, and blocks input after an
+emergency stop. `agent-desktop-mcp` is registered globally for installed Codex,
+Claude Code, Hermes, and DeepSeek Harness clients. Browser tasks should use the
+managed Chromium CDP path; this full-screen capability is for native GUI apps.
+
+Window focus uses the Wayland foreign-toplevel protocol when `wlrctl` is
+available and falls back to XWayland window IDs. Window enumeration is marked
+partial because the compositor does not expose a stable complete listing API.
+
+## Desktop Debian Package Installer
+
+Purpose: provide a familiar, guarded way to install a local `.deb` from the
+desktop without requiring users to know `dpkg` or dependency-repair commands.
+
+Double-click a `.deb` in the file manager. The registered desktop handler shows
+the package name, version, architecture, description, and source path, then
+warns that Debian packages can run privileged maintainer scripts. After user
+confirmation, it uses `apt-get install` so dependencies are resolved normally.
+
+Agents should inspect the planned package changes first:
+
+```bash
+agent-workspace-deb-installer --dry-run /path/to/package.deb
+```
+
+Only after explicit user approval, an Agent can perform a non-interactive
+installation:
+
+```bash
+agent-workspace-deb-installer --yes /path/to/package.deb
+```
+
+Installations are serialized with a lock and appended to
+`/config/.local/log/agent-workspace/deb-installer.log`. Installing a package
+changes the image layer, so the installed application does not survive an image
+replacement unless it is included in a derived image or installed again by a
+persistent startup workflow. The installer itself and its desktop association
+are restored by `agent-workspace-manager install workspace-controls`.
 
 ## User Service Manager
 
