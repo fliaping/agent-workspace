@@ -7,12 +7,26 @@ LOG_FILE="${LOG_DIR}/deb-installer.log"
 DRY_RUN=false
 ASSUME_YES=false
 PACKAGE_FILE=""
+DEB_BACKEND="${CONFIG_ROOT}/bin/agent-workspace-deb"
+DIALOG_BACKEND=""
+INSTALL_MODE=""
+if [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
+  if command -v kdialog >/dev/null 2>&1 && [[ "${XDG_CURRENT_DESKTOP:-}" == *KDE* || -n "${WAYLAND_DISPLAY:-}" ]]; then
+    DIALOG_BACKEND=kdialog
+  elif command -v zenity >/dev/null 2>&1; then
+    DIALOG_BACKEND=zenity
+  elif command -v kdialog >/dev/null 2>&1; then
+    DIALOG_BACKEND=kdialog
+  elif [[ -n "${DISPLAY:-}" ]] && command -v xmessage >/dev/null 2>&1; then
+    DIALOG_BACKEND=xmessage
+  fi
+fi
 
 INTERFACE_LOCALE="${LC_ALL:-${LANG:-en}}"
 if [[ "${INTERFACE_LOCALE,,}" == zh* ]]; then
   APP_TITLE="Agent Workspace 软件包安装器"
-  QUESTION_TEXT="安装这个软件包吗？"
-  TRUST_WARNING="请只安装你信任的软件包。Debian 软件包可以执行管理员脚本并修改当前容器。"
+  QUESTION_TEXT="将这个软件包安装到持久化应用环境吗？"
+  TRUST_WARNING="应用和依赖将保存在 /config，容器重建后保留。首次安装需要下载 Ubuntu 环境。识别到 Electron 应用后，会默认关闭该应用的 Chromium 沙箱并使用软件渲染以兼容 PRoot，可在应用配置中覆盖。请只安装可信软件包；应用可以访问你的文件。"
   INSTALL_LABEL="安装"
   CANCEL_LABEL="取消"
   CONTINUE_PROMPT="是否继续？[y/N]"
@@ -21,7 +35,7 @@ if [[ "${INTERFACE_LOCALE,,}" == zh* ]]; then
   CHOOSE_PACKAGE_ERROR="请选择要安装的 .deb 软件包。"
   READABLE_PACKAGE_ERROR="所选文件不是可读取的 .deb 软件包。"
   VALID_PACKAGE_ERROR="所选文件不是有效的 Debian 软件包。"
-  ADMIN_ERROR="管理员权限不可用。此工作区通常需要容器内的免密码 sudo。"
+  BACKEND_ERROR="持久化安装后端不可用。请运行 agent-workspace-manager install deb-runtime。"
   BUSY_ERROR="另一个软件包安装任务正在运行。"
   PACKAGE_LABEL="软件包"
   VERSION_LABEL="版本"
@@ -35,8 +49,8 @@ if [[ "${INTERFACE_LOCALE,,}" == zh* ]]; then
   ERROR_LABEL="错误"
 else
   APP_TITLE="Agent Workspace Software Installer"
-  QUESTION_TEXT="Install this software package?"
-  TRUST_WARNING="Only install packages you trust. Debian packages may run administrator scripts and modify this container."
+  QUESTION_TEXT="Install this package in the persistent application environment?"
+  TRUST_WARNING="Applications and dependencies stay under /config across container rebuilds. First use downloads Ubuntu. Detected Electron apps default to a disabled Chromium sandbox and software rendering for PRoot compatibility; per-app settings can override this. Install only trusted packages; applications can access your files."
   INSTALL_LABEL="Install"
   CANCEL_LABEL="Cancel"
   CONTINUE_PROMPT="Continue? [y/N]"
@@ -45,7 +59,7 @@ else
   CHOOSE_PACKAGE_ERROR="Choose a .deb package to install."
   READABLE_PACKAGE_ERROR="The selected file is not a readable .deb package."
   VALID_PACKAGE_ERROR="The selected file is not a valid Debian package."
-  ADMIN_ERROR="Administrator access is unavailable. This workspace normally requires passwordless container sudo."
+  BACKEND_ERROR="Persistent installer backend is unavailable. Run agent-workspace-manager install deb-runtime."
   BUSY_ERROR="Another software package installation is already running."
   PACKAGE_LABEL="Package"
   VERSION_LABEL="Version"
@@ -61,29 +75,37 @@ fi
 
 usage() {
   cat <<'EOF'
-Usage: agent-workspace-deb-installer [--dry-run] [--yes] <package.deb>
+Usage: agent-workspace-deb-installer [--native|--proot] [--dry-run] [--yes] <package.deb>
 
 Open a Debian package from the desktop, inspect its metadata, resolve
-dependencies with apt, and keep the installation log under /config.
+dependencies inside persistent Ubuntu, and keep applications and logs under /config.
+Use agent-workspace-deb for status, removal, updates and backups.
 EOF
 }
 
 show_error() {
   local message="$1"
-  if [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] && command -v zenity >/dev/null 2>&1; then
+  printf '%s: %s\n' "$ERROR_LABEL" "$message" >&2
+  if $ASSUME_YES; then
+    return
+  elif [[ "$DIALOG_BACKEND" == kdialog ]]; then
+    kdialog --title "$APP_TITLE" --error "$(qt_text "$message")" || true
+  elif [[ "$DIALOG_BACKEND" == zenity ]]; then
     zenity --error --no-markup --title="$APP_TITLE" --width=480 --text="$message" || true
-  elif [[ -n "${DISPLAY:-}" ]] && command -v xmessage >/dev/null 2>&1; then
+  elif [[ "$DIALOG_BACKEND" == xmessage ]]; then
     xmessage -center -title "$APP_TITLE" "$message" || true
-  else
-    printf '%s: %s\n' "$ERROR_LABEL" "$message" >&2
   fi
 }
 
 show_info() {
   local message="$1"
-  if [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] && command -v zenity >/dev/null 2>&1; then
+  if $ASSUME_YES; then
+    printf '%s\n' "$message"
+  elif [[ "$DIALOG_BACKEND" == kdialog ]]; then
+    kdialog --title "$APP_TITLE" --msgbox "$(qt_text "$message")" || true
+  elif [[ "$DIALOG_BACKEND" == zenity ]]; then
     zenity --info --no-markup --title="$APP_TITLE" --width=480 --text="$message" || true
-  elif [[ -n "${DISPLAY:-}" ]] && command -v xmessage >/dev/null 2>&1; then
+  elif [[ "$DIALOG_BACKEND" == xmessage ]]; then
     xmessage -center -title "$APP_TITLE" "$message" || true
   else
     printf '%s\n' "$message"
@@ -95,7 +117,13 @@ confirm_install() {
   if $ASSUME_YES; then
     return 0
   fi
-  if [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] && command -v zenity >/dev/null 2>&1; then
+  if [[ "$DIALOG_BACKEND" == kdialog ]]; then
+    printf -v prompt '%s\n\n%s\n\n%s' "$QUESTION_TEXT" "$details" "$TRUST_WARNING"
+    kdialog --title "$APP_TITLE" --yes-label "$INSTALL_LABEL" --no-label "$CANCEL_LABEL" \
+      --yesno "$(qt_text "$prompt")"
+    return $?
+  fi
+  if [[ "$DIALOG_BACKEND" == zenity ]]; then
     printf -v prompt '%s\n\n%s\n\n%s' "$QUESTION_TEXT" "$details" "$TRUST_WARNING"
     zenity --question \
       --no-markup \
@@ -106,7 +134,7 @@ confirm_install() {
       --text="$prompt"
     return $?
   fi
-  if [[ -n "${DISPLAY:-}" ]] && command -v xmessage >/dev/null 2>&1; then
+  if [[ "$DIALOG_BACKEND" == xmessage ]]; then
     printf -v prompt '%s\n\n%s\n\n%s' "$QUESTION_TEXT" "$details" "$TRUST_WARNING"
     xmessage -center -title "$APP_TITLE" -buttons "$INSTALL_LABEL:0,$CANCEL_LABEL:1" "$prompt"
     return $?
@@ -121,36 +149,49 @@ confirm_install() {
   return 1
 }
 
-privileged_prefix() {
-  if [[ "$(id -u)" == "0" ]]; then
-    return 0
-  fi
-  if command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then
-    printf '%s\n' "sudo" "-n"
-    return 0
-  fi
-  if command -v pkexec >/dev/null 2>&1; then
-    printf '%s\n' "pkexec"
-    return 0
-  fi
-  return 1
+run_install() {
+  local package="$1" temporary="$2"
+  "$DEB_BACKEND" install --yes "$package" >"$temporary" 2>&1
 }
 
-run_install() {
-  local package="$1" temporary="$2" privilege_output=""
-  local -a prefix=()
-  if [[ "$(id -u)" != "0" ]]; then
-    privilege_output="$(privileged_prefix)" || return 126
-    mapfile -t prefix <<<"$privilege_output"
+qt_text() {
+  # KDialog auto-detects rich text. Escape package-provided text explicitly.
+  local value="$1"
+  value="${value//&/\&amp;}"
+  value="${value//</\&lt;}"
+  value="${value//>/\&gt;}"
+  value="${value//$'\n'/<br/>}"
+  printf '<qt>%s</qt>' "$value"
+}
+
+show_kde_progress() {
+  local bus="" reference="" service="" object="" line="" previous=""
+  bus="$(command -v qdbus6 || command -v qdbus || true)"
+  if [[ -z "$bus" ]]; then
+    kdialog --title "$APP_TITLE" --passivepopup "$INSTALLING_LABEL ${PACKAGE_NAME:-package}…" 5 || true
+    return
   fi
-  "${prefix[@]}" env DEBIAN_FRONTEND=noninteractive \
-    apt-get install -y "$package" >"$temporary" 2>&1
+  reference="$(kdialog --title "$APP_TITLE" --progressbar "$INSTALLING_LABEL ${PACKAGE_NAME:-package}…" 0)" || return
+  read -r service object <<<"$reference"
+  [[ -n "$service" && -n "$object" ]] || return
+  "$bus" "$service" "$object" showCancelButton false >/dev/null 2>&1 || true
+  while kill -0 "$INSTALL_PID" 2>/dev/null; do
+    line="$(tail -n 1 "$TEMPORARY_LOG" 2>/dev/null || true)"
+    if [[ -n "$line" && "$line" != "$previous" ]]; then
+      "$bus" "$service" "$object" setLabelText "$(qt_text "$line")" >/dev/null 2>&1 || break
+      previous="$line"
+    fi
+    sleep 0.5
+  done
+  "$bus" "$service" "$object" close >/dev/null 2>&1 || true
 }
 
 for argument in "$@"; do
   case "$argument" in
     --dry-run) DRY_RUN=true ;;
     --yes|-y) ASSUME_YES=true ;;
+    --native) INSTALL_MODE=native ;;
+    --proot) INSTALL_MODE=proot ;;
     --help|-h) usage; exit 0 ;;
     --*) show_error "$ERROR_LABEL: $argument"; exit 2 ;;
     *)
@@ -162,6 +203,14 @@ for argument in "$@"; do
       ;;
   esac
 done
+
+if ! $ASSUME_YES && ! $DRY_RUN && [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
+  mkdir -p "$LOG_DIR"
+  exec 2>>"${LOG_DIR}/deb-installer-launch.log"
+  printf '[%s] launch file=%q desktop=%q display=%q wayland=%q dialog=%q\n' \
+    "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "$PACKAGE_FILE" "${XDG_CURRENT_DESKTOP:-}" \
+    "${DISPLAY:-}" "${WAYLAND_DISPLAY:-}" "$DIALOG_BACKEND" >&2
+fi
 
 if [[ -z "$PACKAGE_FILE" ]]; then
   show_error "$CHOOSE_PACKAGE_ERROR"
@@ -187,16 +236,49 @@ printf -v DETAILS '%s: %s\n%s: %s\n%s: %s\n%s\n\n%s: %s' \
   "$ARCH_LABEL" "${PACKAGE_ARCH:-unknown}" \
   "${PACKAGE_DESCRIPTION:-$NO_DESCRIPTION}" "$FILE_LABEL" "$PACKAGE_FILE"
 
+if [[ "${INTERFACE_LOCALE,,}" == zh* ]]; then
+  MODE_PROMPT="选择安装方式"
+  PROOT_LABEL="PRoot：应用和依赖直接保存在 /config"
+  NATIVE_LABEL="原生：正常安装到系统，保存安装包，启动时恢复"
+  NATIVE_WARNING="软件将以管理员权限安装到系统目录；安装包和恢复清单保存在 /config。容器重建后自动重装，依赖可能需要联网下载。只安装可信软件包。"
+  LAUNCH_LABEL="启动应用"
+  CLOSE_LABEL="关闭"
+else
+  MODE_PROMPT="Choose installation mode"
+  PROOT_LABEL="PRoot: keep applications and dependencies under /config"
+  NATIVE_LABEL="Native: install into the system and restore saved packages at startup"
+  NATIVE_WARNING="Installs into system directories with administrator privileges. Archives and the replay manifest stay under /config. Rebuilds reinstall saved packages; dependencies may need network access. Install only trusted packages."
+  LAUNCH_LABEL="Launch application"
+  CLOSE_LABEL="Close"
+fi
+if [[ -z "$INSTALL_MODE" ]] && ! $ASSUME_YES && ! $DRY_RUN; then
+  case "$DIALOG_BACKEND" in
+    kdialog) INSTALL_MODE="$(kdialog --title "$APP_TITLE" --radiolist "$MODE_PROMPT" proot "$PROOT_LABEL" on native "$NATIVE_LABEL" off)" || exit 0 ;;
+    zenity) INSTALL_MODE="$(zenity --list --radiolist --title="$APP_TITLE" --text="$MODE_PROMPT" --column="" --column=Mode --column=Description --hide-column=2 --print-column=2 TRUE proot "$PROOT_LABEL" FALSE native "$NATIVE_LABEL")" || exit 0 ;;
+    xmessage)
+      xmessage -center -title "$APP_TITLE" -buttons 'PRoot:10,Native:11,Cancel:12' "$PROOT_LABEL
+$NATIVE_LABEL"
+      case $? in 10) INSTALL_MODE=proot ;; 11) INSTALL_MODE=native ;; *) exit 0 ;; esac ;;
+  esac
+fi
+INSTALL_MODE="${INSTALL_MODE:-proot}"
+case "$INSTALL_MODE" in
+  native)
+    DEB_BACKEND="${CONFIG_ROOT}/bin/agent-workspace-deb-native"
+    LOG_FILE="${LOG_DIR}/deb-installer-native.log"
+    QUESTION_TEXT="$NATIVE_LABEL"
+    TRUST_WARNING="$NATIVE_WARNING" ;;
+  proot) ;;
+  *) show_error "Invalid installation mode: $INSTALL_MODE"; exit 2 ;;
+esac
+
+if [[ ! -x "$DEB_BACKEND" ]]; then
+  show_error "$BACKEND_ERROR"
+  exit 127
+fi
+
 if $DRY_RUN; then
-  PRIVILEGE_OUTPUT="$(privileged_prefix)" || {
-    show_error "$ADMIN_ERROR"
-    exit 126
-  }
-  PRIVILEGE=()
-  if [[ -n "$PRIVILEGE_OUTPUT" ]]; then
-    mapfile -t PRIVILEGE <<<"$PRIVILEGE_OUTPUT"
-  fi
-  exec "${PRIVILEGE[@]}" apt-get install --simulate "$PACKAGE_FILE"
+  exec "$DEB_BACKEND" install --dry-run "$PACKAGE_FILE"
 fi
 
 if ! confirm_install "$DETAILS"; then
@@ -218,7 +300,9 @@ STARTED_AT="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
 run_install "$PACKAGE_FILE" "$TEMPORARY_LOG" &
 INSTALL_PID=$!
 
-if [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] && command -v zenity >/dev/null 2>&1; then
+if ! $ASSUME_YES && [[ "$DIALOG_BACKEND" == kdialog ]]; then
+  show_kde_progress
+elif ! $ASSUME_YES && [[ "$DIALOG_BACKEND" == zenity ]]; then
   (
     LAST_LINE=""
     while kill -0 "$INSTALL_PID" 2>/dev/null; do
@@ -243,17 +327,34 @@ INSTALL_STATUS=$?
   cat "$TEMPORARY_LOG"
   printf '[exit=%s]\n' "$INSTALL_STATUS"
 } >>"$LOG_FILE"
+flock -u 9
 
 if [[ "$INSTALL_STATUS" -eq 0 ]]; then
   printf -v RESULT_MESSAGE '%s %s %s\n\n%s: %s' "${PACKAGE_NAME:-package}" "${PACKAGE_VERSION:-}" "$SUCCESS_SUFFIX" "$LOG_LABEL" "$LOG_FILE"
-  show_info "$RESULT_MESSAGE"
+  if ! $ASSUME_YES && "$DEB_BACKEND" launcher "$PACKAGE_NAME" >/dev/null 2>&1; then
+    LAUNCH_NOW=false
+    case "$DIALOG_BACKEND" in
+      kdialog) kdialog --title "$APP_TITLE" --yes-label "$LAUNCH_LABEL" --no-label "$CLOSE_LABEL" --yesno "$(qt_text "$RESULT_MESSAGE")" && LAUNCH_NOW=true ;;
+      zenity) zenity --question --no-markup --title="$APP_TITLE" --ok-label="$LAUNCH_LABEL" --cancel-label="$CLOSE_LABEL" --text="$RESULT_MESSAGE" && LAUNCH_NOW=true ;;
+      *) show_info "$RESULT_MESSAGE" ;;
+    esac
+    if $LAUNCH_NOW; then
+      "$DEB_BACKEND" launch "$PACKAGE_NAME" >>"$LOG_FILE" 2>&1 || show_error "Launch failed. $LOG_LABEL: $LOG_FILE"
+    fi
+  else
+    show_info "$RESULT_MESSAGE"
+  fi
   exit 0
 fi
 
-if [[ "$INSTALL_STATUS" -eq 126 ]]; then
-  show_error "$ADMIN_ERROR"
-else
-  printf -v RESULT_MESSAGE '%s (exit %s)\n\n%s: %s' "$FAILED_LABEL" "$INSTALL_STATUS" "$LOG_LABEL" "$LOG_FILE"
-  show_error "$RESULT_MESSAGE"
+ERROR_DETAILS="$(awk '
+  /^(malloc\(\)|free\(\)|dpkg(-deb)?: error|E: |fatal:|error:)/ { remaining = 3 }
+  remaining > 0 && shown < 12 { print; remaining--; shown++ }
+' "$TEMPORARY_LOG")"
+if [[ -z "$ERROR_DETAILS" ]]; then
+  ERROR_DETAILS="$(tail -n 5 "$TEMPORARY_LOG")"
 fi
+printf -v RESULT_MESSAGE '%s (exit %s)\n\n%s\n\n%s: %s' "$FAILED_LABEL" "$INSTALL_STATUS" \
+  "$ERROR_DETAILS" "$LOG_LABEL" "$LOG_FILE"
+show_error "$RESULT_MESSAGE"
 exit "$INSTALL_STATUS"

@@ -162,13 +162,14 @@ partial because the compositor does not expose a stable complete listing API.
 
 ## Desktop Debian Package Installer
 
-Purpose: provide a familiar, guarded way to install a local `.deb` from the
-desktop without requiring users to know `dpkg` or dependency-repair commands.
+Purpose: install a local `.deb` using persistent PRoot or normal system
+installation with saved packages and startup restoration.
 
 Double-click a `.deb` in the file manager. The registered desktop handler shows
 the package name, version, architecture, description, and source path, then
-warns that Debian packages can run privileged maintainer scripts. After user
-confirmation, it uses `apt-get install` so dependencies are resolved normally.
+offers an installation mode and explains its persistence and permissions. After
+confirmation, apt resolves dependencies in the selected environment. Managed
+desktop menu entries use a `(Persistent)` or `(Native)` suffix.
 
 Agents should inspect the planned package changes first:
 
@@ -184,11 +185,22 @@ agent-workspace-deb-installer --yes /path/to/package.deb
 ```
 
 Installations are serialized with a lock and appended to
-`/config/.local/log/agent-workspace/deb-installer.log`. Installing a package
-changes the image layer, so the installed application does not survive an image
-replacement unless it is included in a derived image or installed again by a
-persistent startup workflow. The installer itself and its desktop association
-are restored by `agent-workspace-manager install workspace-controls`.
+`/config/.local/log/agent-workspace/deb-installer.log` (or
+`deb-installer-native.log`). In PRoot mode, application files, dependencies and
+the package database remain under `/config` across container rebuilds. Native
+mode saves original packages and a restore manifest under `/config`; missing
+packages are reinstalled at startup, and dependencies may require network
+access. The installer and its desktop association are installed by
+`agent-workspace-manager install deb-runtime` (also included in
+`install workspace-controls`). Installation and package maintenance can run
+while applications are open; PRoot initialization, backup and restore require
+applications to exit. Detected Electron applications receive configurable
+compatibility and Wayland display settings. Normal Ubuntu-compatible desktop
+packages are supported;
+drivers and system-service packages may require another approach.
+
+See [Persistent Debian applications](persistent-deb-apps.md) for setup,
+removal, backup/restore, application overrides and compatibility details.
 
 ## User Service Manager
 

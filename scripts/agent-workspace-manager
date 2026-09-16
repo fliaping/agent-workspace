@@ -216,6 +216,7 @@ class WorkspaceManager:
             "workspacectl",
             "agent-workspace-browser",
             "agent-workspace-deb-installer",
+            "agent-workspace-deb",
         ]:
             source_command = root / "scripts" / command
             if not source_command.exists():
@@ -266,6 +267,8 @@ class WorkspaceManager:
         update_desktop_database = shutil.which("update-desktop-database")
         if update_desktop_database:
             run([update_desktop_database, str(applications_dir)], check=False)
+        if shutil.which("kbuildsycoca6"):
+            run(["kbuildsycoca6"], check=False)
 
         xfce_helper_dir = self.settings.config_root / ".local/share/xfce4/helpers"
         xfce_helper_dir.mkdir(parents=True, exist_ok=True)
@@ -317,6 +320,47 @@ class WorkspaceManager:
 
         log(f"workspace control commands: {bin_dir}")
         log(f"workspace Agent context: {workspace_root}")
+        self.install_deb_runtime()
+
+    def install_deb_runtime(self) -> None:
+        """Install persistent Debian controls without refreshing unrelated capabilities."""
+        root = self.source_root()
+        assert root is not None
+        config = self.settings.config_root
+        for directory in (config / "bin", config / ".local/bin", config / ".local/share/applications"):
+            directory.mkdir(parents=True, exist_ok=True)
+        for command in ("agent-workspace-deb", "agent-workspace-deb-native", "agent-workspace-deb-installer"):
+            source = root / "scripts" / command
+            if not source.is_file() or not os.access(source, os.X_OK):
+                raise ManagerError(f"missing executable: {source}")
+            for target, origin in ((config / "bin" / command, source),
+                                   (config / ".local/bin" / command, config / "bin" / command)):
+                if target.exists() or target.is_symlink():
+                    target.unlink()
+                target.symlink_to(origin)
+        desktop = config / ".local/share/applications/agent-workspace-deb-installer.desktop"
+        content = (root / "desktop/deb-installer.desktop").read_text()
+        desktop.write_text(content.replace("/config/bin/", str(config / "bin") + "/"))
+        desktop.chmod(0o644)
+        if shutil.which("xdg-mime"):
+            for mime in ("application/vnd.debian.binary-package", "application/x-deb"):
+                run(["xdg-mime", "default", desktop.name, mime], check=False)
+        if shutil.which("update-desktop-database"):
+            run(["update-desktop-database", str(desktop.parent)], check=False)
+        if shutil.which("kbuildsycoca6"):
+            run(["kbuildsycoca6"], check=False)
+        service = config / "custom-services.d/deb-native-restore/run"
+        service.parent.mkdir(parents=True, exist_ok=True)
+        service.write_text((root / "services/deb-native-restore/run").read_text()
+                           .replace("/config", str(config)))
+        service.chmod(0o755)
+        registrar = shutil.which("register-config-services.sh")
+        if registrar and Path("/run/service").is_dir():
+            command = ["bash", registrar]
+            if os.geteuid() != 0:
+                command = ["sudo", "-n", *command]
+            run(command, check=False)
+        log("Debian installer ready: PRoot persistence or native installation with startup replay")
 
     def install_proxyctl(self) -> None:
         root = self.source_root()
@@ -594,6 +638,8 @@ class WorkspaceManager:
             self.install_custom_services()
         elif target in {"workspace-controls", "controls", "control"}:
             self.install_workspace_controls()
+        elif target == "deb-runtime":
+            self.install_deb_runtime()
         elif target in {"agents", "agent"}:
             self.install_agent_capabilities(extra_args)
         elif target == "all":
@@ -745,6 +791,7 @@ def build_parser() -> argparse.ArgumentParser:
             "custom-services",
             "s6",
             "workspace-controls",
+            "deb-runtime",
             "controls",
             "control",
             "agents",

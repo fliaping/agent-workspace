@@ -57,6 +57,7 @@ agent-workspace-manager install foundation
 agent-workspace-manager install code-server
 agent-workspace-manager install proxyctl
 agent-workspace-manager install desktop
+agent-workspace-manager install deb-runtime
 agent-workspace-manager install computer-use
 agent-workspace-manager install tailscale
 agent-workspace-manager install code-server-extensions
@@ -131,5 +132,14 @@ Application state is kept under `/config`:
 /config/proxyctl
 /config/.local/share/code-server/extensions
 /config/.local/share/tailscale
+/config/.local/share/agent-workspace/deb-runtime
 /config/custom-services.d
 ```
+
+`install deb-runtime` registers the desktop `.deb` installer, both CLI backends,
+and the Native startup restore service. PRoot initializes Ubuntu on first
+installation and keeps packages and dependencies inside `/config`. Native mode
+installs into the system, saves original packages under `/config`, and restores
+missing packages at startup. Managed launchers apply configurable Electron
+compatibility and Wayland display rules. See
+[Persistent Debian applications](persistent-deb-apps.md).
