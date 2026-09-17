@@ -18,6 +18,7 @@ Inspect:
   locale                       Show the code-server and Control Center language
   browser status               Show desktop-browser Agent control readiness
   desktop status               Show desktop Computer Use readiness and boundary
+  desktop scaling status       Inspect KDE Wayland and extra text scaling
   network domain <domain>      Configure the public custom root domain
   tailscale status             Show optional tailnet connection state
   services                     List persistent user services and s6 services
@@ -45,6 +46,8 @@ Operate:
   desktop setup                Install Computer Use and connect installed Agents
   desktop emergency-stop       Immediately block Agent desktop input
   desktop resume               Re-enable Agent desktop input
+  desktop scaling repair       Remove extra text scaling, saving the original
+  desktop scaling restore      Restore the saved text scale
   tailscale login              Sign in interactively from a terminal
   tailscale serve              Expose code-server and Selkies inside the tailnet
   update                       Update the Agent Workspace application source

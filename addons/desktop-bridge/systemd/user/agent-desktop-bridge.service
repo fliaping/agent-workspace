@@ -6,7 +6,6 @@ Environment=HOME=/config
 Environment=USER=abc
 Environment=PIXELFLUX_CU=8764
 Environment=AGENT_DESKTOP_BRIDGE_HOST=127.0.0.1
-Environment=AGENT_DESKTOP_BRIDGE_PORT=8765
 ExecStart=/usr/bin/setsid /config/opt/agent-desktop-bridge/bin/agent-desktop-bridge serve
 Restart=always
 RestartSec=2

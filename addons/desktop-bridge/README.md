@@ -10,9 +10,26 @@ Install and inspect it through the normal control surface:
 ```bash
 agent-workspace-manager install computer-use
 workspacectl desktop status
+workspacectl desktop screenshot --output /config/Downloads/desktop.png
 workspacectl desktop emergency-stop
 workspacectl desktop resume
 ```
+
+On an older running image, installation stages `PIXELFLUX_CU=8764` for the
+next Selkies start. The bridge unit's environment does not configure Selkies.
+If status reports `native-backend-disabled`, save desktop work, then run
+`sudo -n s6-svc -r /run/service/svc-selkies`. This can terminate the nested KDE
+session and its applications; installation does not restart it automatically.
+For an unattended initial setup, explicitly set `AGENT_DESKTOP_RESTART_SELKIES=1`.
+New images have the setting in Dockerfile ENV; rebuilding from an older image
+requires adding `PIXELFLUX_CU=8764` to the container environment.
+
+If the bridge's default port `8765` is occupied, write a free port number to
+`/config/.config/agent-workspace/desktop-bridge-port` and restart
+`agent-desktop-bridge.service`. The CLI and MCP adapter read the same persistent
+setting. Explicit `AGENT_DESKTOP_BRIDGE_PORT` / `AGENT_DESKTOP_BRIDGE_URL`
+environment overrides still take precedence. Reconnect Agent MCP sessions after
+updating an older adapter that does not support this setting.
 
 The installer registers `/config/bin/agent-desktop-mcp` with every installed
 Codex, Claude Code, Hermes, and DeepSeek Harness client. Agents receive tools

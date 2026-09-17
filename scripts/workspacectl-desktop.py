@@ -14,7 +14,11 @@ import urllib.request
 
 
 CONFIG_ROOT = pathlib.Path(os.environ.get("AGENT_WORKSPACE_CONFIG_ROOT", "/config"))
-URL = os.environ.get("AGENT_DESKTOP_BRIDGE_URL", "http://127.0.0.1:8765")
+PORT_FILE = CONFIG_ROOT / '.config/agent-workspace/desktop-bridge-port'
+PORT = int(os.environ.get('AGENT_DESKTOP_BRIDGE_PORT') or (PORT_FILE.read_text().strip() if PORT_FILE.exists() else '8765'))
+if not 1 <= PORT <= 65535:
+    raise ValueError('desktop bridge port must be between 1 and 65535')
+URL = os.environ.get("AGENT_DESKTOP_BRIDGE_URL", f"http://127.0.0.1:{PORT}")
 
 
 def request(path: str, payload: dict[str, object] | None = None) -> dict[str, object]:
@@ -34,7 +38,11 @@ def service(action: str) -> int:
 
 
 def main(argv: list[str]) -> int:
+    if argv and argv[0] == "scaling":
+        return subprocess.run([sys.executable, str(pathlib.Path(__file__).with_name(
+            "workspacectl-desktop-scaling.py")), *argv[1:]], check=False).returncode
     parser = argparse.ArgumentParser(description="Manage desktop Computer Use")
+    parser.epilog = "Scaling: workspacectl desktop scaling [status|repair|restore]"
     parser.add_argument("action", nargs="?", default="status", choices=("status", "setup", "start", "stop", "restart", "emergency-stop", "resume", "screenshot"))
     parser.add_argument("--output", default=str(CONFIG_ROOT / "Downloads/agent-desktop.png"))
     args = parser.parse_args(argv)

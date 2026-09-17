@@ -21,7 +21,10 @@ from typing import Any
 
 
 HOST = os.environ.get("AGENT_DESKTOP_BRIDGE_HOST", "127.0.0.1")
-PORT = int(os.environ.get("AGENT_DESKTOP_BRIDGE_PORT", "8765"))
+PORT_FILE = pathlib.Path(os.environ.get('AGENT_WORKSPACE_CONFIG_ROOT', '/config')) / '.config/agent-workspace/desktop-bridge-port'
+PORT = int(os.environ.get('AGENT_DESKTOP_BRIDGE_PORT') or (PORT_FILE.read_text().strip() if PORT_FILE.exists() else '8765'))
+if not 1 <= PORT <= 65535:
+    raise ValueError('desktop bridge port must be between 1 and 65535')
 NATIVE_PORT = int(os.environ.get("PIXELFLUX_CU", "8764"))
 NATIVE_URL = os.environ.get("AGENT_DESKTOP_NATIVE_URL", f"http://127.0.0.1:{NATIVE_PORT}/computer-use")
 STATE_DIR = pathlib.Path(os.environ.get("AGENT_DESKTOP_STATE_DIR", "/config/.local/state/agent-desktop-bridge"))
@@ -101,24 +104,49 @@ def backend_available() -> bool:
         return False
 
 
-def desktop_env() -> dict[str, str]:
-    env = os.environ.copy()
-    env.setdefault("HOME", "/config")
-    for entry in pathlib.Path("/proc").iterdir():
+def process_envs(names: set[str], proc_root: pathlib.Path = pathlib.Path('/proc')) -> list[tuple[str, dict[str, str]]]:
+    results = []
+    for entry in proc_root.iterdir():
         if not entry.name.isdigit():
             continue
         try:
-            command = (entry / "cmdline").read_bytes().replace(b"\0", b" ").decode(errors="ignore")
-            if "labwc" not in command:
+            name = (entry / 'comm').read_text().strip()
+            if name not in names:
                 continue
-            for raw in (entry / "environ").read_bytes().split(b"\0"):
-                key, separator, value = raw.partition(b"=")
-                decoded_key = key.decode(errors="ignore")
-                if separator and decoded_key in {"XDG_RUNTIME_DIR", "WAYLAND_DISPLAY", "DISPLAY", "DBUS_SESSION_BUS_ADDRESS"}:
-                    env[decoded_key] = value.decode(errors="ignore")
-            break
+            values = {}
+            for raw in (entry / 'environ').read_bytes().split(b'\0'):
+                key, separator, value = raw.partition(b'=')
+                if separator and key in {b'XDG_RUNTIME_DIR', b'WAYLAND_DISPLAY', b'DISPLAY', b'DBUS_SESSION_BUS_ADDRESS', b'PIXELFLUX_CU'}:
+                    values[key.decode()] = value.decode(errors='replace')
+            results.append((name, values))
         except OSError:
             continue
+    return results
+
+
+def backend_diagnostic() -> dict[str, Any]:
+    processes = process_envs({'selkies'})
+    if not processes:
+        return {'reason': 'selkies-not-running', 'restart_required': False}
+    ports = [values.get('PIXELFLUX_CU', '') for _, values in processes]
+    if str(NATIVE_PORT) in ports:
+        return {'reason': 'native-backend-not-listening', 'restart_required': False,
+                'detail': 'Selkies has the expected port setting; inspect its startup logs.'}
+    return {
+        'reason': 'native-backend-disabled' if all(not p or p == '0' for p in ports) else 'native-backend-port-mismatch',
+        'restart_required': True,
+        'expected_port': NATIVE_PORT,
+        'detail': 'The running Selkies process did not inherit the required PIXELFLUX_CU port. Save desktop work before restarting Selkies; restarting the bridge alone cannot enable it.',
+    }
+
+
+def desktop_env() -> dict[str, str]:
+    env = os.environ.copy()
+    env.setdefault("HOME", "/config")
+    priorities = {'plasmashell': 0, 'labwc': 1, 'kwin_wayland': 2}
+    sessions = sorted(process_envs(set(priorities)), key=lambda item: priorities[item[0]])
+    if sessions:
+        env.update({k: v for k, v in sessions[0][1].items() if k != 'PIXELFLUX_CU'})
     env.setdefault("XDG_RUNTIME_DIR", "/config/.XDG")
     env.setdefault("WAYLAND_DISPLAY", "wayland-1")
     env.setdefault("DISPLAY", ":1")
@@ -193,6 +221,7 @@ def status() -> dict[str, Any]:
     return {
         "service": "agent-desktop-bridge", "state": "paused" if state.get("paused") else "ready" if available else "backend-unavailable",
         "paused": bool(state.get("paused")), "pause_reason": state.get("reason", ""), "backend_available": available,
+        "backend_diagnostic": {} if available else backend_diagnostic(),
         "backend": "selkies-pixelflux-wayland", "bridge_url": f"http://{HOST}:{PORT}", "native_url": f"http://127.0.0.1:{NATIVE_PORT}",
         "native_bind": f"0.0.0.0:{NATIVE_PORT}", "native_security": "internal upstream; never publish this port",
         "loopback_only": HOST in {"127.0.0.1", "localhost", "::1"}, "display": {"wayland": desktop_env()["WAYLAND_DISPLAY"], "x11": desktop_env()["DISPLAY"]},
@@ -277,7 +306,9 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(code); self.send_header("Content-Type", "application/json; charset=utf-8"); self.send_header("Content-Length", str(len(body))); self.send_header("Cache-Control", "no-store"); self.end_headers(); self.wfile.write(body)
     def do_GET(self) -> None:  # noqa: N802
         if self.path not in {"/health", "/v1/status"}: self.send_json(404, {"error": "not found"}); return
-        value = status(); self.send_json(200 if value["backend_available"] else 503, value)
+        value = status()
+        # Status remains readable during a backend outage; /health is readiness.
+        self.send_json(503 if self.path == '/health' and not value['backend_available'] else 200, value)
     def do_POST(self) -> None:  # noqa: N802
         if self.path != "/v1/action": self.send_json(404, {"error": "not found"}); return
         try:

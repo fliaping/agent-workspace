@@ -146,6 +146,43 @@ a scale factor. These defaults are scoped to detected Electron commands through
 managed launchers, not system-wide environment variables. Native installation
 does not automatically disable sandboxing or GPU acceleration.
 
+If Electron applications look twice as large as KDE at the same Selkies
+scale, inspect the separate GTK text multiplier:
+
+```bash
+workspacectl desktop scaling status
+```
+
+In the tested KDE Wayland session, a leftover value of `2.0` made VS Code
+report `devicePixelRatio=3` with the compositor at 150%. Restoring the text
+multiplier to `1.0` brought it back to `1.5`. If that extra text scaling is
+unintentional, use the explicit repair command, which backs up the old value:
+
+```bash
+workspacectl desktop scaling repair
+# Undo a managed repair:
+workspacectl desktop scaling restore
+```
+
+The command discovers the current user's KDE Wayland session and its session
+bus, so it also works from an Agent terminal. The setting persists in the
+desktop user's `/config/.config/dconf/user`; keeping the `/config` volume
+preserves it across container rebuilds. The original value is stored under
+`/config/.local/share/agent-workspace/desktop-scaling/original.json`. Repeated
+repairs keep the first backup. Restore consumes that backup after verification.
+The installer does not apply this optional global preference automatically.
+
+Dynamic verification used the same running VS Code process: changing Selkies
+from 300% to 150% changed its reported device pixel ratio from 3 to 1.5.
+ChatGPT menu and sidebar sizes halved in matching framebuffer screenshots.
+These checks require no fixed application scale flag or polling service.
+Status reports compositor and text settings, not live Electron measurements.
+
+Reopen affected applications if their layout does not settle after the change.
+Verify the live compositor scale and application size before changing KDE
+fonts or panel height; do not automatically reset accessibility preferences
+from the package installer.
+
 Explicit `extra_args` and original launcher switches suppress conflicting
 automatic defaults. Existing arguments and file operands are preserved. A
 per-package `compatibility` object can independently control the policy:
