@@ -364,18 +364,20 @@ agent-workspace-manager install code-server-extensions
 
 ## 自定义构建
 
+基底使用官方 `linuxserver/webtop:ubuntu-{desktop}` 最新标签。发布构建和本地构建使用 `--pull` 刷新基底，Selkies 与 PulseAudio 启动逻辑直接继承官方镜像。
+
 ```bash
 git clone https://github.com/fliaping/agent-workspace.git
 cd agent-workspace
 
 # 默认构建（XFCE + 国际源）
-docker compose build
+docker compose build --pull
 
 # KDE 桌面
-DESKTOP=kde docker compose build
+DESKTOP=kde docker compose build --pull
 
 # 国内源加速
-USE_CHINA_MIRROR=true docker compose build
+USE_CHINA_MIRROR=true docker compose build --pull
 ```
 
 ## 常用命令

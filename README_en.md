@@ -390,18 +390,20 @@ The `run` file must be executable. After container recreation, services are auto
 
 ## Custom Build
 
+The base follows the latest official `linuxserver/webtop:ubuntu-{desktop}` tag. Release and local builds pull the base image for updates and inherit the official Selkies and PulseAudio startup scripts.
+
 ```bash
 git clone https://github.com/fliaping/agent-workspace.git
 cd agent-workspace
 
 # Default build (XFCE + international mirrors)
-docker compose build
+docker compose build --pull
 
 # KDE desktop
-DESKTOP=kde docker compose build
+DESKTOP=kde docker compose build --pull
 
 # China mirrors for faster build
-USE_CHINA_MIRROR=true docker compose build
+USE_CHINA_MIRROR=true docker compose build --pull
 ```
 
 ## Common Commands

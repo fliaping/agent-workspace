@@ -74,6 +74,8 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
+          # Resolve the latest official Webtop tag even when build cache exists.
+          pull: true
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -140,7 +142,10 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
+          pull: true
           push: true
+          # This registry rejects BuildKit provenance attestation manifests.
+          provenance: false
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: DESKTOP=${{ matrix.desktop }}

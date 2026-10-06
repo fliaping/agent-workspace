@@ -1,7 +1,7 @@
 #!/bin/bash
 # Agent Workspace 本地构建脚本
 
-set -e
+set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
@@ -26,7 +26,7 @@ fi
 echo "步骤 1: 构建镜像"
 echo "=================="
 
-docker build --build-arg DESKTOP=${DESKTOP} -t ${IMAGE_NAME}:${IMAGE_TAG} . 2>&1 | tee build.log
+docker build --pull --build-arg DESKTOP=${DESKTOP} -t ${IMAGE_NAME}:${IMAGE_TAG} . 2>&1 | tee build.log
 
 echo ""
 echo "✅ 镜像构建成功"

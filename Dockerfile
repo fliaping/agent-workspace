@@ -5,11 +5,13 @@
 #   USE_CHINA_MIRROR=false (默认，国际源) | true (国内源)
 #
 # 示例:
-#   docker compose build                                          # XFCE + 国际源
-#   docker compose build --build-arg DESKTOP=kde                 # KDE 桌面
-#   docker compose build --build-arg USE_CHINA_MIRROR=true       # 国内源
+#   docker compose build --pull                                       # XFCE + 国际源
+#   docker compose build --pull --build-arg DESKTOP=kde                 # KDE 桌面
+#   docker compose build --pull --build-arg USE_CHINA_MIRROR=true       # 国内源
 
 ARG DESKTOP=xfce
+# Follow official Webtop updates; builds must pull to refresh this moving tag.
+# Selkies and PulseAudio startup scripts are inherited from the official image.
 FROM linuxserver/webtop:ubuntu-${DESKTOP}
 
 USER root

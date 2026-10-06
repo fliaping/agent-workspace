@@ -6,9 +6,9 @@
 # 使用 LinuxServer 标准持久化方式：挂载 /config
 #
 # 构建选项:
-#   默认 XFCE 桌面:   docker compose build
-#   KDE 桌面:         DESKTOP=kde docker compose build
-#   国内源:            USE_CHINA_MIRROR=true docker compose build
+#   默认 XFCE 桌面:   docker compose build --pull
+#   KDE 桌面:         DESKTOP=kde docker compose build --pull
+#   国内源:            USE_CHINA_MIRROR=true docker compose build --pull
 #   或在 .env 文件中设置: DESKTOP=kde
 #                         USE_CHINA_MIRROR=true
 #
@@ -20,6 +20,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      pull: true
       args:
         # 构建时参数（仅影响镜像构建，运行时无效）
         # DESKTOP: xfce(800M) | lxqt(300M) | kde(1.1G)
