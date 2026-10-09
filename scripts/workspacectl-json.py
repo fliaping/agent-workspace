@@ -1290,9 +1290,32 @@ def format_agents_text(payload: list[dict[str, Any]]) -> list[str]:
     return lines
 
 
+def format_skills_text(payload: dict[str, Any]) -> list[str]:
+    lines = [f"Global Skills: {payload['count']} ({payload['shared_count']} shared in {payload['root']})"]
+    if not payload["items"]:
+        lines.append("  none; add one with: workspacectl skill add <source>")
+    for item in payload["items"]:
+        scope = "shared" if item.get("shared") else "agent"
+        agents = ",".join(item.get("agents", [])) or "-"
+        lines.append(f"  {item['name']:<28} {scope:<7} {agents}")
+    return lines
+
+
+def format_mcp_text(payload: dict[str, Any]) -> list[str]:
+    lines = [f"MCP servers: {payload['count']} ({payload['global_count']} on every installed Agent)"]
+    if not payload["items"]:
+        lines.append("  none; add one with: workspacectl mcp add <name> <options>")
+    for item in payload["items"]:
+        agents = ",".join(agent["id"] for agent in item.get("agents", [])) or "-"
+        lines.append(f"  {item['name']:<24} {item.get('transport', ''):<6} {agents:<28} {item.get('detail', '')}")
+    return lines
+
+
 TEXT_FORMATTERS: dict[str, Callable[[Any], list[str]]] = {
     "agents": format_agents_text,
+    "mcp": format_mcp_text,
     "ports": format_ports_text,
+    "skills": format_skills_text,
 }
 
 

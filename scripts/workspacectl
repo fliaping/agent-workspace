@@ -329,7 +329,8 @@ case "${1:-help}" in
   skills)
     shift
     if [[ "${1:-list}" == "list" ]]; then
-      run_json_command skills
+      # Human-readable list; the JSON contract stays on 'workspacectl skills --json'.
+      run_json_command skills --text
     fi
     run_resource_command skill "$@"
     ;;
@@ -340,7 +341,8 @@ case "${1:-help}" in
   mcp)
     shift
     if [[ "${1:-list}" == "list" ]]; then
-      run_json_command mcp
+      # Human-readable list; the JSON contract stays on 'workspacectl mcp --json'.
+      run_json_command mcp --text
     fi
     run_resource_command mcp "$@"
     ;;

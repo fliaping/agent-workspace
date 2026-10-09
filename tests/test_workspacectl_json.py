@@ -55,5 +55,26 @@ class PortsTests(unittest.TestCase):
         self.assertIn("*:3001", lines[1])
 
 
+class ResourceTextTests(unittest.TestCase):
+    def test_skills_text_is_human_readable(self):
+        payload = {"root": "/config/.agents/skills", "count": 1, "shared_count": 1,
+                   "items": [{"name": "demo", "shared": True, "agents": ["codex"]}]}
+        lines = wsjson.text_lines("skills", payload)
+        self.assertTrue(lines[0].startswith("Global Skills: 1"))
+        self.assertIn("demo", lines[1])
+        self.assertFalse(any(line.startswith("{") for line in lines))
+
+    def test_mcp_text_lists_agents(self):
+        payload = {"count": 1, "global_count": 0, "items": [
+            {"name": "docs", "transport": "http", "detail": "https://example.com/mcp",
+             "agents": [{"id": "codex"}, {"id": "claude-code"}]}]}
+        lines = wsjson.text_lines("mcp", payload)
+        self.assertIn("codex,claude-code", lines[1])
+
+    def test_unknown_text_command_is_rejected(self):
+        with self.assertRaises(ValueError):
+            wsjson.text_lines("status", {})
+
+
 if __name__ == "__main__":
     unittest.main()
