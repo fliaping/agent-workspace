@@ -176,7 +176,9 @@ class WorkspaceManager:
             log(f"updating {source} from {url} ({ref})")
             run(["git", "-C", str(source), "remote", "set-url", "origin", url], check=False)
             run(["git", "-C", str(source), "fetch", "--depth", "1", "origin", ref])
-            run(["git", "-C", str(source), "checkout", "-B", ref, f"origin/{ref}"])
+            # The checkout is a single-branch shallow clone, so fetching another
+            # ref does not create origin/<ref>; FETCH_HEAD always names what was fetched.
+            run(["git", "-C", str(source), "checkout", "-B", ref, "FETCH_HEAD"])
         elif source.exists():
             raise ManagerError(f"{source} exists but is not a git checkout")
         else:
