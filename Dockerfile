@@ -122,19 +122,26 @@ RUN mkdir -p /custom-cont-init.d \
     && ln -sf /usr/local/bin/fix-locale.sh /custom-cont-init.d/fix-locale.sh \
     && ln -sf /usr/local/bin/fix-docker-tmpdir.sh /custom-cont-init.d/fix-docker-tmpdir.sh
 
+# exo-open and the XFCE preferred-application helper only exist on the XFCE
+# base; LXQt and KDE resolve the browser through chromium.desktop.
 RUN chmod +x /usr/local/bin/*.sh /usr/local/bin/agent-workspace-manager \
         /usr/local/bin/workspacectl /usr/local/bin/agent-workspace-browser \
         /usr/local/bin/agent-workspace-exo-open \
     && chmod a+r /usr/local/bin/workspacectl-*.py \
-    && if [ -e /usr/bin/exo-open ]; then mv /usr/bin/exo-open /usr/bin/exo-open-real; fi \
-    && cp /usr/local/bin/agent-workspace-exo-open /usr/bin/exo-open \
+    && if [ -e /usr/bin/exo-open ]; then \
+        mv /usr/bin/exo-open /usr/bin/exo-open-real \
+        && cp /usr/local/bin/agent-workspace-exo-open /usr/bin/exo-open; \
+    fi \
     && sed -i 's#^Exec=/usr/local/bin/wrapped-chromium.*#Exec=/usr/local/bin/agent-workspace-browser %U#' \
         /usr/share/applications/chromium.desktop \
-    && sed -i \
-        -e 's#^X-XFCE-Binaries=.*#X-XFCE-Binaries=agent-workspace-browser;#' \
-        -e 's#^X-XFCE-Commands=.*#X-XFCE-Commands=/usr/local/bin/agent-workspace-browser;#' \
-        -e 's#^X-XFCE-CommandsWithParameter=.*#X-XFCE-CommandsWithParameter=/usr/local/bin/agent-workspace-browser "%s";#' \
-        /usr/share/xfce4/helpers/chromium.desktop \
+    && grep -q '^Exec=/usr/local/bin/agent-workspace-browser' /usr/share/applications/chromium.desktop \
+    && if [ -f /usr/share/xfce4/helpers/chromium.desktop ]; then \
+        sed -i \
+            -e 's#^X-XFCE-Binaries=.*#X-XFCE-Binaries=agent-workspace-browser;#' \
+            -e 's#^X-XFCE-Commands=.*#X-XFCE-Commands=/usr/local/bin/agent-workspace-browser;#' \
+            -e 's#^X-XFCE-CommandsWithParameter=.*#X-XFCE-CommandsWithParameter=/usr/local/bin/agent-workspace-browser "%s";#' \
+            /usr/share/xfce4/helpers/chromium.desktop; \
+    fi \
     && find /etc/services.d -name "run" -exec chmod +x {} \;
 
 # systemctl wrapper: adds --user support on top of docker-systemctl-replacement
