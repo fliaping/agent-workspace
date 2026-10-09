@@ -120,7 +120,8 @@ COPY agent-context/ /usr/local/share/agent-workspace/context/
 # LinuxServer custom-init
 RUN mkdir -p /custom-cont-init.d \
     && ln -sf /usr/local/bin/fix-locale.sh /custom-cont-init.d/fix-locale.sh \
-    && ln -sf /usr/local/bin/fix-docker-tmpdir.sh /custom-cont-init.d/fix-docker-tmpdir.sh
+    && ln -sf /usr/local/bin/fix-docker-tmpdir.sh /custom-cont-init.d/fix-docker-tmpdir.sh \
+    && ln -sf /usr/local/bin/tailscale-authkey-init.sh /custom-cont-init.d/tailscale-authkey-init.sh
 
 # exo-open and the XFCE preferred-application helper only exist on the XFCE
 # base; LXQt and KDE resolve the browser through chromium.desktop.

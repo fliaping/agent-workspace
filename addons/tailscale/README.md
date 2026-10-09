@@ -20,5 +20,9 @@ workspacectl tailscale serve   # https+insecure://127.0.0.1:8443 when code-serve
 tailscale serve status --json
 ```
 
+For unattended setups, create the container with `TAILSCALE_AUTHKEY` (or
+`TS_AUTHKEY`) or `TAILSCALE_AUTHKEY_FILE`; first boot then runs
+`workspacectl tailscale autoconnect` (see `docs/remote-workspace.md`).
+
 The local SOCKS5 and HTTP proxy is `127.0.0.1:1055`. The client wrapper always
 uses the private daemon socket at `/config/.local/run/tailscale/tailscaled.sock`.
