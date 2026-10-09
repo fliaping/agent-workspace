@@ -20,6 +20,10 @@ print_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 # 配置
 VERSION="${1:-v1.0.0}"
+# Dockerfile_zh/Dockerfile_en were merged into one Dockerfile (63ccff5); the
+# mirror choice is now a build argument. Build from the repository root.
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_ROOT"
 REGISTRY_CN="registry.cn-hangzhou.aliyuncs.com/fliaping/agent-workspace"
 REGISTRY_EN="xuping/agent-workspace"
 
@@ -59,10 +63,11 @@ esac
 build_chinese() {
     echo ""
     print_info "构建中文镜像..."
-    print_info "Dockerfile: Dockerfile_zh"
+    print_info "Dockerfile: Dockerfile (USE_CHINA_MIRROR=true)"
     print_info "版本: $VERSION"
     
-    docker build -t "agent-workspace-zh:${VERSION}" -f Dockerfile_zh .
+    docker build -t "agent-workspace-zh:${VERSION}" -f Dockerfile \
+        --build-arg USE_CHINA_MIRROR=true "$REPO_ROOT"
     
     # 打标签
     docker tag "agent-workspace-zh:${VERSION}" "${REGISTRY_CN}:${VERSION}"
@@ -84,10 +89,11 @@ build_chinese() {
 build_english() {
     echo ""
     print_info "构建英文镜像..."
-    print_info "Dockerfile: Dockerfile_en"
+    print_info "Dockerfile: Dockerfile (USE_CHINA_MIRROR=false)"
     print_info "版本: $VERSION"
     
-    docker build -t "agent-workspace-en:${VERSION}" -f Dockerfile_en .
+    docker build -t "agent-workspace-en:${VERSION}" -f Dockerfile \
+        --build-arg USE_CHINA_MIRROR=false "$REPO_ROOT"
     
     # 打标签
     docker tag "agent-workspace-en:${VERSION}" "${REGISTRY_EN}:${VERSION}"
