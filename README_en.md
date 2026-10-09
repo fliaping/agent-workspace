@@ -5,28 +5,45 @@
     <a href="README.md">中文</a> &bull;
     <a href="README_en.md">English</a>
   </p>
+  <p>
+    <a href="https://hub.docker.com/r/xuping/agent-workspace"><img src="https://img.shields.io/docker/pulls/xuping/agent-workspace" alt="Docker Pulls"></a>
+    <a href="https://hub.docker.com/r/xuping/agent-workspace/tags"><img src="https://img.shields.io/docker/v/xuping/agent-workspace/ubuntu-xfce?label=ubuntu-xfce" alt="Docker image version"></a>
+  </p>
 </div>
 
 ---
 
-A containerized remote workspace based on [LinuxServer Webtop](https://docs.linuxserver.io/images/docker-webtop/) (Selkies WebRTC). One `/config` volume persists the desktop, code-server, Agents, MCP servers, Skills, and custom services, making it suitable for running Codex, Claude Code, Hermes, and other AI agents on a server, NAS, or WSL2 host.
+A containerized remote workspace based on [LinuxServer Webtop](https://docs.linuxserver.io/images/docker-webtop/) (Selkies browser desktop streaming). One `/config` volume persists the desktop, code-server, Agents, MCP servers, Skills, and custom services, making it suitable for running Codex, Claude Code, Hermes, and other AI agents on a server, NAS, or WSL2 host.
 
-![web-desktop-example](./images/web-desktop-example.png)
+## Screenshots
 
-<!--
-Suggested follow-up screenshots under images/, arranged as two columns here:
-- control-center-overview.png
-- agent-management.png
-- mcp-skills-management.png
-- desktop-network.png
--->
+Captured from a real `ubuntu-xfce` container deployed with `remote-up.sh` (click to enlarge):
+
+<table>
+  <tr>
+    <td align="center" width="50%"><a href="images/screenshots/webtop-desktop.png"><img src="images/screenshots/webtop-desktop.png" width="420" alt="Webtop desktop (XFCE)"></a><br><sub>Webtop desktop (XFCE)</sub></td>
+    <td align="center" width="50%"><a href="images/screenshots/code-server-workspace.png"><img src="images/screenshots/code-server-workspace.png" width="420" alt="code-server workspace"></a><br><sub>code-server workspace</sub></td>
+  </tr>
+  <tr>
+    <td align="center" width="50%"><a href="images/screenshots/control-center-overview.png"><img src="images/screenshots/control-center-overview.png" width="420" alt="Control Center · Overview & guide"></a><br><sub>Control Center · Overview & guide</sub></td>
+    <td align="center" width="50%"><a href="images/screenshots/control-center-agents.png"><img src="images/screenshots/control-center-agents.png" width="420" alt="Control Center · Agents"></a><br><sub>Control Center · Agents</sub></td>
+  </tr>
+  <tr>
+    <td align="center" width="50%"><a href="images/screenshots/control-center-mcp-skills.png"><img src="images/screenshots/control-center-mcp-skills.png" width="420" alt="Control Center · MCP & Skills"></a><br><sub>Control Center · MCP & Skills</sub></td>
+    <td align="center" width="50%"><a href="images/screenshots/control-center-services.png"><img src="images/screenshots/control-center-services.png" width="420" alt="Control Center · Services"></a><br><sub>Control Center · Services</sub></td>
+  </tr>
+  <tr>
+    <td align="center" width="50%"><a href="images/screenshots/control-center-network.png"><img src="images/screenshots/control-center-network.png" width="420" alt="Control Center · Network"></a><br><sub>Control Center · Network</sub></td>
+    <td align="center" width="50%"><a href="images/screenshots/control-center-diagnostics.png"><img src="images/screenshots/control-center-diagnostics.png" width="420" alt="Control Center · Diagnostics"></a><br><sub>Control Center · Diagnostics</sub></td>
+  </tr>
+</table>
 
 ## Features
 
 - **Ready-to-run Agents** — Choose Codex, Claude Code, Hermes, or DeepSeek Harness on first boot; Codex and Claude Code also receive their official code-server extensions
 - **Unified bilingual Control Center** — Manage Agents, the managed browser, global MCP servers and Skills, services, desktop, networking, and diagnostics in one place; switching language also switches code-server
 - **Agent-friendly environment control** — `workspacectl` provides a stable interface for services, logs, ports, routes, and optional capabilities
-- **Selkies WebRTC desktop** — Full Linux desktop over HTTPS with XFCE (default), LXQt, or KDE
+- **Selkies browser desktop** — Full Linux desktop in the browser over HTTPS (Selkies streams over WebSocket) with XFCE (default), LXQt, or KDE
 - **Managed Agent browser** — The default desktop Chromium uses a persistent managed profile so Agents can operate the same window, tabs, and signed-in session without repeated prompts
 - **Desktop Computer Use** — Agents can capture and operate the same Selkies desktop with pointer, keyboard, scroll, drag, window focus, and emergency stop tools
 - **Desktop package installer** — Double-click a `.deb` in the file manager to inspect its metadata, confirm the risk, resolve dependencies, and install it
@@ -37,6 +54,10 @@ Suggested follow-up screenshots under images/, arranged as two columns here:
 
 ## What Is Ready After Deployment?
 
+This table describes the recommended `remote-up.sh` (`docker-compose.remote.yml`) deployment. A plain
+`docker run` or `docker-compose.yml` start without `AGENT_WORKSPACE_BOOTSTRAP` only starts the Webtop
+desktop; see [Deployment Options](#deployment-options).
+
 | Area | Ready after deployment | What the user still does |
 |------|------------------------|--------------------------|
 | Workspace | Webtop, code-server, Control Center, and `workspacectl` | Open the generated URL in a browser |
@@ -45,6 +66,97 @@ Suggested follow-up screenshots under images/, arranged as two columns here:
 | Remote access | Local HTTPS endpoints and an SSH-tunnel path | Optionally enable a custom domain, authenticated gateway, or Tailscale |
 
 The shortest path is: run `remote-up.sh` → open code-server → sign in to one Agent → let that Agent configure anything else you need.
+
+## Architecture
+
+<p align="center">
+  <a href="images/architecture.svg"><img src="images/architecture.png" width="900" alt="Agent Workspace architecture diagram"></a>
+  <br><sub>Click the image for the zoomable SVG version</sub>
+</p>
+
+| Layer | Components | Notes |
+|-------|------------|-------|
+| Access | Browser, SSH tunnel, optional auth gateway + Caddy, optional Tailscale | Only `3001` (desktop) and `8443` (code-server) are published; SSH `22` and Caddy `80` are optional |
+| Desktop | nginx → Selkies → XFCE / LXQt / KDE, managed Chromium | nginx provides HTTPS and Basic auth; Selkies streams the desktop over WebSocket; Chromium CDP listens only on `127.0.0.1:9222` |
+| IDE / Control Center | code-server, Control Center extension, `workspacectl`, `agent-workspace-manager` | code-server uses password auth; Control Center reads `workspacectl status --json`; the manager installs application capabilities into `/config` |
+| Agents | Codex, Claude Code, Hermes, DeepSeek Harness, MCP and Skills, Computer Use bridge | Agents run in the code-server terminal and use MCP to drive the managed browser (CDP) and the desktop (bridge on `127.0.0.1:8765`) |
+| Services | s6-overlay: `workspace-bootstrap`, `custom-services`, `systemctl-services`, `deb-native-restore`, `sshd` | First-boot installation, `/config/custom-services.d` registration, and user services (code-server, bridge, …) |
+| Persistence | The single `/config` volume | Toolchains, code-server, Agent sign-in state, user services, and the workspace all live under `/config` |
+
+Docker (disabled / DinD / host socket) and GPU passthrough are optional; see [Docker Modes](#docker-modes) and [GPU Acceleration](#gpu-acceleration).
+
+<details>
+<summary>Mermaid version</summary>
+
+```mermaid
+flowchart TB
+
+    subgraph Clients["Clients & ingress"]
+        direction LR
+        Browser["User browser<br/>direct (LAN/VPN) or SSH tunnel<br/>ssh -L 3001 -L 8443 user@server"]
+        Gateway["Auth gateway + custom domain<br/>(optional)"]
+        Tailnet["Tailnet device<br/>(optional, no NET_ADMIN)"]
+        SSHClient["SSH client<br/>(optional)"]
+    end
+
+    subgraph Container["Docker container · xuping/agent-workspace:ubuntu-{xfce | lxqt | kde} · LinuxServer Webtop base"]
+        Nginx["nginx<br/>HTTPS :3001 · Basic auth"]
+        Selkies["Selkies<br/>WebSocket stream"]
+        Desktop["Linux desktop<br/>XFCE / LXQt / KDE · X11 or Wayland"]
+        Chromium["Managed Chromium<br/>CDP 127.0.0.1:9222"]
+
+        CodeServer["code-server<br/>HTTPS :8443 · password"]
+        ControlCenter["Control Center<br/>code-server extension"]
+        Ctl["workspacectl<br/>+ agent-workspace-manager"]
+        Ingress["Optional ingress<br/>Caddy :80 · tailscale serve"]
+
+        Agents["AI Agents (HOME=/config)<br/>Codex · Claude Code · Hermes · DeepSeek Harness<br/>MCP servers · Skills (/config/.agents/skills)"]
+        Bridge["Computer Use bridge<br/>127.0.0.1:8765 → PixelFlux :8764"]
+
+        S6["s6-overlay services<br/>workspace-bootstrap · custom-services · systemctl-services<br/>deb-native-restore · sshd (if SSH_PASSWORD)"]
+        Optional["Optional: Docker (none · DinD · host socket)<br/>GPU passthrough (/dev/dri · NVIDIA)"]
+    end
+
+    Volume[("/config — single persistent volume<br/>tools · code-server · Agent logins · services · Workspace")]
+
+    Browser -- "HTTPS + Basic auth :3001" --> Nginx
+    Browser -- "HTTPS + password :8443" --> CodeServer
+    Gateway -. "HTTP :80" .-> Ingress
+    Tailnet -. "tailnet" .-> Ingress
+    SSHClient -. ":22" .-> S6
+
+    Nginx -- "proxy" --> Selkies -- "stream" --> Desktop
+    Desktop --- Chromium
+    Ingress -. "→ :8443" .-> CodeServer
+    CodeServer -- "UI" --> ControlCenter
+    ControlCenter -- "status --json" --> Ctl
+    ControlCenter -- "set up · launch" --> Agents
+    Agents -- "operate" --> Ctl
+    Agents -- "CDP / MCP" --> Chromium
+    Agents -- "desktop MCP" --> Bridge
+    Bridge -- "screenshot · input" --> Desktop
+    S6 -- "first-boot install · start user services" --> Ctl
+
+    Container <-. "bind mount" .-> Volume
+
+    classDef client fill:#f8fafc,stroke:#475569,color:#0f172a
+    classDef desk fill:#eff6ff,stroke:#2563eb,color:#0f172a
+    classDef ide fill:#f5f3ff,stroke:#7c3aed,color:#0f172a
+    classDef agent fill:#ecfdf5,stroke:#059669,color:#0f172a
+    classDef sys fill:#fffbeb,stroke:#d97706,color:#0f172a
+    classDef opt fill:#f8fafc,stroke:#64748b,stroke-dasharray:5 4,color:#334155
+    classDef vol fill:#f0fdfa,stroke:#0f766e,color:#0f172a
+
+    class Browser client
+    class Gateway,Tailnet,SSHClient,Ingress,Optional opt
+    class Nginx,Selkies,Desktop,Chromium desk
+    class CodeServer,ControlCenter,Ctl ide
+    class Agents,Bridge agent
+    class S6 sys
+    class Volume vol
+```
+
+</details>
 
 ## Quick Start
 
@@ -57,10 +169,13 @@ cd agent-workspace
 ```
 
 The script asks for one preferred Agent (Codex by default), creates a user-only
-`.env.remote`, and starts Webtop. First boot installs that Agent, code-server,
-and the workspace extensions. It prints credentials and endpoints. The first
-code-server session opens Control Center's five-step guide for Agent sign-in,
-workspace access, remote access, and optional capabilities:
+`.env.remote`, and starts the container from `docker-compose.remote.yml`
+(with `AGENT_WORKSPACE_BOOTSTRAP=remote`). First boot installs code-server, the
+workspace extensions, and that Agent; follow progress with
+`docker logs -f agent-workspace`. It prints the endpoints and credentials (the
+username is always `agent`; the password is random and shared by the desktop and
+code-server). The first code-server session opens Control Center's five-step
+guide for Agent sign-in, workspace access, remote access, and optional capabilities:
 
 ```text
 https://localhost:3001  # Webtop desktop
@@ -86,7 +201,11 @@ authenticated-gateway architectures.
 
 ### Interactive Install
 
-Interactive script with 9-step guided setup (language, desktop, Docker mode, registry, version, data dir, port, agents, agent ports):
+Interactive script with 9-step guided setup (language, desktop, Docker mode, registry, version, data dir, port, agents, agent ports).
+It starts the Webtop desktop with `docker run` and can install Codex, Claude Code, Hermes, OpenClaw, Openfang,
+or Zeroclaw inside the container. Agents are installed as the container's non-root user (`abc`,
+`HOME=/config`), so their logins persist under `/config`. It only publishes the desktop port and does not
+install code-server or Control Center; add them later as described in [Deployment Options](#deployment-options).
 
 **Linux / macOS**
 ```bash
@@ -119,12 +238,17 @@ docker run -d --name agent-workspace \
   -e SELKIES_RATE_CONTROL_MODE=crf,cbr \
   -e SELKIES_CONGESTION_CONTROL=false \
   -e SELKIES_ENABLE_RESIZE=true \
-  -p 3001:3001 \
+  -e AGENT_WORKSPACE_BOOTSTRAP=remote \
+  -e AGENT_WORKSPACE_AGENT=codex \
+  -p 3001:3001 -p 8443:8443 \
   -v ~/agent-workspace-data:/config \
   xuping/agent-workspace:ubuntu-xfce
 ```
 
-Access the desktop at **https://localhost:3001**.
+Access the desktop at **https://localhost:3001**. After the first-boot bootstrap
+finishes (`docker logs -f agent-workspace`), open code-server at
+**https://localhost:8443** with the same `PASSWORD`. For a desktop-only container,
+drop `AGENT_WORKSPACE_BOOTSTRAP`, `AGENT_WORKSPACE_AGENT`, and `-p 8443:8443`.
 
 > China mirror: `registry.cn-hangzhou.aliyuncs.com/fliaping/agent-workspace:ubuntu-xfce`
 
@@ -137,6 +261,30 @@ cd agent-workspace
 docker compose up -d
 ```
 
+`docker-compose.yml` is mainly for custom builds: it publishes only `3001`, keeps
+`CUSTOM_USER` / `PASSWORD` commented out, and does not set
+`AGENT_WORKSPACE_BOOTSTRAP`. For code-server and Control Center, prefer
+`remote-up.sh`, or enable authentication, add `AGENT_WORKSPACE_BOOTSTRAP=remote`,
+and publish `8443:8443` in that file.
+
+### Deployment Options
+
+| Method | Published ports | Authentication | First boot installs code-server / Control Center / Agent |
+|--------|-----------------|----------------|-----------------------------------------------------------|
+| `scripts/remote-up.sh` (recommended) | `3001`, `8443` | user `agent` + random password | Yes (`AGENT_WORKSPACE_BOOTSTRAP=remote`, Codex by default) |
+| The `docker run` example above | `3001`, `8443` | `CUSTOM_USER` / `PASSWORD` | Yes (the example sets `AGENT_WORKSPACE_BOOTSTRAP=remote`) |
+| Default `docker-compose.yml` | `3001` | Disabled by default | No |
+| `install.sh` / `install.ps1` | Desktop port | Chosen in the wizard | No; optional Agent installs only |
+
+An existing container can install the application layer at any time (run as the container user `abc`):
+
+```bash
+docker exec -u abc -e HOME=/config agent-workspace agent-workspace-manager update
+docker exec -u abc -e HOME=/config agent-workspace agent-workspace-manager install foundation
+```
+
+code-server listens on `0.0.0.0:8443` by default, so publish `8443` when creating the container.
+
 ## Image Tags
 
 | Tag | Description |
@@ -144,6 +292,9 @@ docker compose up -d
 | `ubuntu-xfce` | XFCE desktop (default, recommended) |
 | `ubuntu-lxqt` | LXQt desktop (lightest) |
 | `ubuntu-kde` | KDE desktop |
+
+Each release also publishes pinned tags such as `ubuntu-xfce-1.0.35`; see
+[Docker Hub Tags](https://hub.docker.com/r/xuping/agent-workspace/tags). Use a pinned tag for reproducible deployments.
 
 ## Environment Variables
 
@@ -155,8 +306,10 @@ docker compose up -d
 | `LC_ALL` | - | Locale (e.g., `zh_CN.UTF-8`) |
 | `START_DOCKER` | `false` | Enable Docker inside container (requires `--privileged`) |
 | `USE_CHINA_MIRROR` | `false` | Switch to China mirrors at runtime |
-| `AGENT_WORKSPACE_AGENT` | `codex` | First-boot Agent: `codex`, `claude-code`, `hermes`, `deepseek-harness`, or `none` |
-| `SSH_PASSWORD` | unset | Set to enable SSH service (port 22), value is abc user password |
+| `AGENT_WORKSPACE_BOOTSTRAP` | unset | `remote` (or `foundation` / `base`) installs code-server, Control Center, and desktop integration on first boot; `remote-up.sh` sets `remote` |
+| `AGENT_WORKSPACE_AGENT` | `none` (`codex` with `remote-up.sh`) | First-boot Agent: `codex`, `claude-code`, `hermes`, `deepseek-harness`, or `none`; only used when `AGENT_WORKSPACE_BOOTSTRAP` is set |
+| `CODE_SERVER_BIND` / `CODE_SERVER_AUTH` / `CODE_SERVER_CERT` | `0.0.0.0:8443` / `password` / `true` | code-server listen address, authentication, and self-signed certificate; the password defaults to `PASSWORD` |
+| `SSH_PASSWORD` | unset | Set to enable SSH service (container port 22), value is abc user password; the compose files do not publish it, add e.g. `-p 2222:22` |
 | `NODE_OPTIONS` | - | Node.js options (e.g., `--max-old-space-size=2048`) |
 | `AGENT_WORKSPACE_BROWSER_PROFILE` | `/config/.config/agent-browser` | Persistent profile for the default managed desktop Chromium |
 | `AGENT_WORKSPACE_BROWSER_PROFILE_NAME` | `Agent Workspace (Managed)` | Visible Chromium profile name that makes an accidentally opened unmanaged browser easy to spot |
@@ -166,7 +319,8 @@ docker compose up -d
 | `SELKIES_RATE_CONTROL_MODE` | `crf,cbr` | Available modes, with CRF selected by default |
 | `SELKIES_CONGESTION_CONTROL` | `false` | Disable GCC adaptation that can reduce quality during motion |
 | `SELKIES_ENABLE_RESIZE` | `true` | Synchronize desktop resolution with the browser window |
-| `PIXELFLUX_CU` | `8764` | Native Selkies Computer Use internal port; upstream binds the container interface, so never publish it |
+| `PIXELFLUX_WAYLAND` | `true` (new images) | Runs the desktop in upstream Wayland (labwc) mode, which desktop Computer Use requires; set to `false` to fall back to X11 (Xvfb). In the published `ubuntu-xfce-1.0.35` and older images it is unset and the desktop defaults to X11; set it to `true` explicitly for Computer Use |
+| `PIXELFLUX_CU` | `8764` | Native Selkies Computer Use internal port (Wayland mode only). The source Dockerfile sets it; older images such as `ubuntu-xfce-1.0.35` do not, so add `-e PIXELFLUX_CU=8764`. Upstream binds the container interface, so never publish it |
 | `XFCE_PANEL_SCALING` | `true` | Keep XFCE panel rows and icons in step with Wayland scaling; set to `false` to disable |
 
 ## Docker Modes
@@ -186,13 +340,13 @@ docker compose up -d
 
 > The install script auto-detects GPU and configures accordingly.
 >
-> Selkies settings inherit upstream defaults. Add `-e PIXELFLUX_WAYLAND=false` only for a confirmed Wayland compatibility issue; X11 cannot use the upstream Wayland zero-copy encoding path.
+> The image and compose files set `SELKIES_ENABLE_RATE_CONTROL=true`, `SELKIES_RATE_CONTROL_MODE=crf,cbr` (constant-quality CRF by default, CBR still selectable in the sidebar), `SELKIES_CONGESTION_CONTROL=false`, and `SELKIES_ENABLE_RESIZE=true`, so the desktop resolution follows the browser window. Images built from the current Dockerfile run the desktop on Wayland by default (`PIXELFLUX_WAYLAND=true`); set `-e PIXELFLUX_WAYLAND=false` to fall back to X11 (Xvfb) if you hit a compatibility issue. In the published `ubuntu-xfce-1.0.35` and older images the default is still X11 until a new release is published, so set `-e PIXELFLUX_WAYLAND=true` explicitly.
 
 ## Built-in Toolchain
 
 | Tool | Version | Notes |
 |------|---------|-------|
-| Node.js | 22 LTS | + npm, pnpm, TypeScript |
+| Node.js | 22 LTS | + npm; new images install pnpm and TypeScript under `/usr/local`, independent of how `/config` is mounted. In the published `ubuntu-xfce-1.0.35` and older images they live in `/config/.npm-global` and are hidden by a bind-mounted host directory; run `npm i -g pnpm typescript` there |
 | Go | 1.22.4 | |
 | Rust | stable | + Cargo |
 | Python 3 | System | + pip, venv, uv |
@@ -233,7 +387,7 @@ workspacectl network domain dev.example.com
 # Optional: private Tailscale networking without NET_ADMIN
 agent-workspace-manager install tailscale
 workspacectl tailscale login
-workspacectl tailscale serve
+workspacectl tailscale serve   # uses an https+insecure:// upstream when code-server TLS is enabled (default)
 
 # Show application capability status
 agent-workspace-manager status
@@ -280,7 +434,7 @@ workspacectl services
 workspacectl service restart openclaw
 workspacectl s6 status svc-selkies
 workspacectl logs openclaw
-workspacectl ports
+workspacectl ports   # merges user and sudo views, including root-owned nginx on 3000/3001
 workspacectl browser status
 workspacectl desktop status
 
@@ -302,7 +456,10 @@ per-Agent approval. Configured container Agents can read and operate every tab,
 cookie, and signed-in session, so managed mode is intended for trusted Agents in
 a single-user workspace.
 
-Native desktop applications use `/config/bin/agent-desktop-mcp`. The safety
+Native desktop applications use `/config/bin/agent-desktop-mcp`. This requires
+the Wayland desktop mode (`PIXELFLUX_WAYLAND=true` with `PIXELFLUX_CU=8764`). New images
+meet this by default; with the published `ubuntu-xfce-1.0.35` and older images set both variables when creating the container.
+Check it with `workspacectl desktop status`. The safety
 bridge is loopback-only at `127.0.0.1:8765`. Upstream PixelFlux currently binds
 its internal port `8764` to the container interface, so never publish it through
 Docker, Caddy, or Tailscale, and do not join an untrusted Docker network. The bridge provides screenshot, click,
@@ -342,9 +499,9 @@ the module source remains available for development:
 | Module | Path | Description |
 |--------|------|-------------|
 | code-server | `addons/code-server` | Official standalone runtime, password authentication, and persistent user service |
-| Control Center | `extensions/control-center` | Unified onboarding plus Agents, resources, services, desktop, networking, and diagnostics |
+| Control Center | `extensions/control-center` | Unified onboarding plus Agents, resources, services, desktop, networking, and diagnostics; "Open desktop" opens Selkies through code-server's `/proxy/3000/` |
 | Custom-domain routing | `addons/proxyctl` | Caddy backend installed automatically by `workspacectl network domain` for deployments with existing DNS, TLS, and gateway authentication |
-| Selkies Desktop extension | `extensions/selkies-desktop` | Open and initialize the Selkies desktop inside code-server |
+| Selkies Desktop | `extensions/selkies-desktop` | code-server extension that opens the Selkies desktop in one click through the same-origin `/proxy/3000/` route; also available in Restricted Mode (untrusted workspaces) |
 | Desktop Computer Use | `addons/desktop-bridge` | Same-screen control, global MCP, loopback boundary, and emergency stop |
 | Tailscale network | `addons/tailscale` | Userspace private networking and Tailnet Serve without `NET_ADMIN` |
 | DeepSeek Harness | `addons/deepseek-harness` | Official `dsh`, persistent state, same-origin Web UI, and global resource bridge |
@@ -425,6 +582,31 @@ docker start agent-workspace
 - Without `CUSTOM_USER` / `PASSWORD`, Webtop has no application-level authentication. For Internet exposure, use strong credentials plus a reverse proxy, VPN, or zero-trust gateway.
 - Homebrew is persisted to `/config/.linuxbrew`; do not mount `/home/linuxbrew/.linuxbrew` separately.
 - LinuxServer automatically initializes the `/config` directory on first startup.
+
+## Known Limitations and Troubleshooting
+
+- **Self-signed certificates and webviews**: code-server uses a self-signed HTTPS
+  certificate by default. Chrome refuses to register service workers for untrusted
+  certificates, so webviews such as Control Center can fail with
+  `Could not register service worker ... SSL certificate error`
+  (see [coder/code-server#5671](https://github.com/coder/code-server/issues/5671)).
+  Use a certificate the browser trusts (for example a custom domain + Caddy behind
+  an existing TLS gateway, see [Remote Workspace Profiles](docs/remote-workspace.md))
+  or import the certificate into the system/browser trust store. For temporary
+  testing, Firefox or Chrome's `--unsafely-treat-insecure-origin-as-secure` option can help.
+- **Desktop Computer Use**: the native PixelFlux endpoint only starts in Wayland
+  mode. New images enable Wayland by default; the published `ubuntu-xfce-1.0.35` and older images default to X11, where
+  `workspacectl desktop status` reports the backend as unavailable, so create the
+  container with `PIXELFLUX_WAYLAND=true` and `PIXELFLUX_CU=8764`. Computer Use is
+  unavailable if you fall back to X11 with `PIXELFLUX_WAYLAND=false`.
+- **Desktop through code-server**: with `CUSTOM_USER` / `PASSWORD` set,
+  `/proxy/3000/` still asks for Basic authentication once.
+- **pnpm / TypeScript (older images only)**: in the published `ubuntu-xfce-1.0.35` and older images, bind-mounting an empty
+  host directory over `/config` hides `/config/.npm-global`; run `npm i -g pnpm typescript`.
+  New images install them under `/usr/local`.
+- **UI language**: the Control Center language toggle ("中文" / "EN") switches the whole
+  code-server UI language and restarts code-server (see
+  [code-server Extensions](docs/code-server-extensions.md)); save open edits first.
 
 ## Architecture Support
 
