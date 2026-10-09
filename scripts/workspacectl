@@ -50,6 +50,7 @@ Operate:
   desktop scaling restore      Restore the saved text scale
   tailscale login              Sign in interactively from a terminal
   tailscale serve              Expose code-server and Selkies inside the tailnet
+  tailscale autoconnect        Log in with the staged auth key (used at container start)
   update                       Update the Agent Workspace application source
   proxy <arguments...>         Manage optional custom-domain routing
 
@@ -145,6 +146,60 @@ code_server_serve_target() {
   case "${cert//[\"\']/}" in
     ""|false) echo "http://127.0.0.1:$port" ;;
     *) echo "https+insecure://127.0.0.1:$port" ;;
+  esac
+}
+
+tailscale_backend_state() {
+  tailscale status --json 2>/dev/null \
+    | python3 -c 'import json, sys; print(json.load(sys.stdin).get("BackendState", ""))' 2>/dev/null \
+    || true
+}
+
+# Non-interactive login used at container start. The auth key is only ever
+# passed as a file: reference, so it never shows up in argv, logs, or status.
+tailscale_autoconnect() {
+  local key_file="${TAILSCALE_AUTHKEY_FILE:-}" state="" waited=0
+  local wait_seconds="${TAILSCALE_WAIT_SECONDS:-30}"
+  if ! command -v tailscale >/dev/null 2>&1; then
+    echo "Tailscale is not installed; run: workspacectl install tailscale" >&2
+    return 1
+  fi
+  while :; do
+    state="$(tailscale_backend_state)"
+    [[ -n "$state" || "$waited" -ge "$wait_seconds" ]] && break
+    sleep 1
+    waited=$((waited + 1))
+  done
+  if [[ -z "$state" ]]; then
+    echo "[tailscale] daemon is not answering; is tailscaled-workspace running?" >&2
+    return 1
+  fi
+  if [[ "$state" == "Running" ]]; then
+    echo "[tailscale] already logged in; skipping auth key"
+  else
+    if [[ -z "$key_file" || ! -r "$key_file" ]]; then
+      echo "[tailscale] no readable auth key file; set TAILSCALE_AUTHKEY or TAILSCALE_AUTHKEY_FILE" >&2
+      return 1
+    fi
+    local -a args=(up "--auth-key=file:$key_file" --hostname="${TAILSCALE_HOSTNAME:-agent-workspace}" --accept-dns=false)
+    if [[ -n "${TAILSCALE_ADVERTISE_TAGS:-}" ]]; then
+      args+=("--advertise-tags=$TAILSCALE_ADVERTISE_TAGS")
+    fi
+    if [[ -n "${TAILSCALE_EXTRA_ARGS:-}" ]]; then
+      local -a extra=()
+      read -r -a extra <<<"$TAILSCALE_EXTRA_ARGS"
+      args+=("${extra[@]}")
+    fi
+    tailscale "${args[@]}" || { echo "[tailscale] login with auth key failed" >&2; return 1; }
+    echo "[tailscale] logged in as ${TAILSCALE_HOSTNAME:-agent-workspace}"
+  fi
+  case "${TAILSCALE_SERVE:-false}" in
+    true|1|yes)
+      # serve waits for the admin console when Serve/HTTPS is not enabled yet.
+      if ! timeout "${TAILSCALE_SERVE_TIMEOUT:-60}" tailscale serve --bg --yes "$(code_server_serve_target)"; then
+        echo "[tailscale] serve was not enabled; enable Serve/HTTPS for the tailnet, then run: workspacectl tailscale serve" >&2
+      fi
+      ;;
   esac
 }
 
@@ -395,8 +450,11 @@ case "${1:-help}" in
       logout)
         run_tailscale logout
         ;;
+      autoconnect)
+        tailscale_autoconnect
+        ;;
       *)
-        echo "Usage: workspacectl tailscale status|login|serve|logout" >&2
+        echo "Usage: workspacectl tailscale status|login|serve|autoconnect|logout" >&2
         exit 2
         ;;
     esac
