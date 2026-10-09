@@ -195,12 +195,20 @@ show_services() {
 }
 
 show_ports() {
-  if command -v lsof >/dev/null 2>&1; then
-    lsof -nP -iTCP -sTCP:LISTEN
-  else
+  local script_path helper
+  if ! command -v lsof >/dev/null 2>&1; then
     echo "lsof is unavailable; inspect /proc/net/tcp and /proc/net/tcp6" >&2
     return 1
   fi
+  # The helper merges the unprivileged and sudo views so root-owned listeners
+  # (nginx on 3000/3001) are not missing when run as abc.
+  script_path="$(readlink -f "${BASH_SOURCE[0]}")"
+  helper="$(dirname "$script_path")/workspacectl-json.py"
+  if [[ ! -f "$helper" ]]; then
+    echo "workspacectl JSON helper is unavailable: $helper" >&2
+    return 1
+  fi
+  python3 "$helper" ports --text
 }
 
 manager() {

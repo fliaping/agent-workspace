@@ -20,7 +20,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from typing import Any
+from typing import Any, Callable
 
 try:
     import tomllib
@@ -655,25 +655,52 @@ def services() -> list[dict[str, Any]]:
         return systemd_future.result() + s6_future.result()
 
 
+def parse_lsof_listeners(output: str) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for line in output.splitlines()[1:]:
+        columns = line.split(None, 8)
+        if len(columns) < 9:
+            continue
+        address = columns[8].removesuffix(" (LISTEN)")
+        rows.append(
+            {
+                "command": columns[0],
+                "pid": int(columns[1]) if columns[1].isdigit() else None,
+                "user": columns[2],
+                "address": address,
+            }
+        )
+    return rows
+
+
 def ports() -> list[dict[str, Any]]:
-    if command_path("lsof"):
-        result = run(["lsof", "-nP", "-iTCP", "-sTCP:LISTEN"], timeout=8)
-        rows: list[dict[str, Any]] = []
-        for line in result.stdout.splitlines()[1:]:
-            columns = line.split(None, 8)
-            if len(columns) < 9:
-                continue
-            address = columns[8].removesuffix(" (LISTEN)")
-            rows.append(
-                {
-                    "command": columns[0],
-                    "pid": int(columns[1]) if columns[1].isdigit() else None,
-                    "user": columns[2],
-                    "address": address,
-                }
-            )
-        return rows
-    return []
+    if not command_path("lsof"):
+        return []
+    lsof = ["lsof", "-nP", "-iTCP", "-sTCP:LISTEN"]
+    outputs = [run(lsof, timeout=8).stdout]
+    # An unprivileged lsof cannot see sockets of root processes (nginx on
+    # 3000/3001), and root without CAP_SYS_PTRACE cannot see the abc ones, so
+    # merge both views when container administration is available.
+    if os.geteuid() != 0 and passwordless_sudo():
+        outputs.append(run(["sudo", "-n", *lsof], timeout=8).stdout)
+    rows: list[dict[str, Any]] = []
+    seen: set[tuple[Any, str]] = set()
+    for output in outputs:
+        for row in parse_lsof_listeners(output):
+            key = (row["pid"], row["address"])
+            if key not in seen:
+                seen.add(key)
+                rows.append(row)
+    rows.sort(key=lambda row: (row["pid"] is None, row["pid"] or 0, row["address"]))
+    return rows
+
+
+def format_ports_text(rows: list[dict[str, Any]]) -> list[str]:
+    lines = [f"{'COMMAND':<16} {'PID':>7} {'USER':<8} ADDRESS"]
+    for row in rows:
+        pid = "" if row.get("pid") is None else str(row["pid"])
+        lines.append(f"{row['command']:<16} {pid:>7} {row['user']:<8} {row['address']}")
+    return lines
 
 
 def parse_env_file(path: pathlib.Path) -> dict[str, str]:
@@ -1245,26 +1272,45 @@ def payload_for(command: str) -> Any:
     return providers[command]()
 
 
+def format_agents_text(payload: list[dict[str, Any]]) -> list[str]:
+    lines: list[str] = []
+    for item in payload:
+        label = str(item.get("label", item.get("id", "Agent")))
+        if item.get("installed"):
+            detail = str(item.get("path", ""))
+            if item.get("version"):
+                detail += f" ({item['version']})"
+            lines.append(f"{label:<16} {'ready':<10} {detail}")
+        else:
+            install_name = item.get("install_name", item.get("id", ""))
+            lines.append(
+                f"{label:<16} {'missing':<10} "
+                f"install: workspacectl install agent {install_name}"
+            )
+    return lines
+
+
+TEXT_FORMATTERS: dict[str, Callable[[Any], list[str]]] = {
+    "agents": format_agents_text,
+    "ports": format_ports_text,
+}
+
+
+def text_lines(command: str, payload: Any) -> list[str]:
+    formatter = TEXT_FORMATTERS.get(command)
+    if formatter is None:
+        supported = ", ".join(sorted(TEXT_FORMATTERS))
+        raise ValueError(f"text output is only available for: {supported}")
+    return formatter(payload)
+
+
 def main(argv: list[str]) -> int:
     command = argv[0] if argv else "status"
     try:
         payload = payload_for(command)
         if "--text" in argv:
-            if command != "agents" or not isinstance(payload, list):
-                raise ValueError("text output is only available for agents")
-            for item in payload:
-                label = str(item.get("label", item.get("id", "Agent")))
-                if item.get("installed"):
-                    detail = str(item.get("path", ""))
-                    if item.get("version"):
-                        detail += f" ({item['version']})"
-                    print(f"{label:<16} {'ready':<10} {detail}")
-                else:
-                    install_name = item.get("install_name", item.get("id", ""))
-                    print(
-                        f"{label:<16} {'missing':<10} "
-                        f"install: workspacectl install agent {install_name}"
-                    )
+            for line in text_lines(command, payload):
+                print(line)
         else:
             print(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
     except (OSError, ValueError) as exc:
