@@ -27,6 +27,8 @@ jobs:
       contents: read
       packages: write
     strategy:
+      # Build every desktop variant even if another one fails.
+      fail-fast: false
       matrix:
         desktop: [lxqt, xfce, kde]
 
@@ -94,6 +96,8 @@ jobs:
     permissions:
       contents: read
     strategy:
+      # Build every desktop variant even if another one fails.
+      fail-fast: false
       matrix:
         desktop: [lxqt, xfce, kde]
 
