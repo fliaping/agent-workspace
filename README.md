@@ -198,7 +198,8 @@ TLS 和强认证的反向代理、VPN 或零信任网关后面。
 
 交互式脚本自动引导完成 9 步配置（语言、桌面、Docker、镜像源、版本、数据目录、端口、Agent 软件、Agent 端口），
 然后用 `docker run` 启动 Webtop 桌面，并可在容器内安装 Codex、Claude Code、Hermes、OpenClaw、Openfang
-或 Zeroclaw。该脚本只映射桌面端口，不会安装 code-server 和 Control Center；需要时请参考
+或 Zeroclaw。Agent 以容器内的非 root 用户（`abc`，`HOME=/config`）安装，登录信息可正常写入
+`/config`。该脚本只映射桌面端口，不会安装 code-server 和 Control Center；需要时请参考
 [部署方式对比](#部署方式对比) 在容器内补装。
 
 **Linux / macOS**
@@ -311,7 +312,7 @@ code-server 默认监听 `0.0.0.0:8443`，因此需要在创建容器时映射 `
 | `SELKIES_RATE_CONTROL_MODE` | `crf,cbr` | 可选码率模式，首项 CRF 为默认值 |
 | `SELKIES_CONGESTION_CONTROL` | `false` | 关闭会压低动态画质的 GCC 自适应码率 |
 | `SELKIES_ENABLE_RESIZE` | `true` | 浏览器窗口变化时同步调整桌面分辨率 |
-| `PIXELFLUX_WAYLAND` | 不设置（X11） | 设为 `true` 时桌面改用上游 Wayland（labwc）模式；桌面 Computer Use 依赖该模式 |
+| `PIXELFLUX_WAYLAND` | `true`（新镜像） | 桌面以上游 Wayland（labwc）模式运行，桌面 Computer Use 依赖该模式；设为 `false` 回退 X11（Xvfb）。已发布的 `ubuntu-xfce-1.0.35` 及更早镜像未设置该变量，默认仍为 X11，需要 Computer Use 时请显式设为 `true` |
 | `PIXELFLUX_CU` | `8764` | Selkies 原生 Computer Use 内部端口（仅 Wayland 模式生效）。源码 Dockerfile 默认设置该值，较早构建的镜像（如 `ubuntu-xfce-1.0.35`）未内置，需显式添加 `-e PIXELFLUX_CU=8764`；上游绑定容器接口，绝不能通过 Docker 或代理暴露 |
 | `XFCE_PANEL_SCALING` | `true` | Wayland 缩放变化时同步调整 XFCE 面板与图标；设为 `false` 可关闭 |
 
@@ -332,13 +333,13 @@ code-server 默认监听 `0.0.0.0:8443`，因此需要在创建容器时映射 `
 
 > 安装脚本会自动检测 GPU 并配置。
 >
-> 镜像和 compose 文件默认设置 `SELKIES_ENABLE_RATE_CONTROL=true`、`SELKIES_RATE_CONTROL_MODE=crf,cbr`（默认恒定质量 CRF，侧栏仍可切换为 CBR）、`SELKIES_CONGESTION_CONTROL=false` 和 `SELKIES_ENABLE_RESIZE=true`，桌面分辨率会跟随浏览器窗口变化。桌面默认以 X11（Xvfb）运行；设置 `-e PIXELFLUX_WAYLAND=true` 可切换到上游 Wayland 模式。
+> 镜像和 compose 文件默认设置 `SELKIES_ENABLE_RATE_CONTROL=true`、`SELKIES_RATE_CONTROL_MODE=crf,cbr`（默认恒定质量 CRF，侧栏仍可切换为 CBR）、`SELKIES_CONGESTION_CONTROL=false` 和 `SELKIES_ENABLE_RESIZE=true`，桌面分辨率会跟随浏览器窗口变化。由当前 Dockerfile 构建的新镜像默认以 Wayland 运行桌面（`PIXELFLUX_WAYLAND=true`），遇到兼容问题可设置 `-e PIXELFLUX_WAYLAND=false` 回退 X11（Xvfb）；已发布的 `ubuntu-xfce-1.0.35` 及更早镜像默认仍为 X11，发布新版本前需显式设置 `-e PIXELFLUX_WAYLAND=true`。
 
 ## 内置工具链
 
 | 工具 | 版本 | 说明 |
 |------|------|------|
-| Node.js | 22 LTS | + npm；pnpm、TypeScript 在构建时安装到 `/config/.npm-global`，使用空的命名卷时会自动带入，绑定挂载宿主机目录时需执行 `npm i -g pnpm typescript` |
+| Node.js | 22 LTS | + npm；新镜像把 pnpm、TypeScript 安装到 `/usr/local`，不受 `/config` 挂载方式影响。已发布的 `ubuntu-xfce-1.0.35` 及更早镜像把它们装在 `/config/.npm-global`，绑定挂载宿主机目录时会被遮盖，需执行 `npm i -g pnpm typescript` |
 | Go | 1.22.4 | |
 | Rust | stable | + Cargo |
 | Python 3 | 系统版 | + pip、venv、uv |
@@ -373,7 +374,7 @@ workspacectl network domain dev.example.com
 # 可选：无需 NET_ADMIN 的 Tailscale 私有自组网
 agent-workspace-manager install tailscale
 workspacectl tailscale login
-workspacectl tailscale serve
+workspacectl tailscale serve   # code-server 启用 TLS（默认）时使用 https+insecure:// 上游
 
 # 查看应用能力状态
 agent-workspace-manager status
@@ -415,7 +416,7 @@ workspacectl services
 workspacectl service restart openclaw
 workspacectl s6 status svc-selkies
 workspacectl logs openclaw
-workspacectl ports
+workspacectl ports   # 合并普通用户与 sudo 视图，包含 root 运行的 nginx 3000/3001
 workspacectl browser status
 workspacectl desktop status
 
@@ -441,8 +442,8 @@ Agent 的登录信息和配置写入 `HOME=/config`，因此随唯一的 `/confi
 Cookie 与登录会话，因此该模式适用于可信 Agent 的单用户工作区。
 
 原生桌面应用通过 `/config/bin/agent-desktop-mcp` 使用 Computer Use。该能力要求桌面运行在
-Wayland 模式（`PIXELFLUX_WAYLAND=true` 且 `PIXELFLUX_CU=8764`），可用 `workspacectl desktop status`
-检查。安全 bridge 只监听 `127.0.0.1:8765`；上游 PixelFlux 当前会把内部端口 `8764` 绑定到容器
+Wayland 模式（`PIXELFLUX_WAYLAND=true` 且 `PIXELFLUX_CU=8764`）：新镜像默认满足，
+已发布的 `ubuntu-xfce-1.0.35` 及更早镜像需在创建容器时显式设置这两个变量。可用 `workspacectl desktop status` 检查。安全 bridge 只监听 `127.0.0.1:8765`；上游 PixelFlux 当前会把内部端口 `8764` 绑定到容器
 接口，因此绝不能通过 Docker、Caddy 或 Tailscale 发布，也不应把工作区加入不可信
 Docker 网络。bridge 提供截图、点击、拖拽、滚动、按键、文本输入、窗口聚焦、会话
 状态和紧急停止。网页任务仍默认使用托管浏览器 CDP。需要立即阻断所有 Agent
@@ -468,9 +469,9 @@ Docker 网络。bridge 提供截图、点击、拖拽、滚动、按键、文本
 | 模块 | 路径 | 说明 |
 |------|------|------|
 | code-server | `addons/code-server` | 官方 standalone 运行时、密码认证和持久化用户服务 |
-| Control Center | `extensions/control-center` | 统一的首次使用向导，以及 Agent、资源、服务、桌面、网络和诊断界面 |
+| Control Center | `extensions/control-center` | 统一的首次使用向导，以及 Agent、资源、服务、桌面、网络和诊断界面；“打开桌面”经 code-server 的 `/proxy/3000/` 打开 Selkies |
 | 自定义域名路由 | `addons/proxyctl` | 由 `workspacectl network domain` 自动安装的 Caddy 后端，适合已有 DNS、TLS 和认证网关的部署 |
-| Selkies Desktop | `extensions/selkies-desktop` | code-server 扩展，通过同源 `/proxy/3000/` 在 code-server 内一键打开 Selkies 桌面 |
+| Selkies Desktop | `extensions/selkies-desktop` | code-server 扩展，通过同源 `/proxy/3000/` 在 code-server 内一键打开 Selkies 桌面；在受限模式（未信任的工作区）下同样可用 |
 | Desktop Computer Use | `addons/desktop-bridge` | 同屏桌面控制、全局 MCP、回环权限边界与紧急停止 |
 | Tailscale 自组网 | `addons/tailscale` | 无需 NET_ADMIN 的 userspace 私有网络与 Tailnet Serve |
 | DeepSeek Harness | `addons/deepseek-harness` | 官方 `dsh`、持久化状态、同源 Web UI 与全局资源桥接 |
@@ -558,10 +559,13 @@ docker start agent-workspace
   （例如在已有 TLS 认证网关后配置自定义域名 + Caddy，见 [Remote Workspace Profiles](docs/remote-workspace.md)），
   或把证书导入系统 / 浏览器信任库；临时测试可尝试 Firefox，或使用 Chrome 的
   `--unsafely-treat-insecure-origin-as-secure` 选项。
-- **桌面 Computer Use**：默认 X11 模式下 `workspacectl desktop status` 会显示后端不可用；需要以
-  `PIXELFLUX_WAYLAND=true` 和 `PIXELFLUX_CU=8764` 创建容器。
+- **桌面 Computer Use**：PixelFlux 原生接口只在 Wayland 模式下启动。新镜像默认启用 Wayland；
+  已发布的 `ubuntu-xfce-1.0.35` 及更早镜像默认 X11，`workspacectl desktop status` 会显示后端不可用，需以
+  `PIXELFLUX_WAYLAND=true` 和 `PIXELFLUX_CU=8764` 创建容器。设置 `PIXELFLUX_WAYLAND=false` 回退 X11 时 Computer Use 不可用。
 - **通过 code-server 打开桌面**：设置 `CUSTOM_USER` / `PASSWORD` 后，`/proxy/3000/` 仍会要求一次 Basic 认证。
-- **pnpm / TypeScript**：绑定挂载空的宿主机目录到 `/config` 会遮盖镜像内的 `/config/.npm-global`，按上文执行 `npm i -g` 即可。
+- **pnpm / TypeScript（仅旧镜像）**：已发布的 `ubuntu-xfce-1.0.35` 及更早镜像中，绑定挂载空的宿主机目录到 `/config` 会遮盖 `/config/.npm-global`，按上文执行 `npm i -g` 即可；新镜像已改装到 `/usr/local`。
+- **界面语言**：Control Center 的语言切换按钮（“中文” / “EN”）会切换整个 code-server 界面的语言并重启 code-server
+  （见 [code-server 扩展](docs/code-server-extensions.md)），切换前请保存未保存的编辑。
 
 ## 架构支持
 

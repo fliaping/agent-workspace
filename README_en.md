@@ -203,8 +203,9 @@ authenticated-gateway architectures.
 
 Interactive script with 9-step guided setup (language, desktop, Docker mode, registry, version, data dir, port, agents, agent ports).
 It starts the Webtop desktop with `docker run` and can install Codex, Claude Code, Hermes, OpenClaw, Openfang,
-or Zeroclaw inside the container. It only publishes the desktop port and does not install code-server or
-Control Center; add them later as described in [Deployment Options](#deployment-options).
+or Zeroclaw inside the container. Agents are installed as the container's non-root user (`abc`,
+`HOME=/config`), so their logins persist under `/config`. It only publishes the desktop port and does not
+install code-server or Control Center; add them later as described in [Deployment Options](#deployment-options).
 
 **Linux / macOS**
 ```bash
@@ -318,7 +319,7 @@ Each release also publishes pinned tags such as `ubuntu-xfce-1.0.35`; see
 | `SELKIES_RATE_CONTROL_MODE` | `crf,cbr` | Available modes, with CRF selected by default |
 | `SELKIES_CONGESTION_CONTROL` | `false` | Disable GCC adaptation that can reduce quality during motion |
 | `SELKIES_ENABLE_RESIZE` | `true` | Synchronize desktop resolution with the browser window |
-| `PIXELFLUX_WAYLAND` | unset (X11) | Set to `true` to run the desktop in upstream Wayland (labwc) mode; required for desktop Computer Use |
+| `PIXELFLUX_WAYLAND` | `true` (new images) | Runs the desktop in upstream Wayland (labwc) mode, which desktop Computer Use requires; set to `false` to fall back to X11 (Xvfb). In the published `ubuntu-xfce-1.0.35` and older images it is unset and the desktop defaults to X11; set it to `true` explicitly for Computer Use |
 | `PIXELFLUX_CU` | `8764` | Native Selkies Computer Use internal port (Wayland mode only). The source Dockerfile sets it; older images such as `ubuntu-xfce-1.0.35` do not, so add `-e PIXELFLUX_CU=8764`. Upstream binds the container interface, so never publish it |
 | `XFCE_PANEL_SCALING` | `true` | Keep XFCE panel rows and icons in step with Wayland scaling; set to `false` to disable |
 
@@ -339,13 +340,13 @@ Each release also publishes pinned tags such as `ubuntu-xfce-1.0.35`; see
 
 > The install script auto-detects GPU and configures accordingly.
 >
-> The image and compose files set `SELKIES_ENABLE_RATE_CONTROL=true`, `SELKIES_RATE_CONTROL_MODE=crf,cbr` (constant-quality CRF by default, CBR still selectable in the sidebar), `SELKIES_CONGESTION_CONTROL=false`, and `SELKIES_ENABLE_RESIZE=true`, so the desktop resolution follows the browser window. The desktop runs on X11 (Xvfb) by default; set `-e PIXELFLUX_WAYLAND=true` for the upstream Wayland mode.
+> The image and compose files set `SELKIES_ENABLE_RATE_CONTROL=true`, `SELKIES_RATE_CONTROL_MODE=crf,cbr` (constant-quality CRF by default, CBR still selectable in the sidebar), `SELKIES_CONGESTION_CONTROL=false`, and `SELKIES_ENABLE_RESIZE=true`, so the desktop resolution follows the browser window. Images built from the current Dockerfile run the desktop on Wayland by default (`PIXELFLUX_WAYLAND=true`); set `-e PIXELFLUX_WAYLAND=false` to fall back to X11 (Xvfb) if you hit a compatibility issue. In the published `ubuntu-xfce-1.0.35` and older images the default is still X11 until a new release is published, so set `-e PIXELFLUX_WAYLAND=true` explicitly.
 
 ## Built-in Toolchain
 
 | Tool | Version | Notes |
 |------|---------|-------|
-| Node.js | 22 LTS | + npm; pnpm and TypeScript are installed into `/config/.npm-global` at build time and appear on a fresh named volume; with a bind-mounted host directory run `npm i -g pnpm typescript` |
+| Node.js | 22 LTS | + npm; new images install pnpm and TypeScript under `/usr/local`, independent of how `/config` is mounted. In the published `ubuntu-xfce-1.0.35` and older images they live in `/config/.npm-global` and are hidden by a bind-mounted host directory; run `npm i -g pnpm typescript` there |
 | Go | 1.22.4 | |
 | Rust | stable | + Cargo |
 | Python 3 | System | + pip, venv, uv |
@@ -386,7 +387,7 @@ workspacectl network domain dev.example.com
 # Optional: private Tailscale networking without NET_ADMIN
 agent-workspace-manager install tailscale
 workspacectl tailscale login
-workspacectl tailscale serve
+workspacectl tailscale serve   # uses an https+insecure:// upstream when code-server TLS is enabled (default)
 
 # Show application capability status
 agent-workspace-manager status
@@ -433,7 +434,7 @@ workspacectl services
 workspacectl service restart openclaw
 workspacectl s6 status svc-selkies
 workspacectl logs openclaw
-workspacectl ports
+workspacectl ports   # merges user and sudo views, including root-owned nginx on 3000/3001
 workspacectl browser status
 workspacectl desktop status
 
@@ -456,8 +457,9 @@ cookie, and signed-in session, so managed mode is intended for trusted Agents in
 a single-user workspace.
 
 Native desktop applications use `/config/bin/agent-desktop-mcp`. This requires
-the Wayland desktop mode (`PIXELFLUX_WAYLAND=true` with `PIXELFLUX_CU=8764`);
-check it with `workspacectl desktop status`. The safety
+the Wayland desktop mode (`PIXELFLUX_WAYLAND=true` with `PIXELFLUX_CU=8764`). New images
+meet this by default; with the published `ubuntu-xfce-1.0.35` and older images set both variables when creating the container.
+Check it with `workspacectl desktop status`. The safety
 bridge is loopback-only at `127.0.0.1:8765`. Upstream PixelFlux currently binds
 its internal port `8764` to the container interface, so never publish it through
 Docker, Caddy, or Tailscale, and do not join an untrusted Docker network. The bridge provides screenshot, click,
@@ -497,9 +499,9 @@ the module source remains available for development:
 | Module | Path | Description |
 |--------|------|-------------|
 | code-server | `addons/code-server` | Official standalone runtime, password authentication, and persistent user service |
-| Control Center | `extensions/control-center` | Unified onboarding plus Agents, resources, services, desktop, networking, and diagnostics |
+| Control Center | `extensions/control-center` | Unified onboarding plus Agents, resources, services, desktop, networking, and diagnostics; "Open desktop" opens Selkies through code-server's `/proxy/3000/` |
 | Custom-domain routing | `addons/proxyctl` | Caddy backend installed automatically by `workspacectl network domain` for deployments with existing DNS, TLS, and gateway authentication |
-| Selkies Desktop | `extensions/selkies-desktop` | code-server extension that opens the Selkies desktop in one click through the same-origin `/proxy/3000/` route |
+| Selkies Desktop | `extensions/selkies-desktop` | code-server extension that opens the Selkies desktop in one click through the same-origin `/proxy/3000/` route; also available in Restricted Mode (untrusted workspaces) |
 | Desktop Computer Use | `addons/desktop-bridge` | Same-screen control, global MCP, loopback boundary, and emergency stop |
 | Tailscale network | `addons/tailscale` | Userspace private networking and Tailnet Serve without `NET_ADMIN` |
 | DeepSeek Harness | `addons/deepseek-harness` | Official `dsh`, persistent state, same-origin Web UI, and global resource bridge |
@@ -592,13 +594,19 @@ docker start agent-workspace
   an existing TLS gateway, see [Remote Workspace Profiles](docs/remote-workspace.md))
   or import the certificate into the system/browser trust store. For temporary
   testing, Firefox or Chrome's `--unsafely-treat-insecure-origin-as-secure` option can help.
-- **Desktop Computer Use**: in the default X11 mode `workspacectl desktop status`
-  reports the backend as unavailable; create the container with
-  `PIXELFLUX_WAYLAND=true` and `PIXELFLUX_CU=8764`.
+- **Desktop Computer Use**: the native PixelFlux endpoint only starts in Wayland
+  mode. New images enable Wayland by default; the published `ubuntu-xfce-1.0.35` and older images default to X11, where
+  `workspacectl desktop status` reports the backend as unavailable, so create the
+  container with `PIXELFLUX_WAYLAND=true` and `PIXELFLUX_CU=8764`. Computer Use is
+  unavailable if you fall back to X11 with `PIXELFLUX_WAYLAND=false`.
 - **Desktop through code-server**: with `CUSTOM_USER` / `PASSWORD` set,
   `/proxy/3000/` still asks for Basic authentication once.
-- **pnpm / TypeScript**: bind-mounting an empty host directory over `/config`
-  hides the image's `/config/.npm-global`; run `npm i -g pnpm typescript`.
+- **pnpm / TypeScript (older images only)**: in the published `ubuntu-xfce-1.0.35` and older images, bind-mounting an empty
+  host directory over `/config` hides `/config/.npm-global`; run `npm i -g pnpm typescript`.
+  New images install them under `/usr/local`.
+- **UI language**: the Control Center language toggle ("中文" / "EN") switches the whole
+  code-server UI language and restarts code-server (see
+  [code-server Extensions](docs/code-server-extensions.md)); save open edits first.
 
 ## Architecture Support
 
