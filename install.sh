@@ -804,7 +804,10 @@ install_agents_in_container() {
         flags="$flags --china-mirror"
     fi
 
-    docker exec "$CONTAINER_NAME" install-agent.sh $flags ${INSTALL_AGENTS[*]} \
+    # Install as the desktop user (abc); running as root leaves root-owned
+    # files such as /config/.codex that the Agent cannot write at login.
+    docker exec -u abc -e HOME=/config "$CONTAINER_NAME" \
+        install-agent.sh $flags "${INSTALL_AGENTS[@]}" \
         || print_warning "Agent installation failed, please install manually"
 
     print_success "$(get_text agent_install_success)"
@@ -1305,9 +1308,12 @@ main() {
     # 等待服务就绪（HTTP 探测）
     print_info "$(get_text waiting_service)"
     local max_wait=120
-    local waited=0
+    local waited=0 http_code=""
     while [ $waited -lt $max_wait ]; do
-        if docker exec "$CONTAINER_NAME" curl -sf http://localhost:3000/ > /dev/null 2>&1; then
+        # Port 3000 answers 401 when CUSTOM_USER/PASSWORD are set (always here),
+        # so treat any HTTP response as ready, like the image HEALTHCHECK.
+        http_code="$(docker exec "$CONTAINER_NAME" curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/ 2>/dev/null || true)"
+        if [[ "$http_code" =~ ^[234][0-9][0-9]$ ]]; then
             break
         fi
         sleep 3
@@ -1338,12 +1344,13 @@ print_access_info() {
     echo "========================================"
     echo ""
 
-    local IP
+    local IP=""
     if command -v hostname &> /dev/null; then
-        IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "localhost")
-    else
-        IP="localhost"
+        # `hostname -I` is Linux-only (fails on macOS); the pipeline's status is
+        # awk's, so fall back explicitly when nothing was printed.
+        IP=$(hostname -I 2>/dev/null | awk '{print $1}')
     fi
+    IP="${IP:-localhost}"
 
     if [ "$USE_HOST_NETWORK" = true ]; then
         print_info "🖥️  $(get_text desktop_url) (HTTPS): https://${IP}:3001/"

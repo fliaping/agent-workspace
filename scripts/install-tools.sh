@@ -101,7 +101,9 @@ print(vers[0] if vers else '')
 
     # Use mirror registry during build for speed
     npm config set registry "${NPM_REGISTRY}" --global
-    npm install -g pnpm typescript
+    # Install into the image (/usr/local), not NPM_CONFIG_PREFIX=/config/.npm-global:
+    # /config is normally a volume/bind mount at runtime and would hide them.
+    npm install -g --prefix /usr/local pnpm typescript
     pnpm config set registry "${NPM_REGISTRY}"
     npm cache clean --force
 

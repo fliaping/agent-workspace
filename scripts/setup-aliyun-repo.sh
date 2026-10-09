@@ -66,7 +66,7 @@ if [ -z "$LOCAL_IMAGE" ]; then
     print_warning "未找到本地 agent-workspace 镜像"
     echo ""
     echo "请先用以下命令构建镜像："
-    echo "  docker build -t ${FULL_REPO}:v1.0.0 -f Dockerfile_zh ."
+    echo "  docker build -t ${FULL_REPO}:v1.0.0 --build-arg USE_CHINA_MIRROR=true -f Dockerfile ."
     echo ""
     echo "或使用现有镜像："
     echo "  docker pull xuping/agent-workspace:v1.0.0-zh"

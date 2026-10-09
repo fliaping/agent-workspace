@@ -31,11 +31,14 @@ ENV USE_CHINA_MIRROR=${USE_CHINA_MIRROR}
 
 # Selkies 桌面流：默认使用恒定质量 CRF，并允许按浏览器窗口动态调整分辨率。
 # 保留 CBR 作为弱网场景下的可选项；GCC 会强制自适应码率并降低动态画质，因此默认关闭。
+# 上游 Webtop 默认是 X11（Xvfb）；PixelFlux 的原生 Computer Use 接口（PIXELFLUX_CU）
+# 只在 Wayland 模式下启动，因此显式开启 Wayland。遇到兼容问题可用 PIXELFLUX_WAYLAND=false 回退 X11。
 ENV SELKIES_ENABLE_RATE_CONTROL=true \
     SELKIES_RATE_CONTROL_MODE=crf,cbr \
     SELKIES_CONGESTION_CONTROL=false \
     SELKIES_ENABLE_RESIZE=true \
     XFCE_PANEL_SCALING=true \
+    PIXELFLUX_WAYLAND=true \
     PIXELFLUX_CU=8764
 
 # 工具版本

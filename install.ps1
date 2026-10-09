@@ -606,7 +606,9 @@ function Install-AgentsInContainer {
     $agentArgs = $script:InstallAgents -join " "
     Write-Info "Installing agents: $agentArgs"
 
-    docker exec $script:ContainerName bash -c "install-agent.sh $flags $agentArgs"
+    # Install as the desktop user (abc); running as root leaves root-owned
+    # files such as /config/.codex that the Agent cannot write at login.
+    docker exec -u abc -e HOME=/config $script:ContainerName bash -c "install-agent.sh $flags $agentArgs"
     if ($LASTEXITCODE -ne 0) {
         Write-Warn "Agent installation failed, please install manually"
     }
@@ -804,8 +806,10 @@ function Main {
     $maxWait = 120
     $waited = 0
     while ($waited -lt $maxWait) {
-        $health = docker exec $script:ContainerName curl -sf http://localhost:3000/ 2>$null
-        if ($LASTEXITCODE -eq 0) { break }
+        # Port 3000 answers 401 when CUSTOM_USER/PASSWORD are set (always here),
+        # so treat any HTTP response as ready, like the image HEALTHCHECK.
+        $health = docker exec $script:ContainerName curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/ 2>$null
+        if ("$health" -match '^[234][0-9][0-9]$') { break }
         Write-Host "." -NoNewline
         Start-Sleep -Seconds 3
         $waited += 3

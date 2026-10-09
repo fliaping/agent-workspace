@@ -203,6 +203,20 @@ function strings() {
   };
 }
 
+// code-server rewrites localhost URLs passed to openExternal into its own
+// /proxy/<port>/ route, which speaks plain HTTP to the port. The default
+// desktop URL (https://localhost:3001) is nginx's HTTPS listener, so that route
+// returns "400 plain HTTP request was sent to HTTPS port". For loopback URLs,
+// open Selkies' HTTP listener on 3000 through the same authenticated proxy.
+async function desktopExternalUri(configured) {
+  const uri = vscode.Uri.parse(configured || 'https://localhost:3001');
+  const host = uri.authority.replace(/^.*@/, '').replace(/:\d+$/, '').replace(/^\[|\]$/g, '');
+  if (['localhost', '127.0.0.1', '::1'].includes(host.toLowerCase())) {
+    return vscode.env.asExternalUri(vscode.Uri.parse('http://localhost:3000/'));
+  }
+  return uri;
+}
+
 class ControlCenter {
   constructor(context) {
     this.context = context;
@@ -391,7 +405,7 @@ class ControlCenter {
       await vscode.commands.executeCommand('selkiesDesktop.open');
       return;
     }
-    await vscode.env.openExternal(vscode.Uri.parse(this.config().desktopUrl));
+    await vscode.env.openExternal(await desktopExternalUri(this.config().desktopUrl));
   }
 
   async setupBrowser() {

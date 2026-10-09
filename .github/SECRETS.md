@@ -56,12 +56,12 @@
 ### Docker Hub（英文镜像）
 - 仓库地址：`https://hub.docker.com/r/xuping/agent-workspace`
 - 镜像名称：`xuping/agent-workspace`
-- 使用 Dockerfile：`Dockerfile_en`
+- 使用 Dockerfile：`Dockerfile`（`DESKTOP` 构建参数选择桌面）
 
 ### 阿里云容器镜像服务（中文镜像）
 - 仓库地址：`https://cr.console.aliyun.com/`
 - 镜像名称：`registry.cn-hangzhou.aliyuncs.com/fliaping/agent-workspace`
-- 使用 Dockerfile：`Dockerfile_zh`
+- 使用 Dockerfile：`Dockerfile`（与 Docker Hub 相同的构建，`DESKTOP` 构建参数选择桌面）
 
 ## 触发构建
 

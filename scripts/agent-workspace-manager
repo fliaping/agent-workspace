@@ -176,7 +176,9 @@ class WorkspaceManager:
             log(f"updating {source} from {url} ({ref})")
             run(["git", "-C", str(source), "remote", "set-url", "origin", url], check=False)
             run(["git", "-C", str(source), "fetch", "--depth", "1", "origin", ref])
-            run(["git", "-C", str(source), "checkout", "-B", ref, f"origin/{ref}"])
+            # The checkout is a single-branch shallow clone, so fetching another
+            # ref does not create origin/<ref>; FETCH_HEAD always names what was fetched.
+            run(["git", "-C", str(source), "checkout", "-B", ref, "FETCH_HEAD"])
         elif source.exists():
             raise ManagerError(f"{source} exists but is not a git checkout")
         else:
@@ -514,8 +516,12 @@ class WorkspaceManager:
 
         env = os.environ.copy()
         env["CUSTOM_SERVICES_DIR"] = str(services_dir)
+        command = ["bash", str(registrar_path)]
+        if os.geteuid() != 0:
+            # /run/service is root-owned; sudo resets the environment, so pass the directory explicitly.
+            command = ["sudo", "-n", "env", f"CUSTOM_SERVICES_DIR={services_dir}", *command]
         log(f"registering custom s6 services from {services_dir}")
-        run(["bash", str(registrar_path)], env=env)
+        run(command, env=env)
 
     def load_agent_wizard(self):  # type: ignore[no-untyped-def]
         root = self.source_root()
