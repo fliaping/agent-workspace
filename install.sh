@@ -1344,12 +1344,13 @@ print_access_info() {
     echo "========================================"
     echo ""
 
-    local IP
+    local IP=""
     if command -v hostname &> /dev/null; then
-        IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "localhost")
-    else
-        IP="localhost"
+        # `hostname -I` is Linux-only (fails on macOS); the pipeline's status is
+        # awk's, so fall back explicitly when nothing was printed.
+        IP=$(hostname -I 2>/dev/null | awk '{print $1}')
     fi
+    IP="${IP:-localhost}"
 
     if [ "$USE_HOST_NETWORK" = true ]; then
         print_info "🖥️  $(get_text desktop_url) (HTTPS): https://${IP}:3001/"
