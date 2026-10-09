@@ -22,6 +22,14 @@ services:
       SELKIES_CONGESTION_CONTROL: "false"
       SELKIES_ENABLE_RESIZE: "true"
       NODE_OPTIONS: --max-old-space-size=2048
+      # Optional unattended Tailscale login (see .env.remote.example). The key is
+      # moved out of the container environment at boot and never logged.
+      TAILSCALE_AUTHKEY: ${TAILSCALE_AUTHKEY:-}
+      TAILSCALE_AUTHKEY_FILE: ${TAILSCALE_AUTHKEY_FILE:-}
+      TAILSCALE_HOSTNAME: ${TAILSCALE_HOSTNAME:-agent-workspace}
+      TAILSCALE_ADVERTISE_TAGS: ${TAILSCALE_ADVERTISE_TAGS:-}
+      TAILSCALE_EXTRA_ARGS: ${TAILSCALE_EXTRA_ARGS:-}
+      TAILSCALE_SERVE: ${TAILSCALE_SERVE:-false}
     volumes:
       - ${AGENT_WORKSPACE_DATA:-./webtop-data}:/config
     ports:
