@@ -1308,9 +1308,12 @@ main() {
     # 等待服务就绪（HTTP 探测）
     print_info "$(get_text waiting_service)"
     local max_wait=120
-    local waited=0
+    local waited=0 http_code=""
     while [ $waited -lt $max_wait ]; do
-        if docker exec "$CONTAINER_NAME" curl -sf http://localhost:3000/ > /dev/null 2>&1; then
+        # Port 3000 answers 401 when CUSTOM_USER/PASSWORD are set (always here),
+        # so treat any HTTP response as ready, like the image HEALTHCHECK.
+        http_code="$(docker exec "$CONTAINER_NAME" curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/ 2>/dev/null || true)"
+        if [[ "$http_code" =~ ^[234][0-9][0-9]$ ]]; then
             break
         fi
         sleep 3
