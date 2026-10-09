@@ -55,22 +55,31 @@ for variable_name in PANEL1_BASE_SIZE PANEL1_BASE_ICON_SIZE PANEL2_BASE_SIZE; do
 done
 
 SESSION_PID=""
+SESSION_ENV=""
 DBUS_ADDRESS=""
 SESSION_DISPLAY=""
 SESSION_WAYLAND_DISPLAY=""
 SESSION_RUNTIME_DIR=""
 
+# /proc/<pid>/environ of another user needs CAP_SYS_PTRACE, which Docker does
+# not grant to root (test -r still succeeds), so read it as the session owner.
+read_session_environ() {
+    s6-setuidgid abc cat "/proc/${SESSION_PID}/environ" 2>/dev/null | tr '\0' '\n'
+}
+
 read_session_value() {
     local key="$1"
-    tr '\0' '\n' < "/proc/${SESSION_PID}/environ" 2>/dev/null \
+    printf '%s\n' "$SESSION_ENV" \
         | sed -n "s/^${key}=//p" \
         | head -n 1
 }
 
 load_session() {
+    local waiting_logged=0
     while true; do
         SESSION_PID=$(pgrep -u abc -x xfce4-session 2>/dev/null | head -n 1)
-        if [ -n "$SESSION_PID" ] && [ -r "/proc/${SESSION_PID}/environ" ]; then
+        if [ -n "$SESSION_PID" ]; then
+            SESSION_ENV=$(read_session_environ)
             DBUS_ADDRESS=$(read_session_value DBUS_SESSION_BUS_ADDRESS)
             SESSION_DISPLAY=$(read_session_value DISPLAY)
             SESSION_WAYLAND_DISPLAY=$(read_session_value WAYLAND_DISPLAY)
@@ -82,6 +91,10 @@ load_session() {
                 echo "[xfce-panel-scale] Connected to XFCE session ${SESSION_PID} (${SESSION_WAYLAND_DISPLAY})"
                 return 0
             fi
+        fi
+        if [ "$waiting_logged" -eq 0 ]; then
+            echo "[xfce-panel-scale] Waiting for the XFCE session environment"
+            waiting_logged=1
         fi
         sleep 2
     done
