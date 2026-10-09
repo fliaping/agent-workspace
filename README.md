@@ -315,6 +315,11 @@ code-server 默认监听 `0.0.0.0:8443`，因此需要在创建容器时映射 `
 | `PIXELFLUX_WAYLAND` | `true`（新镜像） | 桌面以上游 Wayland（labwc）模式运行，桌面 Computer Use 依赖该模式；设为 `false` 回退 X11（Xvfb）。已发布的 `ubuntu-xfce-1.0.35` 及更早镜像未设置该变量，默认仍为 X11，需要 Computer Use 时请显式设为 `true` |
 | `PIXELFLUX_CU` | `8764` | Selkies 原生 Computer Use 内部端口（仅 Wayland 模式生效）。源码 Dockerfile 默认设置该值，较早构建的镜像（如 `ubuntu-xfce-1.0.35`）未内置，需显式添加 `-e PIXELFLUX_CU=8764`；上游绑定容器接口，绝不能通过 Docker 或代理暴露 |
 | `XFCE_PANEL_SCALING` | `true` | Wayland 缩放变化时同步调整 XFCE 面板与图标；设为 `false` 可关闭 |
+| `TAILSCALE_AUTHKEY` / `TS_AUTHKEY` | 不设置 | Tailscale 认证密钥；设置后首次启动自动安装 Tailscale 并加入 Tailnet。启动时会从容器环境中移除，仅以 `0600` 文件形式交给 `tailscale up --auth-key=file:`，登录后删除，不会写入日志或 `workspacectl status` |
+| `TAILSCALE_AUTHKEY_FILE` | 不设置 | 容器内的密钥文件路径（如 Docker secret `/run/secrets/tailscale-authkey`），比直接传环境变量更安全 |
+| `TAILSCALE_HOSTNAME` | `agent-workspace` | Tailnet 中的设备名 |
+| `TAILSCALE_ADVERTISE_TAGS` / `TAILSCALE_EXTRA_ARGS` | 不设置 | 透传给 `tailscale up` 的 `--advertise-tags` 与其他参数（如 `--ssh`） |
+| `TAILSCALE_SERVE` | `false` | 设为 `true` 时登录后自动执行 `workspacectl tailscale serve`（需先在 Tailnet 管理后台启用 Serve / HTTPS） |
 
 ## Docker 模式
 
@@ -375,6 +380,7 @@ workspacectl network domain dev.example.com
 agent-workspace-manager install tailscale
 workspacectl tailscale login
 workspacectl tailscale serve   # code-server 启用 TLS（默认）时使用 https+insecure:// 上游
+# 无人值守：用 TAILSCALE_AUTHKEY 或 TAILSCALE_AUTHKEY_FILE 创建容器，首次启动自动登录（见环境变量表）
 
 # 查看应用能力状态
 agent-workspace-manager status

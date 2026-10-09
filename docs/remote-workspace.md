@@ -113,9 +113,34 @@ workspacectl tailscale login
 workspacectl tailscale serve
 ```
 
-Login remains interactive and Control Center never stores an auth key. Serve
-publishes code-server only inside the tailnet; Selkies remains available through
-code-server's same-origin `/proxy/3000/` path.
+Login is interactive by default and Control Center never stores an auth key.
+Serve publishes code-server only inside the tailnet; Selkies remains available
+through code-server's same-origin `/proxy/3000/` path. The first `serve` on a
+tailnet may print an admin-console link to enable Serve/HTTPS.
+
+### Unattended login with an auth key
+
+Images built from this change can join the tailnet at first boot. Set one of:
+
+| Variable | Purpose |
+|----------|---------|
+| `TAILSCALE_AUTHKEY` (alias `TS_AUTHKEY`) | Auth key value |
+| `TAILSCALE_AUTHKEY_FILE` | Path to a file inside the container that holds the key (preferred, e.g. a Docker secret) |
+| `TAILSCALE_HOSTNAME` | Device name (default `agent-workspace`) |
+| `TAILSCALE_ADVERTISE_TAGS` | `--advertise-tags` value, e.g. `tag:agent-workspace` |
+| `TAILSCALE_EXTRA_ARGS` | Extra `tailscale up` arguments, split on whitespace |
+| `TAILSCALE_SERVE` | `true` to run `workspacectl tailscale serve` after login |
+
+With `scripts/remote-up.sh`, add them to `.env.remote`; `docker-compose.remote.yml`
+passes them through. At startup a `custom-cont-init.d` hook removes the key from
+the s6 container environment (whose files are world-readable), writes it to a
+`0600` file under `/run/agent-workspace`, and `workspace-bootstrap` installs
+Tailscale if needed and runs `workspacectl tailscale autoconnect`, which calls
+`tailscale up --auth-key=file:<path>`. The staged file is deleted after the
+attempt, and the step is skipped when the node is already logged in, so the key
+is only used once. It is never printed, but the original variable stays visible
+to `docker inspect` and `docker exec`; prefer `TAILSCALE_AUTHKEY_FILE`, and use a
+one-off, pre-approved, tagged key with a short expiry.
 
 ## Persistence boundary
 
