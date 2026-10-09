@@ -20,7 +20,8 @@ case "$target" in
 esac
 
 mkdir -p "$state_dir"
-chown abc:abc "$state_dir" 2>/dev/null || true
+# mkdir -p runs as root here; keep every level writable for the abc-run installers.
+chown abc:abc /config/.local /config/.local/state "$state_dir" 2>/dev/null || true
 
 run_manager() {
   s6-setuidgid abc env HOME=/config agent-workspace-manager "$@"
