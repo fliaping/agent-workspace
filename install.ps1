@@ -606,7 +606,9 @@ function Install-AgentsInContainer {
     $agentArgs = $script:InstallAgents -join " "
     Write-Info "Installing agents: $agentArgs"
 
-    docker exec $script:ContainerName bash -c "install-agent.sh $flags $agentArgs"
+    # Install as the desktop user (abc); running as root leaves root-owned
+    # files such as /config/.codex that the Agent cannot write at login.
+    docker exec -u abc -e HOME=/config $script:ContainerName bash -c "install-agent.sh $flags $agentArgs"
     if ($LASTEXITCODE -ne 0) {
         Write-Warn "Agent installation failed, please install manually"
     }

@@ -804,7 +804,10 @@ install_agents_in_container() {
         flags="$flags --china-mirror"
     fi
 
-    docker exec "$CONTAINER_NAME" install-agent.sh $flags ${INSTALL_AGENTS[*]} \
+    # Install as the desktop user (abc); running as root leaves root-owned
+    # files such as /config/.codex that the Agent cannot write at login.
+    docker exec -u abc -e HOME=/config "$CONTAINER_NAME" \
+        install-agent.sh $flags "${INSTALL_AGENTS[@]}" \
         || print_warning "Agent installation failed, please install manually"
 
     print_success "$(get_text agent_install_success)"
