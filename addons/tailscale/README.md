@@ -16,7 +16,7 @@ Center. After sign-in, expose the complete code-server workspace (including
 its `/proxy/3000` Selkies route) only to the tailnet:
 
 ```bash
-tailscale serve --bg http://127.0.0.1:8443
+workspacectl tailscale serve   # https+insecure://127.0.0.1:8443 when code-server uses TLS (default)
 tailscale serve status --json
 ```
 

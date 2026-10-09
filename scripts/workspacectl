@@ -131,6 +131,23 @@ run_tailscale() {
   tailscale "$@"
 }
 
+code_server_serve_target() {
+  # code-server serves HTTPS when cert is enabled (the remote default); a plain
+  # http:// upstream only gets a 302 to https://127.0.0.1:<port>/.
+  local config="${CODE_SERVER_CONFIG:-$config_root/.config/code-server/config.yaml}"
+  local bind="" cert="" port
+  if [[ -r "$config" ]]; then
+    bind="$(sed -n 's/^bind-addr:[[:space:]]*//p' "$config" | tail -n 1)"
+    cert="$(sed -n 's/^cert:[[:space:]]*//p' "$config" | tail -n 1)"
+  fi
+  port="${bind##*:}"
+  [[ "$port" =~ ^[0-9]+$ ]] || port=8443
+  case "${cert//[\"\']/}" in
+    ""|false) echo "http://127.0.0.1:$port" ;;
+    *) echo "https+insecure://127.0.0.1:$port" ;;
+  esac
+}
+
 command_path() {
   command -v "$1" 2>/dev/null || true
 }
@@ -373,7 +390,7 @@ case "${1:-help}" in
         run_tailscale up --hostname="${TAILSCALE_HOSTNAME:-agent-workspace}" --accept-dns=false "$@"
         ;;
       serve)
-        run_tailscale serve --bg http://127.0.0.1:8443
+        run_tailscale serve --bg "$(code_server_serve_target)"
         ;;
       logout)
         run_tailscale logout
