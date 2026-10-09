@@ -2,7 +2,7 @@
   "name": "selkies-desktop",
   "displayName": "Selkies Desktop",
   "description": "Open the local Selkies desktop in code-server with persistent client settings.",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "publisher": "agent-workspace",
   "engines": {
     "vscode": "^1.85.0"
@@ -20,6 +20,15 @@
     "onCommand:selkiesDesktop.resetClientDefaults"
   ],
   "main": "./extension.js",
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true,
+      "description": "Selkies Desktop only opens the container desktop view and does not execute workspace project files."
+    },
+    "virtualWorkspaces": {
+      "supported": true
+    }
+  },
   "contributes": {
     "commands": [
       {
