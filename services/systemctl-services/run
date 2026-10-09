@@ -20,6 +20,8 @@ USER_SYSTEMD_ENV_FILE="${USER_SYSTEMD_RUN_DIR}/environment"
 mkdir -p "$USER_SYSTEMD_RUN_DIR"
 (
     umask 077
+    # Never persist a Tailscale auth key into /config.
+    unset TAILSCALE_AUTHKEY TS_AUTHKEY
     export -p > "$USER_SYSTEMD_ENV_FILE"
 )
 chown abc:abc "$USER_LOCAL_RUN_DIR" 2>/dev/null || true
